@@ -1,0 +1,2263 @@
+import React, { useState, useEffect, useCallback } from 'react'
+import { useParams, Link } from 'react-router-dom'
+import { 
+  Users, 
+  UserCheck, 
+  Settings, 
+  Server, 
+  Database,
+  RefreshCw,
+  AlertCircle,
+  X
+} from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { useAuthContext } from '../../contexts/AuthContext'
+import Badge from '../../components/ui/badge'
+import { Button } from '../../components/ui/button'
+import { Card } from '../../components/ui/card'
+import { useToast } from '../../components/ui/toast'
+import { FiUsers, FiList, FiLayout, FiServer } from 'react-icons/fi'
+import { SimpleModal } from '../../components/SimpleModal'
+import { BentoGrid, BentoGridItem } from '../../components/ui/bento-grid'
+
+// Import new components
+import SystemInfoCards from '../../components/mikrotik/SystemInfoCards'
+import HotspotUsersTab from '../../components/mikrotik/HotspotUsersTab'
+import HotspotProfilesTab from '../../components/mikrotik/HotspotProfilesTab'
+import HotspotServersTab from '../../components/mikrotik/HotspotServersTab'
+import HotspotServerProfilesTab from '../../components/mikrotik/HotspotServerProfilesTab'
+import ActiveUsersTab from '../../components/mikrotik/ActiveUsersTab'
+
+// Import modals
+import UserModal from '../../components/mikrotik/modals/UserModal'
+import ProfileModal from '../../components/mikrotik/modals/ProfileModal'
+import ServerModal from '../../components/mikrotik/modals/ServerModal'
+import ServerProfileModal from '../../components/mikrotik/modals/ServerProfileModal'
+
+// Types
+interface MikrotikStats {
+  version?: string
+  uptime?: string
+  'cpu-load'?: string
+  'free-memory'?: string
+  'total-memory'?: string
+  'free-hdd-space'?: string
+  'total-hdd-space'?: string
+  'board-name'?: string
+  // Nested objects
+  resource?: {
+    'architecture-name'?: string
+    'board-name'?: string
+    'cpu-count'?: string
+    'cpu-frequency'?: string
+    'cpu-load'?: string
+    cpu?: string
+    'free-memory'?: string
+    'total-memory'?: string
+    'free-hdd-space'?: string
+    'total-hdd-space'?: string
+    uptime?: string
+    version?: string
+    'write-sect-since-reboot'?: string
+    'write-sect-total'?: string
+    'bad-blocks'?: string
+  }
+  routerboard?: {
+    model?: string
+    'serial-number'?: string
+    'firmware-type'?: string
+    'current-firmware'?: string
+    routerboard?: string
+  }
+  identity?: {
+    name?: string
+  }
+}
+
+interface HotspotUser {
+  '.id': string
+  name: string
+  password?: string
+  profile?: string
+  comment?: string
+  disabled?: boolean
+}
+
+interface ActiveUser {
+  '.id': string
+  user: string
+  address: string
+  'mac-address': string
+  'login-time': string
+  uptime: string
+  'bytes-in': string
+  'bytes-out': string
+  profile?: string
+}
+
+interface HotspotProfile {
+  '.id': string
+  name: string
+  'rate-limit'?: string
+  'session-timeout'?: string
+  'idle-timeout'?: string
+  valor?: number
+  disabled?: boolean
+  inDatabase?: boolean
+  supabaseId?: string
+  comment?: string
+}
+
+interface HotspotServer {
+  '.id': string
+  name: string
+  interface?: string
+  'address-pool'?: string
+  profile?: string
+  disabled?: boolean
+  comment?: string
+}
+
+interface HotspotServerProfile {
+  '.id': string
+  name: string
+  'html-directory'?: string
+  'login-page'?: string
+  'split-user-domain'?: string
+  disabled?: boolean
+  comment?: string
+}
+
+interface Template {
+  id: string
+  name: string
+  description: string
+  preview: string
+  files: {
+    login: string
+  }
+  variables: TemplateVariable[]
+}
+
+interface TemplateVariable {
+  key: string
+  label: string
+  description: string
+  defaultValue: string
+  required: boolean
+  type: 'text' | 'color' | 'url' | 'number'
+}
+
+interface TemplateProfileModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: (profileId: string) => void;
+  profiles: HotspotProfile[];
+}
+
+// Add type for event
+interface SelectChangeEvent extends React.ChangeEvent<HTMLSelectElement> {
+  target: HTMLSelectElement;
+}
+
+// Helper function to format memory values
+const formatMemory = (bytes?: string): string => {
+  if (!bytes) return '0 MB'
+  
+  const numBytes = parseInt(bytes)
+  if (isNaN(numBytes)) return bytes
+  
+  if (numBytes >= 1024 * 1024 * 1024) {
+    return `${(numBytes / (1024 * 1024 * 1024)).toFixed(1)} GB`
+  } else if (numBytes >= 1024 * 1024) {
+    return `${(numBytes / (1024 * 1024)).toFixed(0)} MB`
+  } else if (numBytes >= 1024) {
+    return `${(numBytes / 1024).toFixed(0)} KB`
+  } else {
+    return `${numBytes} B`
+  }
+}
+
+// Helper function to format uptime
+const formatUptime = (uptime?: string): string => {
+  if (!uptime) return 'N/A'
+  
+  // If uptime is already formatted, return as is
+  if (uptime.includes('d') || uptime.includes('h') || uptime.includes('m')) {
+    return uptime
+  }
+  
+  // If it's in seconds, convert to readable format
+  const seconds = parseInt(uptime)
+  if (isNaN(seconds)) return uptime
+  
+  const days = Math.floor(seconds / 86400)
+  const hours = Math.floor((seconds % 86400) / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  
+  if (days > 0) {
+    return `${days}d ${hours}h ${minutes}m`
+  } else if (hours > 0) {
+    return `${hours}h ${minutes}m`
+  } else {
+    return `${minutes}m`
+  }
+}
+
+// Helper function to get CPU info with better fallbacks
+const getCpuInfo = (stats: MikrotikStats | null) => {
+  if (!stats?.resource) return { load: '0%', type: 'N/A', frequency: 'N/A' }
+  
+  // CPU load já vem como número do backend, adicionar %
+  const load = stats.resource['cpu-load'] ? `${stats.resource['cpu-load']}%` : '0%'
+  // Prioriza o tipo de CPU (ex: "MIPS 1004Kc V2.15") sobre número de cores
+  const type = stats.resource.cpu || (stats.resource['cpu-count'] ? `${stats.resource['cpu-count']} Core${parseInt(stats.resource['cpu-count'] || '1') > 1 ? 's' : ''}` : 'N/A')
+  const frequency = stats.resource['cpu-frequency'] ? `${stats.resource['cpu-frequency']} MHz` : 'N/A'
+  
+  return { load, type, frequency }
+}
+
+// Helper function to get system info with better fallbacks
+const getSystemInfo = (stats: MikrotikStats | null) => {
+  if (!stats) return { model: 'N/A', identity: 'N/A', version: 'N/A' }
+  
+  // Usar exatamente a mesma lógica da MikrotiksList: stats?.routerboard?.model || stats?.resource?.['board-name'] || 'N/A'
+  const model = stats.routerboard?.model || stats.resource?.['board-name'] || 'RouterBoard'
+  const identity = stats.identity?.name || 'RouterOS'
+  const version = stats.routerboard?.['current-firmware'] || stats.resource?.version || stats.version || 'N/A'
+  
+  console.log('[getSystemInfo] Routerboard model:', stats.routerboard?.model)
+  console.log('[getSystemInfo] Board name:', stats.resource?.['board-name'])
+  console.log('[getSystemInfo] Selected model:', model)
+  
+  return { model, identity, version }
+}
+
+// Helper function to check if data is loading or missing
+const getDataStatus = (stats: MikrotikStats | null, loading: boolean) => {
+  if (loading) return 'Carregando...'
+  if (!stats) return 'Sem dados'
+  return null
+}
+
+// Add template components
+const TemplateProfileModal: React.FC<TemplateProfileModalProps> = ({ isOpen, onClose, onConfirm, profiles }) => {
+  const [selectedProfile, setSelectedProfile] = useState('')
+
+  const handleConfirm = () => {
+    onConfirm(selectedProfile)
+    onClose()
+  }
+
+  return (
+    <SimpleModal isOpen={isOpen} onClose={onClose} title="Selecionar Perfil">
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <label htmlFor="profile" className="block text-sm font-medium">
+            Perfil do Hotspot
+          </label>
+          <select
+            id="profile"
+            className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
+            value={selectedProfile}
+            onChange={(e) => setSelectedProfile(e.target.value)}
+          >
+            <option value="">Selecione um perfil</option>
+            {profiles.map((profile) => (
+              <option key={profile['.id']} value={profile['.id']}>
+                {profile.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex justify-end space-x-2">
+          <Button variant="outline" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button onClick={handleConfirm} disabled={!selectedProfile}>
+            Confirmar
+          </Button>
+        </div>
+      </div>
+    </SimpleModal>
+  )
+}
+
+export default function MikrotikDashboard() {
+  const { mikrotikId } = useParams<{ mikrotikId: string }>()
+  const { user, session } = useAuthContext()
+  const { addToast } = useToast()
+  
+  // States
+  const [stats, setStats] = useState<MikrotikStats | null>(null)
+  const [mikrotikInfo, setMikrotikInfo] = useState<any>(null) // Store mikrotik connection info
+  const [users, setUsers] = useState<HotspotUser[]>([])
+  const [activeUsers, setActiveUsers] = useState<ActiveUser[]>([])
+  const [profiles, setProfiles] = useState<HotspotProfile[]>([])
+  const [servers, setServers] = useState<HotspotServer[]>([])
+  const [serverProfiles, setServerProfiles] = useState<HotspotServerProfile[]>([])
+  const [supabasePlans, setSupabasePlans] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState('overview')
+  const [error, setError] = useState<string | null>(null)
+  const [cpuMemoryData, setCpuMemoryData] = useState<any>(null)
+
+  // Modal states
+  const [modals, setModals] = useState({
+    user: false,
+    profile: false,
+    server: false,
+    serverProfile: false,
+    templateProfile: false,
+    templateLoading: false,
+    wireguard: false
+  })
+
+  // Editing states
+  const [editingItems, setEditingItems] = useState({
+    user: null as HotspotUser | null,
+    profile: null as HotspotProfile | null,
+    server: null as HotspotServer | null,
+    serverProfile: null as HotspotServerProfile | null
+  })
+
+  // Template states
+  const [templates] = useState<Template[]>([
+    {
+      id: 'basic',
+      name: 'Template Básico',
+      description: 'Design simples e limpo para hotspot',
+      preview: '/templates/basic/preview.png',
+      files: {
+        login: '/templates/basic/login.html'
+      },
+      variables: [
+        {
+          key: 'PROVIDER_NAME',
+          label: 'Nome do Provedor',
+          description: 'Nome da sua empresa/provedor',
+          defaultValue: 'MikroPix',
+          required: true,
+          type: 'text'
+        },
+        {
+          key: 'LOGO_URL',
+          label: 'URL do Logo',
+          description: 'URL para o logo da empresa',
+          defaultValue: '/img/logo.png',
+          required: false,
+          type: 'url'
+        },
+        {
+          key: 'PRIMARY_COLOR',
+          label: 'Cor Primária',
+          description: 'Cor principal do template',
+          defaultValue: '#007bff',
+          required: false,
+          type: 'color'
+        }
+      ]
+    },
+    {
+      id: 'modern',
+      name: 'Template Moderno',
+      description: 'Design moderno com efeitos visuais',
+      preview: '/templates/modern/preview.png',
+      files: {
+        login: '/templates/modern/login.html'
+      },
+      variables: [
+        {
+          key: 'PROVIDER_NAME',
+          label: 'Nome do Provedor',
+          description: 'Nome da sua empresa/provedor',
+          defaultValue: 'MikroPix',
+          required: true,
+          type: 'text'
+        },
+        {
+          key: 'LOGO_URL',
+          label: 'URL do Logo',
+          description: 'URL para o logo da empresa',
+          defaultValue: '/img/logo.png',
+          required: false,
+          type: 'url'
+        },
+        {
+          key: 'PRIMARY_COLOR',
+          label: 'Cor Primária',
+          description: 'Cor principal do template',
+          defaultValue: '#6366f1',
+          required: false,
+          type: 'color'
+        },
+        {
+          key: 'WELCOME_MESSAGE',
+          label: 'Mensagem de Boas-vindas',
+          description: 'Mensagem exibida na tela de login',
+          defaultValue: 'Conecte-se à rede',
+          required: false,
+          type: 'text'
+        }
+      ]
+    },
+    {
+      id: 'business',
+      name: 'Template Empresarial',
+      description: 'Design profissional para empresas',
+      preview: '/templates/business/preview.png',
+      files: {
+        login: '/templates/business/login.html'
+      },
+      variables: [
+        {
+          key: 'PROVIDER_NAME',
+          label: 'Nome do Provedor',
+          description: 'Nome da sua empresa/provedor',
+          defaultValue: 'MikroPix',
+          required: true,
+          type: 'text'
+        },
+        {
+          key: 'LOGO_URL',
+          label: 'URL do Logo',
+          description: 'URL para o logo da empresa',
+          defaultValue: '/img/logo.png',
+          required: false,
+          type: 'url'
+        },
+        {
+          key: 'PRIMARY_COLOR',
+          label: 'Cor Primária',
+          description: 'Cor principal do template',
+          defaultValue: '#1f2937',
+          required: false,
+          type: 'color'
+        },
+        {
+          key: 'COMPANY_PHONE',
+          label: 'Telefone da Empresa',
+          description: 'Telefone para suporte',
+          defaultValue: '(11) 99999-9999',
+          required: false,
+          type: 'text'
+        },
+        {
+          key: 'SUPPORT_EMAIL',
+          label: 'Email de Suporte',
+          description: 'Email para contato',
+          defaultValue: 'suporte@mikropix.com',
+          required: false,
+          type: 'text'
+        }
+      ]
+    }
+  ])
+  const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null)
+  const [templateVariables, setTemplateVariables] = useState<Record<string, string>>({})
+  const [selectedServerProfile, setSelectedServerProfile] = useState<string>('')
+
+  // API functions
+  const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+  const headers = {
+    'Authorization': `Bearer ${session?.access_token || ''}`
+  }
+
+  // Helper function to get MikroTik connection parameters
+  const getMikrotikParams = () => {
+    if (mikrotikInfo) {
+      return {
+        ip: mikrotikInfo.ip || '10.8.0.3',
+        username: mikrotikInfo.username || 'admin',
+        password: mikrotikInfo.password || '260520',
+        port: mikrotikInfo.port?.toString() || '8728'
+      }
+    }
+    // Fallback to default values if mikrotikInfo is not available
+    return {
+      ip: '10.8.0.3',
+      username: 'admin',
+      password: '260520',
+      port: '8728'
+    }
+  }
+
+  // Separate fetch functions for each data type
+  const fetchStats = useCallback(async () => {
+    if (!mikrotikId || !session?.access_token) return
+
+    try {
+      // Usar o mesmo endpoint que a MikrotiksList para garantir dados consistentes
+      const statsRes = await fetch(`${baseUrl}/api/mikrotik/essential-info/${mikrotikId}`, { headers })
+      
+      if (statsRes.ok) {
+        const statsData = await statsRes.json()
+        console.log('Stats data received:', statsData)
+        
+        if (statsData.data?.mikrotik) {
+          setMikrotikInfo(statsData.data.mikrotik)
+        }
+        
+        // Agora usando essential-info (mesmo endpoint da MikrotiksList)
+        // Estrutura: { success: true, data: { resource: {...}, identity: {...}, routerboard: {...} } }
+        const resourceData = statsData.data?.resource || {}
+        const identityData = statsData.data?.identity || {}
+        const routerboardData = statsData.data?.routerboard || {}
+        
+        console.log('[Dashboard] Essential-info response:', JSON.stringify(statsData, null, 2))
+        console.log('[Dashboard] Resource data:', JSON.stringify(resourceData, null, 2))
+        console.log('[Dashboard] Identity data:', JSON.stringify(identityData, null, 2))
+        console.log('[Dashboard] Routerboard data:', JSON.stringify(routerboardData, null, 2))
+        console.log('[Dashboard] Board name:', resourceData['board-name'])
+        console.log('[Dashboard] Routerboard model:', routerboardData.model)
+        
+        // Estruturar dados exatamente como a MikrotiksList
+        const processedSystemData = {
+          resource: {
+            'board-name': resourceData['board-name'],
+            'cpu-load': resourceData['cpu-load'],
+            cpu: resourceData.cpu,
+            'cpu-frequency': resourceData['cpu-frequency'],
+            'free-memory': resourceData['free-memory'],
+            'total-memory': resourceData['total-memory'],
+            'free-hdd-space': resourceData['free-hdd-space'],
+            'total-hdd-space': resourceData['total-hdd-space'],
+            uptime: resourceData.uptime,
+            version: resourceData.version
+          },
+          identity: {
+            name: identityData.name
+          },
+          routerboard: {
+            model: routerboardData.model,
+            'serial-number': routerboardData['serial-number'],
+            'firmware-type': routerboardData['firmware-type'],
+            'current-firmware': routerboardData['current-firmware'],
+            routerboard: routerboardData.routerboard
+          }
+        }
+        
+        console.log('[Dashboard] Final processed data:', JSON.stringify(processedSystemData, null, 2))
+        setStats(processedSystemData)
+      } else {
+        const errorData = await statsRes.json().catch(() => ({}))
+        console.error('Stats response not ok:', statsRes.status, errorData)
+        
+        if (statsRes.status === 400 && errorData.needsConfiguration) {
+          setError(`Configuração do MikroTik incompleta: ${errorData.error}`)
+        } else {
+          setError('Erro ao carregar estatísticas do MikroTik')
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching stats:', error)
+      setError('Erro ao carregar dados do MikroTik. Verifique a conexão.')
+    }
+  }, [mikrotikId, session?.access_token, baseUrl])
+
+  const fetchUsers = useCallback(async () => {
+    if (!mikrotikId || !session?.access_token) return
+
+    try {
+      const usersRes = await fetch(`${baseUrl}/api/mikrotik/hotspot/users/${mikrotikId}`, { headers })
+      if (usersRes.ok) {
+        const usersData = await usersRes.json()
+        setUsers(usersData.data || [])
+      }
+    } catch (error) {
+      console.error('Error fetching users:', error)
+    }
+  }, [mikrotikId, session?.access_token, baseUrl])
+
+  const fetchActiveUsers = useCallback(async () => {
+    if (!mikrotikId || !session?.access_token) return
+
+    try {
+      const activeUsersRes = await fetch(`${baseUrl}/api/mikrotik/hotspot/active-users/${mikrotikId}`, { headers })
+      if (activeUsersRes.ok) {
+        const activeUsersData = await activeUsersRes.json()
+        setActiveUsers(activeUsersData.data || [])
+      }
+    } catch (error) {
+      console.error('Error fetching active users:', error)
+    }
+  }, [mikrotikId, session?.access_token, baseUrl])
+
+  const fetchProfiles = useCallback(async () => {
+    if (!mikrotikId || !session?.access_token) return
+
+    try {
+      const profilesRes = await fetch(`${baseUrl}/api/mikrotik/hotspot/profiles/${mikrotikId}`, { headers })
+      
+      if (profilesRes.ok) {
+        const profilesData = await profilesRes.json()
+        const mikrotikProfiles = profilesData.data || []
+        
+        let supabasePlansData: any[] = []
+        try {
+          const supabasePlansRes = await fetch(`${baseUrl}/api/planos?mikrotik_id=${mikrotikId}`, { headers })
+          if (supabasePlansRes.ok) {
+            const plansData = await supabasePlansRes.json()
+            supabasePlansData = plansData.data || []
+            setSupabasePlans(supabasePlansData)
+          }
+        } catch (error) {
+          console.error('Error parsing planos response:', error)
+          setSupabasePlans([])
+        }
+        
+        const enhancedProfiles = mikrotikProfiles.map((profile: any) => {
+          const matchingPlan = supabasePlansData.find(plan => plan.nome === profile.name)
+          return {
+            ...profile,
+            inDatabase: !!matchingPlan,
+            supabaseId: matchingPlan?.id,
+            valor: matchingPlan?.valor || profile.valor
+          }
+        })
+        
+        setProfiles(enhancedProfiles)
+      }
+    } catch (error) {
+      console.error('Error fetching profiles:', error)
+    }
+  }, [mikrotikId, session?.access_token, baseUrl])
+
+  const fetchServers = useCallback(async () => {
+    if (!mikrotikId || !session?.access_token) return
+
+    try {
+      const serversRes = await fetch(`${baseUrl}/api/mikrotik/hotspot/servers/${mikrotikId}`, { headers })
+      if (serversRes.ok) {
+        const serversData = await serversRes.json()
+        setServers(serversData.data || [])
+      }
+    } catch (error) {
+      console.error('Error fetching servers:', error)
+    }
+  }, [mikrotikId, session?.access_token, baseUrl])
+
+  const fetchServerProfiles = useCallback(async () => {
+    if (!mikrotikId || !session?.access_token) return
+
+    try {
+      const serverProfilesRes = await fetch(`${baseUrl}/api/mikrotik/hotspot/server-profiles/${mikrotikId}`, { headers })
+      if (serverProfilesRes.ok) {
+        const serverProfilesData = await serverProfilesRes.json()
+        setServerProfiles(serverProfilesData.data || [])
+      }
+    } catch (error) {
+      console.error('Error fetching server profiles:', error)
+    }
+  }, [mikrotikId, session?.access_token, baseUrl])
+
+  const fetchData = useCallback(async () => {
+    if (!mikrotikId || !session?.access_token) return
+
+    try {
+      setLoading(true)
+      setError(null)
+
+      // Fetch all data in parallel
+      await Promise.all([
+        fetchStats(),
+        fetchUsers(),
+        fetchActiveUsers(),
+        fetchProfiles(),
+        fetchServers(),
+        fetchServerProfiles()
+      ])
+
+
+    } catch (error) {
+      console.error('Error fetching data:', error)
+      setError('Erro ao carregar dados do MikroTik. Verifique a conexão.')
+    } finally {
+      setLoading(false)
+    }
+  }, [fetchStats, fetchUsers, fetchActiveUsers, fetchProfiles, fetchServers, fetchServerProfiles])
+
+  // Function to fetch CPU and Memory data only
+  const fetchCpuMemoryData = useCallback(async () => {
+    if (!mikrotikId || !session?.access_token) return
+
+    try {
+      const response = await fetch(`${baseUrl}/api/mikrotik/cpu-memory/${mikrotikId}`, { headers })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setCpuMemoryData(data.data)
+        
+        // Update stats resource data if stats exists - preserva routerboard e outros dados
+        setStats(prev => prev ? ({
+          ...prev,
+          resource: {
+            ...prev.resource,
+            'cpu-load': data.data.cpu.percentage.toString(), // Não adiciona % aqui pois a função getCpuInfo já adiciona
+            'total-memory': data.data.memory.total.toString(),
+            'free-memory': data.data.memory.free.toString()
+          }
+          // Preserva routerboard, identity e outros dados importantes
+        }) : null)
+      }
+    } catch (error) {
+      console.error('Error fetching CPU/Memory data:', error)
+    }
+  }, [mikrotikId, session?.access_token, baseUrl])
+
+  // Load all data on component mount
+  useEffect(() => {
+    if (!mikrotikId || !session?.access_token) return
+
+    const loadInitialData = async () => {
+      setLoading(true)
+      setError(null)
+
+      try {
+        // Fetch all data in parallel
+        await Promise.all([
+          fetchStats(),
+          fetchUsers(),
+          fetchActiveUsers(),
+          fetchProfiles(),
+          fetchServers(),
+          fetchServerProfiles()
+        ])
+      } catch (error) {
+        console.error('Error loading initial data:', error)
+        setError('Erro ao carregar dados do MikroTik. Verifique a conexão.')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadInitialData()
+  }, [mikrotikId, session?.access_token])
+
+  // Auto-update CPU/Memory every 15 seconds - só começa após carregamento inicial
+  useEffect(() => {
+    if (!mikrotikId || !session?.access_token || loading) return
+
+    // Só inicia a atualização automática se a página não estiver carregando
+    // Initial CPU/Memory fetch after 5 seconds (tempo para dados iniciais carregarem)
+    const timeoutId = setTimeout(() => {
+      fetchCpuMemoryData()
+    }, 5000)
+
+    // Set up interval for automatic updates
+    const interval = setInterval(() => {
+      fetchCpuMemoryData()
+    }, 15000) // 15 seconds
+
+    return () => {
+      clearTimeout(timeoutId)
+      clearInterval(interval)
+    }
+  }, [mikrotikId, session?.access_token, loading, fetchCpuMemoryData])
+
+  // Modal handlers
+  const openModal = (type: keyof typeof modals, item?: any) => {
+    setModals(prev => ({ ...prev, [type]: true }))
+    if (item) {
+      setEditingItems(prev => ({ ...prev, [type]: item }))
+    } else {
+      setEditingItems(prev => ({ ...prev, [type]: null }))
+    }
+  }
+
+  const closeModal = (type: keyof typeof modals) => {
+    setModals(prev => ({ ...prev, [type]: false }))
+    setEditingItems(prev => ({ ...prev, [type]: null }))
+  }
+
+  // User handlers
+  const handleCreateUser = () => openModal('user')
+  const handleEditUser = (user: HotspotUser) => openModal('user', user)
+  
+  const handleUserSubmit = async (userData: any) => {
+    try {
+      const url = editingItems.user 
+        ? `${baseUrl}/api/mikrotik/hotspot/users/${mikrotikId}/${editingItems.user['.id']}`
+        : `${baseUrl}/api/mikrotik/hotspot/users/${mikrotikId}`
+      
+      const method = editingItems.user ? 'PUT' : 'POST'
+      
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          ...headers
+        },
+        body: JSON.stringify(userData)
+      })
+
+      if (response.ok) {
+        closeModal('user')
+        await fetchUsers() // Refresh only users data
+        addToast({
+          type: 'success',
+          title: 'Sucesso!',
+          description: editingItems.user ? 'Usuário atualizado com sucesso!' : 'Usuário criado com sucesso!'
+        })
+      } else {
+        throw new Error('Erro ao salvar usuário')
+      }
+    } catch (error) {
+      console.error('Error saving user:', error)
+      addToast({
+        type: 'error',
+        title: 'Erro!',
+        description: 'Erro ao salvar usuário: ' + (error instanceof Error ? error.message : 'Erro desconhecido')
+      })
+    }
+  }
+
+  const handleDeleteUser = async (user: HotspotUser) => {
+    if (!window.confirm(`Tem certeza que deseja deletar o usuário "${user.name}"?`)) return
+
+    try {
+      const response = await fetch(`${baseUrl}/api/mikrotik/hotspot/users/${mikrotikId}/${user['.id']}`, {
+        method: 'DELETE',
+        headers
+      })
+
+      if (response.ok) {
+        await fetchUsers()
+        addToast({
+          type: 'success',
+          title: 'Sucesso!',
+          description: 'Usuário deletado com sucesso!'
+        })
+      } else {
+        throw new Error('Erro ao deletar usuário')
+      }
+    } catch (error) {
+      console.error('Error deleting user:', error)
+      addToast({
+        type: 'error',
+        title: 'Erro!',
+        description: 'Erro ao deletar usuário: ' + (error instanceof Error ? error.message : 'Erro desconhecido')
+      })
+    }
+  }
+
+  const handleToggleUser = async (user: HotspotUser) => {
+    try {
+      // Helper function to check if user is currently active
+      const isCurrentlyActive = () => {
+        if (typeof user.disabled === 'string') {
+          return user.disabled !== 'true' && user.disabled !== 'yes'
+        }
+        return !user.disabled
+      }
+
+      const currentlyActive = isCurrentlyActive()
+      const newDisabledState = currentlyActive // If currently active, we want to disable (set disabled=true)
+
+      const { password: mikrotikPassword, ...otherMikrotikParams } = getMikrotikParams()
+      
+      // Use the correct URL format with path parameters
+      const response = await fetch(`${baseUrl}/api/mikrotik/hotspot/users/${mikrotikId}/${user['.id']}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...headers
+        },
+        body: JSON.stringify({
+          name: user.name,
+          password: user.password,
+          profile: user.profile,
+          comment: user.comment,
+          disabled: newDisabledState,
+          mikrotik_password: mikrotikPassword,
+          ...otherMikrotikParams
+        })
+      })
+
+      if (response.ok) {
+        await fetchUsers()
+        addToast({
+          type: 'success',
+          title: 'Sucesso!',
+          description: `Usuário ${currentlyActive ? 'desativado' : 'ativado'} com sucesso!`
+        })
+      } else {
+        const errorData = await response.text()
+        console.error('API Error Response:', errorData)
+        throw new Error(`Erro ao alterar status do usuário: ${response.status}`)
+      }
+    } catch (error) {
+      console.error('Error toggling user:', error)
+      addToast({
+        type: 'error',
+        title: 'Erro!',
+        description: 'Erro ao alterar status: ' + (error instanceof Error ? error.message : 'Erro desconhecido')
+      })
+    }
+  }
+
+  // Profile handlers
+  const handleCreateProfile = () => openModal('profile')
+  const handleEditProfile = (profile: HotspotProfile) => openModal('profile', profile)
+  
+  const handleProfileSubmit = async (profileData: any) => {
+    try {
+      console.log('Profile submit data:', profileData)
+      console.log('Editing profile info:', editingItems.profile)
+      
+      if (editingItems.profile) {
+        // Update existing profile
+        if (profileData.inDatabase && profileData.supabaseId) {
+          // Update in Supabase (which will also update MikroTik)
+          console.log('Updating synchronized plan in Supabase:', profileData.supabaseId)
+          
+          // Parse session timeout to minutes if it's in seconds
+          let minutos = null
+          if (profileData.session_timeout) {
+            const timeoutSeconds = parseInt(profileData.session_timeout)
+            if (!isNaN(timeoutSeconds)) {
+              minutos = Math.floor(timeoutSeconds / 60)
+            }
+          }
+          
+          const response = await fetch(`${baseUrl}/api/planos/${profileData.supabaseId}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              ...headers
+            },
+            body: JSON.stringify({
+              mikrotik_id: mikrotikId,
+              nome: profileData.name,
+              valor: parseFloat(profileData.valor),
+              descricao: `Plano ${profileData.name}`,
+              rate_limit: profileData.rate_limit,
+              session_timeout: profileData.session_timeout,
+              idle_timeout: profileData.idle_timeout,
+              velocidade_upload: profileData.rate_limit?.split('/')[0] || null,
+              velocidade_download: profileData.rate_limit?.split('/')[1] || null,
+              minutos: minutos,
+              ativo: !profileData.disabled,
+              comment: profileData.comment
+            })
+          })
+          
+          if (!response.ok) {
+            const errorText = await response.text()
+            console.error('Update synchronized plan error:', { status: response.status, body: errorText })
+            throw new Error(`Erro ao atualizar plano no banco de dados: ${response.status} - ${errorText}`)
+          }
+          
+          const responseData = await response.json()
+          console.log('Update synchronized plan success:', responseData)
+        } else {
+          // Update only in MikroTik
+          console.log('Updating MikroTik-only plan:', editingItems.profile['.id'])
+          const response = await fetch(`${baseUrl}/api/mikrotik/hotspot/profiles/${mikrotikId}/${editingItems.profile['.id']}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              ...headers
+            },
+            body: JSON.stringify({
+              name: profileData.name,
+              'rate-limit': profileData.rate_limit,
+              'session-timeout': profileData.session_timeout,
+              'idle-timeout': profileData.idle_timeout,
+              comment: profileData.comment
+            })
+          })
+          
+          if (!response.ok) {
+            const errorText = await response.text()
+            console.error('Update MikroTik profile error:', { status: response.status, body: errorText })
+            throw new Error(`Erro ao atualizar plano no MikroTik: ${response.status}`)
+          }
+        }
+      } else {
+        // Create new profile
+        console.log('Creating new plan')
+        const response = await fetch(`${baseUrl}/api/planos`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...headers
+          },
+          body: JSON.stringify({
+            mikrotik_id: mikrotikId,
+            nome: profileData.name,
+            valor: parseFloat(profileData.valor),
+            descricao: `Plano ${profileData.name}`,
+            rate_limit: profileData.rate_limit,
+            session_timeout: profileData.session_timeout,
+            idle_timeout: profileData.idle_timeout,
+            comment: profileData.comment
+          })
+        })
+
+        if (!response.ok) {
+          const errorText = await response.text()
+          console.error('Create plan error:', { status: response.status, body: errorText })
+          throw new Error(`Erro ao criar plano: ${response.status}`)
+        }
+      }
+
+      closeModal('profile')
+      await fetchProfiles()
+      addToast({
+        type: 'success',
+        title: 'Sucesso!',
+        description: editingItems.profile ? 'Plano atualizado com sucesso!' : 'Plano criado com sucesso!'
+      })
+    } catch (error) {
+      console.error('Error saving profile:', error)
+      addToast({
+        type: 'error',
+        title: 'Erro!',
+        description: 'Erro ao salvar plano: ' + (error instanceof Error ? error.message : 'Erro desconhecido')
+      })
+    }
+  }
+
+  const handleDeleteProfile = async (profile: HotspotProfile) => {
+    if (!window.confirm(`Tem certeza que deseja deletar o plano "${profile.name}"?`)) return
+
+    try {
+      if (profile.inDatabase && profile.supabaseId) {
+        const response = await fetch(`${baseUrl}/api/planos/${profile.supabaseId}`, {
+          method: 'DELETE',
+          headers
+        })
+        if (!response.ok) throw new Error('Erro ao deletar plano do banco de dados')
+      } else {
+        const response = await fetch(`${baseUrl}/api/mikrotik/hotspot/profiles/${mikrotikId}/${profile['.id']}`, {
+          method: 'DELETE',
+          headers
+        })
+        if (!response.ok) throw new Error('Erro ao deletar plano do MikroTik')
+      }
+
+      await fetchProfiles()
+      addToast({
+        type: 'success',
+        title: 'Sucesso!',
+        description: 'Plano deletado com sucesso!'
+      })
+    } catch (error) {
+      console.error('Error deleting profile:', error)
+      addToast({
+        type: 'error',
+        title: 'Erro!',
+        description: 'Erro ao deletar plano: ' + (error instanceof Error ? error.message : 'Erro desconhecido')
+      })
+    }
+  }
+
+  const handleSyncProfile = async (profile: HotspotProfile, valor?: string) => {
+    try {
+      console.log('Starting profile sync:', { profileName: profile.name, valor, mikrotikId })
+      
+      // Get the value from user input or use existing value
+      const valorNumerico = valor ? parseFloat(valor) : (profile.valor || 0)
+      
+      if (valorNumerico <= 0) {
+        throw new Error('Valor deve ser maior que zero')
+      }
+      
+      // Check if plan already exists in database
+      const existingPlan = supabasePlans.find(plan => plan.nome === profile.name)
+      
+      // Parse rate limit safely
+      const rateLimit = profile['rate-limit'] || ''
+      const rateLimitParts = rateLimit.includes('/') ? rateLimit.split('/') : ['', '']
+      
+      // Parse session timeout safely
+      const sessionTimeout = profile['session-timeout'] || ''
+      const sessionTimeoutNumber = sessionTimeout ? parseInt(sessionTimeout) : null
+      
+      const profilePayload = {
+        mikrotik_id: mikrotikId,
+        nome: profile.name || '',
+        valor: valorNumerico,
+        descricao: `Plano ${profile.name || 'Sem nome'}`,
+        rate_limit: rateLimit || null,
+        session_timeout: sessionTimeout || null,
+        idle_timeout: profile['idle-timeout'] || null,
+        velocidade_upload: rateLimitParts[0] || null,
+        velocidade_download: rateLimitParts[1] || null,
+        minutos: sessionTimeoutNumber ? Math.floor(sessionTimeoutNumber / 60) : null,
+        ativo: !profile.disabled,
+        mikrotik_profile_id: profile['.id'] || profile.name // Use MikroTik ID
+      }
+      
+      console.log('Profile payload:', profilePayload)
+      
+      if (existingPlan) {
+        console.log('Updating existing plan:', existingPlan.id)
+        // Update existing plan
+        const response = await fetch(`${baseUrl}/api/planos/${existingPlan.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            ...headers
+          },
+          body: JSON.stringify(profilePayload)
+        })
+
+        const responseText = await response.text()
+        console.log('Update response:', { status: response.status, body: responseText })
+        
+        if (!response.ok) {
+          throw new Error(`Erro ao atualizar plano existente: ${response.status} - ${responseText}`)
+        }
+        
+        addToast({
+          type: 'success',
+          title: 'Sucesso!',
+          description: 'Plano atualizado!'
+        })
+      } else {
+        console.log('Syncing new plan to database')
+        // Use the new sync endpoint
+        const response = await fetch(`${baseUrl}/api/planos/sync`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...headers
+          },
+          body: JSON.stringify(profilePayload)
+        })
+
+        const responseText = await response.text()
+        console.log('Sync response:', { status: response.status, body: responseText })
+        
+        if (!response.ok) {
+          throw new Error(`Erro ao sincronizar plano: ${response.status} - ${responseText}`)
+        }
+        
+        addToast({
+          type: 'success',
+          title: 'Sucesso!',
+          description: 'Plano sincronizado!'
+        })
+      }
+
+      // Refresh data to show updated sync status
+      await fetchProfiles()
+      
+    } catch (error) {
+      console.error('Error syncing profile:', error)
+      addToast({
+        type: 'error',
+        title: 'Erro!',
+        description: 'Erro ao sincronizar plano: ' + (error instanceof Error ? error.message : 'Erro desconhecido')
+      })
+    }
+  }
+
+  // Server handlers
+  const handleCreateServer = () => openModal('server')
+  const handleEditServer = (server: HotspotServer) => openModal('server', server)
+  
+  const handleServerSubmit = async (serverData: any) => {
+    try {
+      const url = editingItems.server 
+        ? `${baseUrl}/api/mikrotik/hotspot/servers/${mikrotikId}/${editingItems.server['.id']}`
+        : `${baseUrl}/api/mikrotik/hotspot/servers/${mikrotikId}`
+      
+      const method = editingItems.server ? 'PUT' : 'POST'
+      
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          ...headers
+        },
+        body: JSON.stringify({
+          name: serverData.name,
+          interface: serverData.interface,
+          'address-pool': serverData.address_pool,
+          profile: serverData.profile,
+          comment: serverData.comment,
+          disabled: serverData.disabled
+        })
+      })
+
+      if (response.ok) {
+        closeModal('server')
+        await fetchServers()
+        addToast({
+          type: 'success',
+          title: 'Sucesso!',
+          description: editingItems.server ? 'Servidor atualizado com sucesso!' : 'Servidor criado com sucesso!'
+        })
+      } else {
+        throw new Error('Erro ao salvar servidor')
+      }
+    } catch (error) {
+      console.error('Error saving server:', error)
+      addToast({
+        type: 'error',
+        title: 'Erro!',
+        description: 'Erro ao salvar servidor: ' + (error instanceof Error ? error.message : 'Erro desconhecido')
+      })
+    }
+  }
+
+  const handleDeleteServer = async (server: HotspotServer) => {
+    if (!window.confirm(`Tem certeza que deseja deletar o servidor "${server.name}"?`)) return
+
+    try {
+      const response = await fetch(`${baseUrl}/api/mikrotik/hotspot/servers/${mikrotikId}/${server['.id']}`, {
+        method: 'DELETE',
+        headers
+      })
+
+      if (response.ok) {
+        await fetchServers()
+        addToast({
+          type: 'success',
+          title: 'Sucesso!',
+          description: 'Servidor deletado com sucesso!'
+        })
+      } else {
+        throw new Error('Erro ao deletar servidor')
+      }
+    } catch (error) {
+      console.error('Error deleting server:', error)
+      addToast({
+        type: 'error',
+        title: 'Erro!',
+        description: 'Erro ao deletar servidor: ' + (error instanceof Error ? error.message : 'Erro desconhecido')
+      })
+    }
+  }
+
+  // Server Profile handlers
+  const handleCreateServerProfile = () => openModal('serverProfile')
+  const handleEditServerProfile = (serverProfile: HotspotServerProfile) => openModal('serverProfile', serverProfile)
+  
+  const handleServerProfileSubmit = async (profileData: any) => {
+    try {
+      const url = editingItems.serverProfile 
+        ? `${baseUrl}/api/mikrotik/hotspot/server-profiles/${mikrotikId}/${editingItems.serverProfile['.id']}`
+        : `${baseUrl}/api/mikrotik/hotspot/server-profiles/${mikrotikId}`
+      
+      const method = editingItems.serverProfile ? 'PUT' : 'POST'
+      
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          ...headers
+        },
+        body: JSON.stringify({
+          name: profileData.name,
+          'html-directory': profileData.html_directory,
+          'login-page': profileData.login_page,
+          'split-user-domain': profileData.split_user_domain,
+          comment: profileData.comment,
+          disabled: profileData.disabled
+        })
+      })
+
+      if (response.ok) {
+        closeModal('serverProfile')
+        await fetchServerProfiles()
+        addToast({
+          type: 'success',
+          title: 'Sucesso!',
+          description: editingItems.serverProfile ? 'Perfil atualizado com sucesso!' : 'Perfil criado com sucesso!'
+        })
+      } else {
+        throw new Error('Erro ao salvar perfil de servidor')
+      }
+    } catch (error) {
+      console.error('Error saving server profile:', error)
+      addToast({
+        type: 'error',
+        title: 'Erro!',
+        description: 'Erro ao salvar perfil de servidor: ' + (error instanceof Error ? error.message : 'Erro desconhecido')
+      })
+    }
+  }
+
+  const handleDeleteServerProfile = async (serverProfile: HotspotServerProfile) => {
+    if (!window.confirm(`Tem certeza que deseja deletar o perfil "${serverProfile.name}"?`)) return
+
+    try {
+      const response = await fetch(`${baseUrl}/api/mikrotik/hotspot/server-profiles/${mikrotikId}/${serverProfile['.id']}`, {
+        method: 'DELETE',
+        headers
+      })
+
+      if (response.ok) {
+        await fetchServerProfiles()
+        addToast({
+          type: 'success',
+          title: 'Sucesso!',
+          description: 'Perfil deletado com sucesso!'
+        })
+      } else {
+        throw new Error('Erro ao deletar perfil de servidor')
+      }
+    } catch (error) {
+      console.error('Error deleting server profile:', error)
+      addToast({
+        type: 'error',
+        title: 'Erro!',
+        description: 'Erro ao deletar perfil de servidor: ' + (error instanceof Error ? error.message : 'Erro desconhecido')
+      })
+    }
+  }
+
+  // Active user handlers
+  const handleDisconnectUser = async (userId: string) => {
+    try {
+      const response = await fetch(`${baseUrl}/api/mikrotik/hotspot/disconnect/${mikrotikId}/${userId}`, {
+        method: 'POST',
+        headers
+      })
+
+      if (response.ok) {
+        await fetchActiveUsers()
+        addToast({
+          type: 'success',
+          title: 'Sucesso!',
+          description: 'Usuário desconectado com sucesso!'
+        })
+      } else {
+        throw new Error('Erro ao desconectar usuário')
+      }
+    } catch (error) {
+      console.error('Error disconnecting user:', error)
+      addToast({
+        type: 'error',
+        title: 'Erro!',
+        description: 'Erro ao desconectar usuário: ' + (error instanceof Error ? error.message : 'Erro desconhecido')
+      })
+    }
+  }
+
+  // Template handlers
+  const handleUseTemplate = (template: Template) => {
+    setSelectedTemplate(template)
+    // Initialize template variables with default values
+    const initialVariables: Record<string, string> = {}
+    template.variables.forEach(variable => {
+      initialVariables[variable.key] = variable.defaultValue
+    })
+    setTemplateVariables(initialVariables)
+    setSelectedServerProfile('')
+    setModals({ ...modals, templateProfile: true })
+  }
+
+  const handleApplyTemplate = async () => {
+    if (!selectedTemplate?.files.login || !selectedServerProfile) {
+      addToast({
+        type: 'warning',
+        title: 'Atenção!',
+        description: 'Selecione um template e um perfil de servidor antes de continuar.'
+      })
+      return
+    }
+
+    // Verificar variáveis obrigatórias
+    const missingVariables = selectedTemplate.variables
+      .filter(v => v.required && !templateVariables[v.key])
+      .map(v => v.label)
+    
+    if (missingVariables.length > 0) {
+      addToast({
+        type: 'warning',
+        title: 'Campos obrigatórios!',
+        description: `Preencha os campos: ${missingVariables.join(', ')}`
+      })
+      return
+    }
+
+    // Adicionar estado de loading
+    setModals(prev => ({ ...prev, templateLoading: true }))
+
+    try {
+      // Buscar o conteúdo do template
+      addToast({
+        type: 'info',
+        title: 'Processando...',
+        description: 'Carregando template...'
+      })
+
+      const templateResponse = await fetch(selectedTemplate.files.login)
+      if (!templateResponse.ok) {
+        throw new Error(`Erro ao carregar template: ${templateResponse.statusText}`)
+      }
+
+      let templateHtml = await templateResponse.text()
+
+      // Substituir variáveis no template
+      Object.entries(templateVariables).forEach(([key, value]) => {
+        const regex = new RegExp(`{{${key}}}`, 'g')
+        templateHtml = templateHtml.replace(regex, value)
+      })
+
+      // Substituir MIKROTIK_ID automaticamente
+      templateHtml = templateHtml.replace(/{{MIKROTIK_ID}}/g, mikrotikId || '')
+
+      addToast({
+        type: 'info',
+        title: 'Processando...',
+        description: 'Aplicando template ao MikroTik...'
+      })
+
+      // Aplicar o template usando o novo endpoint
+      const response = await fetch(`${baseUrl}/api/mikrotik/templates/apply`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...headers
+        },
+        body: JSON.stringify({
+          mikrotikId: mikrotikId,
+          serverProfileId: selectedServerProfile,
+          templateId: selectedTemplate.id,
+          templateContent: templateHtml,
+          variables: templateVariables,
+          mikrotikParams: getMikrotikParams()
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        const errorMessage = errorData.error || errorData.message || `HTTP ${response.status}: ${response.statusText}`
+        throw new Error(errorMessage)
+      }
+
+      const result = await response.json()
+
+      // Fechar modal e atualizar dados
+      setModals(prev => ({ ...prev, templateProfile: false, templateLoading: false }))
+      setSelectedTemplate(null)
+      setTemplateVariables({})
+      setSelectedServerProfile('')
+      
+      // Encontrar nome do server profile selecionado
+      const selectedProfileName = serverProfiles.find(p => p['.id'] === selectedServerProfile)?.name || selectedServerProfile
+
+      addToast({
+        type: 'success',
+        title: 'Template Aplicado!',
+        description: `Template "${selectedTemplate.name}" aplicado com sucesso ao perfil "${selectedProfileName}". HTML enviado para /flash/mikropix/ e diretório atualizado.`
+      })
+
+      await fetchServerProfiles()
+    } catch (error) {
+      console.error('Erro ao aplicar template:', error)
+      
+      // Determinar tipo de erro e mensagem específica
+      let errorMessage = 'Erro desconhecido'
+      let errorTitle = 'Erro!'
+
+      if (error instanceof Error) {
+        if (error.message.includes('fetch')) {
+          errorTitle = 'Erro de Conexão!'
+          errorMessage = 'Não foi possível conectar ao servidor. Verifique sua conexão de internet.'
+        } else if (error.message.includes('hotspot directory')) {
+          errorTitle = 'Erro no Diretório Hotspot!'
+          errorMessage = 'Template enviado mas falha ao alterar diretório do hotspot. Verifique se existem perfis de servidor configurados.'
+        } else if (error.message.includes('Server profile')) {
+          errorTitle = 'Erro de Perfil!'
+          errorMessage = 'Perfil de servidor não encontrado. Verifique se o perfil existe no MikroTik.'
+        } else if (error.message.includes('MikroTik')) {
+          errorTitle = 'Erro de Conexão MikroTik!'
+          errorMessage = 'Falha na conexão com o MikroTik. Verifique as credenciais e conectividade.'
+        } else {
+          errorMessage = error.message
+        }
+      }
+
+      setModals(prev => ({ ...prev, templateLoading: false }))
+      
+      addToast({
+        type: 'error',
+        title: errorTitle,
+        description: errorMessage
+      })
+    }
+  }
+
+  if (loading && !stats) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-black pt-16 lg:pt-0 flex items-center justify-center">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="text-center"
+        >
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+            className="w-16 h-16 border-4 border-blue-500/20 border-t-blue-500 rounded-full mx-auto mb-6"
+          />
+          <motion.p 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.2 }}
+            className="text-gray-300 text-lg"
+          >
+            Carregando dashboard...
+          </motion.p>
+        </motion.div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-black pt-16 lg:pt-0">
+      {/* Header */}
+      <motion.div 
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="border-b border-gray-800/50 bg-black/20 backdrop-blur-sm sticky top-0 lg:top-0 z-30"
+      >
+        <div className="px-4 sm:px-6 py-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center space-x-3 sm:space-x-4 min-w-0 flex-1">
+              <div className="min-w-0 flex-1">
+                <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent truncate">
+                  {mikrotikInfo?.nome || mikrotikInfo?.name || mikrotikInfo?.descricao || 'MikroTik'} - {stats?.routerboard?.model || 'RouterBoard'}
+                </h1>
+                <p className="text-gray-400 text-xs sm:text-sm truncate">
+                  {stats?.identity?.name || 'RouterOS'} - {stats?.routerboard?.['current-firmware'] || stats?.resource?.version || 'N/A'}
+                </p>
+              </div>
+            </div>
+            
+            <motion.div 
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="flex gap-2 shrink-0"
+            >
+              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                <Button 
+                  onClick={fetchData} 
+                  variant="outline" 
+                  disabled={loading}
+                  className="border-gray-700 text-gray-300 hover:text-white hover:border-purple-500/50 hover:bg-purple-500/10 text-sm px-3 py-2 transition-all duration-200"
+                >
+                  <RefreshCw className={`h-4 w-4 mr-1 sm:mr-2 ${loading ? 'animate-spin' : ''}`} /> 
+                  <span className="hidden sm:inline">Atualizar</span>
+                </Button>
+              </motion.div>
+
+            </motion.div>
+          </div>
+        </div>
+      </motion.div>
+
+      <div className="p-4 sm:p-6">
+        <div className="max-w-7xl mx-auto space-y-6 sm:space-y-8">
+
+        {/* Error Alert */}
+        {error && (
+          <div className="bg-red-600/10 border border-red-600/30 rounded-lg p-4 mb-6">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-red-400" />
+              <div className="flex-1">
+                <p className="text-red-300">{error}</p>
+                {error.includes('incompletas') && (
+                  <p className="text-red-200 text-sm mt-2">
+                    Configure o IP, usuário e senha do MikroTik para acessar o dashboard.{' '}
+                    <Link 
+                      to={`/mikrotiks/${mikrotikId}/edit`}
+                      className="text-blue-400 hover:text-blue-300 underline"
+                    >
+                      Editar configurações
+                    </Link>
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* System Info Cards */}
+        {stats && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+            {/* CPU Card */}
+            <div className="group bg-black border border-gray-800 hover:border-blue-500 hover:bg-gray-900/50 rounded-xl transition-all duration-300 hover:scale-[1.02] p-4 sm:p-6 shadow-lg">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-blue-600/20 rounded-lg">
+                  <Database className="h-5 w-5 text-blue-400" />
+                </div>
+                <h3 className="text-lg font-semibold text-white group-hover:text-blue-400 transition-colors">CPU</h3>
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-2xl sm:text-3xl font-bold text-blue-400">{getCpuInfo(stats).load}</p>
+                  <div className="relative w-16 h-16">
+                    <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
+                      <path
+                        className="text-gray-700"
+                        stroke="currentColor"
+                        strokeWidth="3"
+                        fill="none"
+                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                      />
+                      <path
+                        className="text-blue-400"
+                        stroke="currentColor"
+                        strokeWidth="3"
+                        strokeDasharray={`${(() => {
+                          const percentage = parseInt(getCpuInfo(stats).load.replace('%', ''))
+                          return isNaN(percentage) ? 0 : percentage
+                        })()}, 100`}
+                        strokeLinecap="round"
+                        fill="none"
+                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                      />
+                    </svg>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-xs font-bold text-blue-400">
+                        {(() => {
+                          const percentage = parseInt(getCpuInfo(stats).load.replace('%', ''))
+                          return isNaN(percentage) ? '0' : percentage
+                        })()}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <p className="text-sm text-gray-400 truncate">{getCpuInfo(stats).type}</p>
+                <p className="text-xs text-gray-500 truncate">{getCpuInfo(stats).frequency}</p>
+              </div>
+            </div>
+
+            {/* Memory Card */}
+            <div className="group bg-black border border-gray-800 hover:border-green-500 hover:bg-gray-900/50 rounded-xl transition-all duration-300 hover:scale-[1.02] p-4 sm:p-6 shadow-lg">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-green-600/20 rounded-lg">
+                  <Server className="h-5 w-5 text-green-400" />
+                </div>
+                <h3 className="text-lg font-semibold text-white group-hover:text-green-400 transition-colors">Memória</h3>
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xl sm:text-2xl font-bold text-green-400">{formatMemory(stats.resource?.['free-memory'])}</p>
+                    <p className="text-sm text-gray-400">Livre</p>
+                  </div>
+                  <div className="relative w-16 h-16">
+                    <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
+                      <path
+                        className="text-gray-700"
+                        stroke="currentColor"
+                        strokeWidth="3"
+                        fill="none"
+                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                      />
+                      <path
+                        className="text-green-400"
+                        stroke="currentColor"
+                        strokeWidth="3"
+                        strokeDasharray={`${(() => {
+                          const total = parseInt(stats.resource?.['total-memory'] || '0')
+                          const free = parseInt(stats.resource?.['free-memory'] || '0')
+                          const used = total - free
+                          return total > 0 ? Math.round((used / total) * 100) : 0
+                        })()}, 100`}
+                        strokeLinecap="round"
+                        fill="none"
+                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                      />
+                    </svg>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-xs font-bold text-green-400">
+                        {(() => {
+                          const total = parseInt(stats.resource?.['total-memory'] || '0')
+                          const free = parseInt(stats.resource?.['free-memory'] || '0')
+                          const used = total - free
+                          return total > 0 ? Math.round((used / total) * 100) : 0
+                        })()}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 truncate">Total: {formatMemory(stats.resource?.['total-memory'])}</p>
+              </div>
+            </div>
+
+            {/* Sistema Card */}
+            <div className="group bg-black border border-gray-800 hover:border-purple-500 hover:bg-gray-900/50 rounded-xl transition-all duration-300 hover:scale-[1.02] p-4 sm:p-6 shadow-lg">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-purple-600/20 rounded-lg">
+                  <Settings className="h-5 w-5 text-purple-400" />
+                </div>
+                <h3 className="text-lg font-semibold text-white group-hover:text-purple-400 transition-colors">Sistema</h3>
+              </div>
+              <div className="space-y-2">
+                <p className="text-lg sm:text-xl font-bold text-purple-400 truncate">{getSystemInfo(stats).model}</p>
+                <p className="text-sm text-gray-400 truncate">{getSystemInfo(stats).identity}</p>
+                <p className="text-xs text-gray-500 truncate">{getSystemInfo(stats).version}</p>
+              </div>
+            </div>
+
+            {/* Uptime Card */}
+            <div className="group bg-black border border-gray-800 hover:border-orange-500 hover:bg-gray-900/50 rounded-xl transition-all duration-300 hover:scale-[1.02] p-4 sm:p-6 shadow-lg">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-orange-600/20 rounded-lg">
+                  <RefreshCw className="h-5 w-5 text-orange-400" />
+                </div>
+                <h3 className="text-lg font-semibold text-white group-hover:text-orange-400 transition-colors">Uptime</h3>
+              </div>
+              <div className="space-y-2">
+                <p className="text-lg sm:text-xl font-bold text-orange-400 truncate">{formatUptime(stats.resource?.uptime || stats.uptime)}</p>
+                <p className="text-sm text-gray-400">Tempo ativo</p>
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                  <p className="text-xs text-green-400">Online</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+          {/* Tabs */}
+          <div className="flex justify-center mb-6">
+            <div className="flex bg-black border border-gray-800 rounded-xl p-1 gap-1 overflow-x-auto scrollbar-hide shadow-lg">
+              {[
+                { id: 'overview', label: 'Visão Geral', icon: Database, shortLabel: 'Visão' },
+                { id: 'users', label: 'Usuários', icon: Users, shortLabel: 'Users' },
+                { id: 'active', label: 'Ativos', icon: UserCheck, shortLabel: 'Ativos' },
+                { id: 'profiles', label: 'Planos', icon: Settings, shortLabel: 'Planos' },
+                { id: 'servers', label: 'Servidores', icon: Server, shortLabel: 'Servers' },
+                { id: 'server-profiles', label: 'Perfis de Servidor', icon: Database, shortLabel: 'Perfis' },
+                { id: 'templates', label: 'Templates', icon: Settings, shortLabel: 'Templates' }
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`group flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 whitespace-nowrap ${
+                    activeTab === tab.id 
+                      ? 'bg-blue-600 text-white shadow-lg scale-105' 
+                      : 'text-gray-400 hover:text-white hover:bg-gray-800 hover:scale-105'
+                  }`}
+                >
+                  <tab.icon className="h-4 w-4 flex-shrink-0 group-hover:scale-110 transition-transform" />
+                  <span className="hidden sm:inline">{tab.label}</span>
+                  <span className="sm:hidden">{tab.shortLabel}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+        {/* Tab Content */}
+        <div className="min-h-[400px]">
+          {activeTab === 'overview' && (
+            <div className="space-y-4 sm:space-y-6">
+              {/* Metrics Cards */}
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+                {/* Total Users */}
+                <div className="group bg-black border border-gray-800 hover:border-blue-500 hover:bg-gray-900/50 rounded-xl transition-all duration-300 hover:scale-[1.02] p-4 shadow-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-blue-600/20 rounded-lg">
+                      <Users className="h-5 w-5 text-blue-400" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-2xl font-bold text-white">{users.length}</p>
+                      <p className="text-xs text-gray-400 truncate">Total Usuários</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Active Users */}
+                <div className="group bg-black border border-gray-800 hover:border-green-500 hover:bg-gray-900/50 rounded-xl transition-all duration-300 hover:scale-[1.02] p-4 shadow-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-green-600/20 rounded-lg">
+                      <UserCheck className="h-5 w-5 text-green-400" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-2xl font-bold text-white">{activeUsers.length}</p>
+                      <p className="text-xs text-gray-400 truncate">Clientes Ativos</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Profiles */}
+                <div className="group bg-black border border-gray-800 hover:border-purple-500 hover:bg-gray-900/50 rounded-xl transition-all duration-300 hover:scale-[1.02] p-4 shadow-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-purple-600/20 rounded-lg">
+                      <Settings className="h-5 w-5 text-purple-400" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-2xl font-bold text-white">{profiles.length}</p>
+                      <p className="text-xs text-gray-400 truncate">Planos</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Servers */}
+                <div className="group bg-black border border-gray-800 hover:border-orange-500 hover:bg-gray-900/50 rounded-xl transition-all duration-300 hover:scale-[1.02] p-4 shadow-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-orange-600/20 rounded-lg">
+                      <Server className="h-5 w-5 text-orange-400" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-2xl font-bold text-white">{servers.length}</p>
+                      <p className="text-xs text-gray-400 truncate">Servidores</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Server Profiles */}
+                <div className="group bg-black border border-gray-800 hover:border-cyan-500 hover:bg-gray-900/50 rounded-xl transition-all duration-300 hover:scale-[1.02] p-4 shadow-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-cyan-600/20 rounded-lg">
+                      <Database className="h-5 w-5 text-cyan-400" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-2xl font-bold text-white">{serverProfiles.length}</p>
+                      <p className="text-xs text-gray-400 truncate">Perfis Servidor</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* User Activity */}
+                <div className="group bg-black border border-gray-800 hover:border-yellow-500 hover:bg-gray-900/50 rounded-xl transition-all duration-300 hover:scale-[1.02] p-4 shadow-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-yellow-600/20 rounded-lg">
+                      <UserCheck className="h-5 w-5 text-yellow-400" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-2xl font-bold text-white">{users.filter(u => !u.disabled).length}</p>
+                      <p className="text-xs text-gray-400 truncate">Users Habilitados</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Actions Grid */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                {/* Template System */}
+                <div className="group bg-black border border-gray-800 hover:border-purple-500 rounded-xl p-4 sm:p-6 hover:bg-gray-900/50 transition-all duration-300 hover:scale-[1.02] cursor-pointer shadow-lg">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="p-3 bg-gray-800/50 rounded-xl border border-gray-700 group-hover:border-purple-500/50 transition-colors">
+                      <FiLayout className="h-5 w-5 sm:h-6 sm:w-6 text-purple-400 group-hover:scale-110 transition-transform" />
+                    </div>
+                    <h4 className="text-base sm:text-lg font-semibold text-white group-hover:text-purple-400 transition-colors">Templates Hotspot</h4>
+                  </div>
+                  <p className="text-gray-400 text-sm mb-4 group-hover:text-gray-300 transition-colors">
+                    Aplique templates personalizados às páginas de login do hotspot
+                  </p>
+                  <Button
+                    onClick={() => setActiveTab('templates')}
+                    className="w-full bg-purple-600 hover:bg-purple-700 text-sm sm:text-base shadow-lg transition-all duration-300 group-hover:scale-105"
+                  >
+                    <FiLayout className="h-4 w-4 mr-2" />
+                    Gerenciar Templates
+                  </Button>
+                </div>
+
+                {/* System Management */}
+                <div className="group bg-black border border-gray-800 hover:border-green-500 rounded-xl p-4 sm:p-6 hover:bg-gray-900/50 transition-all duration-300 hover:scale-[1.02] cursor-pointer shadow-lg">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="p-3 bg-gray-800/50 rounded-xl border border-gray-700 group-hover:border-green-500/50 transition-colors">
+                      <Server className="h-5 w-5 sm:h-6 sm:w-6 text-green-400 group-hover:scale-110 transition-transform" />
+                    </div>
+                    <h4 className="text-base sm:text-lg font-semibold text-white group-hover:text-green-400 transition-colors">Sistema</h4>
+                  </div>
+                  <p className="text-gray-400 text-sm mb-4 group-hover:text-gray-300 transition-colors">
+                    Informações do sistema, interfaces e controles do MikroTik
+                  </p>
+                  <Button
+                    onClick={() => setActiveTab('system')}
+                    className="w-full bg-green-600 hover:bg-green-700 text-sm sm:text-base shadow-lg transition-all duration-300 group-hover:scale-105"
+                  >
+                    <Server className="h-4 w-4 mr-2" />
+                    Ver Sistema
+                  </Button>
+                </div>
+              </div>
+
+              {/* System Control */}
+              <div className="group bg-black border border-gray-800 hover:border-red-500 rounded-xl p-4 sm:p-6 hover:bg-gray-900/50 transition-all duration-300 shadow-lg">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 bg-gray-800/50 rounded-xl border border-gray-700 group-hover:border-red-500/50 transition-colors">
+                      <Settings className="h-5 w-5 sm:h-6 sm:w-6 text-red-400 group-hover:scale-110 transition-transform" />
+                    </div>
+                    <h4 className="text-base sm:text-lg font-semibold text-white group-hover:text-red-400 transition-colors">Controle do Sistema</h4>
+                  </div>
+                  <Button
+                    onClick={async () => {
+                      if (confirm('Tem certeza que deseja reiniciar o MikroTik? Esta ação pode interromper as conexões ativas.')) {
+                        try {
+                          const response = await fetch(`${baseUrl}/api/mikrotik/system/restart/${mikrotikId}`, {
+                            method: 'POST',
+                            headers
+                          })
+                          if (response.ok) {
+                            addToast({
+                              type: 'success',
+                              title: 'MikroTik Reiniciado',
+                              description: 'O sistema está sendo reiniciado. Aguarde alguns minutos para reconexão.'
+                            })
+                          }
+                        } catch (error) {
+                          addToast({
+                            type: 'error',
+                            title: 'Erro',
+                            description: 'Falha ao reiniciar o MikroTik'
+                          })
+                        }
+                      }
+                    }}
+                    className="bg-red-600 hover:bg-red-700 text-white w-full sm:w-auto text-sm sm:text-base shadow-lg transition-all duration-300 hover:scale-105"
+                  >
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Reiniciar MikroTik
+                  </Button>
+                </div>
+                
+                <div className="text-center py-6 sm:py-8 border border-gray-800 rounded-lg bg-gray-900/30">
+                  <div className="flex items-center justify-center gap-2 mb-4">
+                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                    <p className="text-green-400 font-medium">Sistema Online</p>
+                  </div>
+                  <p className="text-gray-400 mb-2">Controle remoto do MikroTik</p>
+                  <p className="text-sm text-gray-500">Use as abas acima para gerenciar usuários, planos e configurações</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'users' && (
+            <HotspotUsersTab
+              users={users}
+              profiles={profiles}
+              onCreateUser={handleCreateUser}
+              onEditUser={handleEditUser}
+              onDeleteUser={handleDeleteUser}
+              onToggleUser={handleToggleUser}
+              loading={loading}
+            />
+          )}
+
+          {activeTab === 'active' && (
+            <ActiveUsersTab
+              activeUsers={activeUsers}
+              onDisconnectUser={handleDisconnectUser}
+              onRefresh={fetchActiveUsers}
+              loading={loading}
+            />
+          )}
+
+          {activeTab === 'profiles' && (
+            <HotspotProfilesTab
+              profiles={profiles}
+              onCreateProfile={handleCreateProfile}
+              onEditProfile={handleEditProfile}
+              onDeleteProfile={handleDeleteProfile}
+              onSyncProfile={handleSyncProfile}
+              loading={loading}
+            />
+          )}
+
+          {activeTab === 'servers' && (
+            <HotspotServersTab
+              servers={servers}
+              onCreateServer={handleCreateServer}
+              onEditServer={handleEditServer}
+              onDeleteServer={handleDeleteServer}
+              loading={loading}
+            />
+          )}
+
+          {activeTab === 'server-profiles' && (
+            <HotspotServerProfilesTab
+              serverProfiles={serverProfiles}
+              onCreateServerProfile={handleCreateServerProfile}
+              onEditServerProfile={handleEditServerProfile}
+              onDeleteServerProfile={handleDeleteServerProfile}
+              loading={loading}
+            />
+          )}
+
+          {activeTab === 'templates' && (
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-bold text-white">Templates de Hotspot</h2>
+                  <p className="text-sm text-gray-400 mt-1">
+                    {templates.length} templates disponíveis para personalização
+                  </p>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 lg:gap-6">
+                {templates.map((template, index) => (
+                  <motion.div 
+                    key={template.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    className="group relative bg-black/40 backdrop-blur-sm border border-gray-800/50 rounded-2xl overflow-hidden transition-all duration-500 hover:scale-105 hover:shadow-2xl hover:shadow-blue-500/20 cursor-pointer"
+                  >
+                    {/* Template Preview Image */}
+                    <div className="aspect-[16/10] relative overflow-hidden bg-gradient-to-br from-gray-800 to-gray-900">
+                      <img
+                        src={template.preview}
+                        alt={template.name}
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
+                        onError={(e) => {
+                          e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjEyMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9ImdyYWQiIHgxPSIwJSIgeTE9IjAlIiB4Mj0iMTAwJSIgeTI9IjEwMCUiPjxzdG9wIG9mZnNldD0iMCUiIHN0eWxlPSJzdG9wLWNvbG9yOiMzNzQxNTE7c3RvcC1vcGFjaXR5OjEiIC8+PHN0b3Agb2Zmc2V0PSIxMDAlIiBzdHlsZT0ic3RvcC1jb2xvcjojMWYyOTM3O3N0b3Atb3BhY2l0eToxIiAvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMTIwIiBmaWxsPSJ1cmwoI2dyYWQpIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGRvbWluYW50LWJhc2VsaW5lPSJtaWRkbGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiM5Y2EzYWYiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgZm9udC13ZWlnaHQ9ImJvbGQiPlByZXZpZXc8L3RleHQ+PC9zdmc+'
+                        }}
+                      />
+                                             {/* Netflix-style gradient overlay */}
+                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500"></div>
+
+                      {/* Template info overlay - Netflix style */}
+                      <motion.div 
+                        initial={{ opacity: 0, y: 20 }}
+                        className="absolute bottom-0 left-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-all duration-500 transform translate-y-2 group-hover:translate-y-0"
+                      >
+                        <div className="space-y-2">
+                          <h3 className="text-lg font-bold text-white drop-shadow-lg">{template.name}</h3>
+                          <p className="text-sm text-gray-200/90 drop-shadow-md line-clamp-2">{template.description}</p>
+                          <div className="flex items-center gap-3 mt-3">
+                            <div className="flex gap-1">
+                              {template.variables.slice(0, 4).map((_, i) => (
+                                <div key={i} className="w-2 h-2 bg-blue-400 rounded-full shadow-lg"></div>
+                              ))}
+                              {template.variables.length > 4 && (
+                                <span className="text-xs text-blue-300 ml-1">+{template.variables.length - 4}</span>
+                              )}
+                            </div>
+                            <span className="text-xs text-gray-300 bg-black/40 px-2 py-1 rounded-full backdrop-blur-sm">
+                              {template.variables.length} variáveis
+                            </span>
+                          </div>
+                        </div>
+                      </motion.div>
+                    </div>
+
+                    {/* Bottom section with overlay button */}
+                    <div className="relative p-4">
+                      {/* Content that shows when not hovering */}
+                      <div className="group-hover:opacity-0 transition-opacity duration-300">
+                        <h3 className="text-base font-semibold text-white truncate">{template.name}</h3>
+                        <p className="text-sm text-gray-400 truncate mt-1">{template.description}</p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <div className="flex gap-1">
+                            {template.variables.slice(0, 3).map((_, i) => (
+                              <div key={i} className="w-1.5 h-1.5 bg-gray-500 rounded-full"></div>
+                            ))}
+                          </div>
+                          <span className="text-xs text-gray-500">{template.variables.length} vars</span>
+                        </div>
+                      </div>
+
+                      {/* Button that appears over description on hover */}
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 z-10 group-hover:translate-y-0 translate-y-2">
+                        <motion.button
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleUseTemplate(template);
+                          }}
+                          className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white text-base font-semibold rounded-xl shadow-2xl backdrop-blur-sm border border-blue-500/30 transition-all duration-300 flex items-center gap-3"
+                        >
+                          <FiLayout className="h-5 w-5" />
+                          Usar esse
+                        </motion.button>
+                      </div>
+                    </div>
+
+                    {/* Hover border effect */}
+                    <div className="absolute inset-0 rounded-2xl border-2 border-transparent group-hover:border-blue-500/30 transition-all duration-500 pointer-events-none"></div>
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Modals */}
+        <UserModal
+          isOpen={modals.user}
+          onClose={() => closeModal('user')}
+          onSubmit={handleUserSubmit}
+          editingUser={editingItems.user}
+          profiles={profiles}
+          servers={servers}
+          loading={loading}
+        />
+
+        <ProfileModal
+          isOpen={modals.profile}
+          onClose={() => closeModal('profile')}
+          onSubmit={handleProfileSubmit}
+          editingProfile={editingItems.profile}
+          loading={loading}
+        />
+
+        <ServerModal
+          isOpen={modals.server}
+          onClose={() => closeModal('server')}
+          onSubmit={handleServerSubmit}
+          editingServer={editingItems.server}
+          serverProfiles={serverProfiles}
+          loading={loading}
+        />
+
+        <ServerProfileModal
+          isOpen={modals.serverProfile}
+          onClose={() => closeModal('serverProfile')}
+          onSubmit={handleServerProfileSubmit}
+          editingServerProfile={editingItems.serverProfile}
+          loading={loading}
+        />
+
+        {/* Template Configuration Modal */}
+        {modals.templateProfile && selectedTemplate && (
+          <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+            <div className="bg-black border border-gray-800 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
+              <div className="p-4 sm:p-6">
+                <div className="flex justify-between items-center mb-6">
+                  <div>
+                    <h2 className="text-lg sm:text-xl font-bold text-white">Configurar Template</h2>
+                    <p className="text-gray-400 text-sm mt-1">{selectedTemplate.name}</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setModals(prev => ({ ...prev, templateProfile: false }))
+                      setSelectedTemplate(null)
+                      setTemplateVariables({})
+                      setSelectedServerProfile('')
+                    }}
+                    className="text-gray-400 hover:text-white p-2 rounded-lg hover:bg-gray-800 transition-colors"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+
+                <div className="space-y-4 sm:space-y-6">
+                  {/* Server Profile Selection */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Perfil de Servidor *
+                    </label>
+                    <select
+                      value={selectedServerProfile}
+                      onChange={(e) => setSelectedServerProfile(e.target.value)}
+                      className="w-full bg-black border border-gray-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all"
+                    >
+                      <option value="">Selecione um perfil de servidor</option>
+                      {serverProfiles.map(profile => (
+                        <option key={profile['.id']} value={profile['.id']}>
+                          {profile.name}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-gray-500 mt-2">
+                      O template será aplicado a este perfil de servidor
+                    </p>
+                  </div>
+
+                  {/* Template Variables */}
+                  <div>
+                    <h3 className="text-base sm:text-lg font-medium text-white mb-4">Variáveis do Template</h3>
+                    <div className="space-y-4">
+                      {selectedTemplate.variables.map(variable => (
+                        <div key={variable.key}>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">
+                            {variable.label}
+                            {variable.required && <span className="text-red-400 ml-1">*</span>}
+                          </label>
+                          
+                          {variable.type === 'color' ? (
+                            <div className="flex gap-2">
+                              <input
+                                type="color"
+                                value={templateVariables[variable.key] || variable.defaultValue}
+                                onChange={(e) => setTemplateVariables(prev => ({
+                                  ...prev,
+                                  [variable.key]: e.target.value
+                                }))}
+                                className="w-12 sm:w-16 h-12 bg-black border border-gray-700 rounded-lg cursor-pointer"
+                              />
+                              <input
+                                type="text"
+                                value={templateVariables[variable.key] || variable.defaultValue}
+                                onChange={(e) => setTemplateVariables(prev => ({
+                                  ...prev,
+                                  [variable.key]: e.target.value
+                                }))}
+                                className="flex-1 bg-black border border-gray-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all"
+                                placeholder={variable.defaultValue}
+                              />
+                            </div>
+                          ) : variable.type === 'number' ? (
+                            <input
+                              type="number"
+                              value={templateVariables[variable.key] || variable.defaultValue}
+                              onChange={(e) => setTemplateVariables(prev => ({
+                                ...prev,
+                                [variable.key]: e.target.value
+                              }))}
+                              className="w-full bg-black border border-gray-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all"
+                              placeholder={variable.defaultValue}
+                              required={variable.required}
+                            />
+                          ) : (
+                            <input
+                              type={variable.type === 'url' ? 'url' : 'text'}
+                              value={templateVariables[variable.key] || variable.defaultValue}
+                              onChange={(e) => setTemplateVariables(prev => ({
+                                ...prev,
+                                [variable.key]: e.target.value
+                              }))}
+                              className="w-full bg-black border border-gray-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all"
+                              placeholder={variable.defaultValue}
+                              required={variable.required}
+                            />
+                          )}
+                          
+                          <p className="text-xs text-gray-500 mt-1">{variable.description}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex flex-col sm:flex-row gap-3 pt-6 border-t border-gray-800">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setModals(prev => ({ ...prev, templateProfile: false }))
+                        setSelectedTemplate(null)
+                        setTemplateVariables({})
+                        setSelectedServerProfile('')
+                      }}
+                      className="flex-1 border-gray-700 text-gray-300 hover:text-white hover:border-gray-600 hover:bg-gray-800 py-3 rounded-lg transition-all"
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      onClick={handleApplyTemplate}
+                      disabled={!selectedServerProfile || (selectedTemplate.variables.some(v => v.required && !templateVariables[v.key]))}
+                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Aplicar Template
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        </div>
+      </div>
+    </div>
+  )
+}
