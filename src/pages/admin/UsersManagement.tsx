@@ -94,22 +94,37 @@ export function UsersManagement() {
   const fetchUsers = async () => {
     try {
       setLoading(true)
-      const { data, error } = await supabase
+      
+      console.log('Fetching users directly from Supabase:', user?.role)
+      
+      // Buscar usuários diretamente do Supabase (RLS desabilitado)
+      const { data: usersData, error: usersError } = await supabase
         .from('users')
-        .select(`
-          *,
-          mikrotiks (
-            id,
-            nome,
-            ip,
-            status,
-            created_at
-          )
-        `)
+        .select('*')
         .order('created_at', { ascending: false })
 
-      if (error) throw error
-      setUsers(data || [])
+      console.log('Users query result:', { usersData, usersError })
+
+      if (usersError) throw usersError
+
+      // Buscar mikrotiks para cada usuário
+      const usersWithMikrotiks = await Promise.all(
+        (usersData || []).map(async (user) => {
+          const { data: mikrotiksData, error: mikrotiksError } = await supabase
+            .from('mikrotiks')
+            .select('id, nome, ip, ativo, created_at')
+            .eq('user_id', user.id)
+
+          if (mikrotiksError) {
+            console.warn('Error fetching mikrotiks for user:', user.id, mikrotiksError)
+            return { ...user, mikrotiks: [] }
+          }
+
+          return { ...user, mikrotiks: mikrotiksData || [] }
+        })
+      )
+
+      setUsers(usersWithMikrotiks)
     } catch (error) {
       console.error('Error fetching users:', error)
       addToast({
@@ -124,39 +139,27 @@ export function UsersManagement() {
 
   const handleCreateUser = async () => {
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email: formData.email,
-        password: 'MikroPix2024!', // Senha padrão
-        options: {
-          data: {
-            nome: formData.nome,
-            telefone: formData.telefone,
-            cpf: formData.cpf,
-            pix_key: formData.pix_key,
-            role: formData.role,
-            saldo: formData.saldo
-          }
-        }
-      })
+      // Gerar ID único para o usuário
+      const userId = crypto.randomUUID()
+
+      const { data, error } = await supabase
+        .from('users')
+        .insert({
+          id: userId,
+          email: formData.email,
+          nome: formData.nome,
+          telefone: formData.telefone,
+          cpf: formData.cpf,
+          pix_key: formData.pix_key,
+          role: formData.role,
+          saldo: formData.saldo,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single()
 
       if (error) throw error
-
-      // Update the user data in the users table
-      if (data.user) {
-        const { error: updateError } = await supabase
-          .from('users')
-          .update({
-            nome: formData.nome,
-            telefone: formData.telefone,
-            cpf: formData.cpf,
-            pix_key: formData.pix_key,
-            role: formData.role,
-            saldo: formData.saldo
-          })
-          .eq('id', data.user.id)
-
-        if (updateError) throw updateError
-      }
 
       addToast({
         type: 'success',
@@ -277,7 +280,10 @@ export function UsersManagement() {
     if (!selectedUser) return
 
     try {
-      const { error } = await supabase.auth.admin.deleteUser(selectedUser.id)
+      const { error } = await supabase
+        .from('users')
+        .delete()
+        .eq('id', selectedUser.id)
       
       if (error) throw error
 

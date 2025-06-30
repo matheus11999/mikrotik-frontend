@@ -19,6 +19,7 @@ import { useToast } from '../../components/ui/toast'
 import { FiUsers, FiList, FiLayout, FiServer } from 'react-icons/fi'
 import { SimpleModal } from '../../components/SimpleModal'
 import { BentoGrid, BentoGridItem } from '../../components/ui/bento-grid'
+import { formatUsersForAPI, type GeneratedUser } from '../../utils/passwordGenerator'
 
 // Import new components
 import SystemInfoCards from '../../components/mikrotik/SystemInfoCards'
@@ -33,6 +34,7 @@ import UserModal from '../../components/mikrotik/modals/UserModal'
 import ProfileModal from '../../components/mikrotik/modals/ProfileModal'
 import ServerModal from '../../components/mikrotik/modals/ServerModal'
 import ServerProfileModal from '../../components/mikrotik/modals/ServerProfileModal'
+import PrintPasswordsModal from '../../components/mikrotik/PrintPasswordsModal'
 
 // Types
 interface MikrotikStats {
@@ -456,6 +458,13 @@ export default function MikrotikDashboard() {
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null)
   const [templateVariables, setTemplateVariables] = useState<Record<string, string>>({})
   const [selectedServerProfile, setSelectedServerProfile] = useState<string>('')
+  
+  // Print Passwords States
+  const [showPrintModal, setShowPrintModal] = useState(false)
+  const [selectedPlan, setSelectedPlan] = useState('')
+  const [selectedPasswordTemplate, setSelectedPasswordTemplate] = useState('')
+  const [customTemplate, setCustomTemplate] = useState('')
+  const [planUsers, setPlanUsers] = useState<HotspotUser[]>([])
 
   // API functions
   const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000'
@@ -894,6 +903,95 @@ export default function MikrotikDashboard() {
         description: 'Erro ao alterar status: ' + (error instanceof Error ? error.message : 'Erro desconhecido')
       })
     }
+  }
+
+  // Generate Passwords handler
+  const handleGeneratePasswords = async (generatedUsers: GeneratedUser[]) => {
+    try {
+      console.log(`[GENERATE-PASSWORDS] Iniciando criação de ${generatedUsers.length} usuários em lote`)
+      
+      // Formatar usuários para API
+      const usersForAPI = formatUsersForAPI(generatedUsers, getMikrotikParams())
+      
+      // Fazer requisição para endpoint de geração em lote
+      const response = await fetch(`${baseUrl}/api/mikrotik/hotspot/users/bulk/${mikrotikId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...headers
+        },
+        body: JSON.stringify({
+          users: usersForAPI,
+          options: {
+            maxUsers: 500,
+            batchSize: 10,
+            delayBetweenBatches: 500
+          }
+        })
+      })
+
+      const result = await response.json()
+      
+      if (result.success) {
+        // Atualizar lista de usuários
+        await fetchUsers()
+        
+        // Mostrar toast de sucesso
+        const summary = result.data?.summary
+        if (summary) {
+          addToast({
+            type: summary.created === summary.total ? 'success' : 'warning',
+            title: summary.created === summary.total ? 'Sucesso Total!' : 'Sucesso Parcial',
+            description: `${summary.created} de ${summary.total} usuários criados (${summary.successRate})`
+          })
+          
+          // Se houve erros, mostrar detalhes
+          if (summary.failed > 0 && result.data?.errors?.length > 0) {
+            console.warn('[GENERATE-PASSWORDS] Erros encontrados:', result.data.errors)
+          }
+        } else {
+          addToast({
+            type: 'success',
+            title: 'Usuários Criados!',
+            description: `${generatedUsers.length} usuários foram criados com sucesso`
+          })
+        }
+      } else {
+        throw new Error(result.message || result.error || 'Erro na criação em lote')
+      }
+      
+    } catch (error) {
+      console.error('[GENERATE-PASSWORDS] Erro na criação em lote:', error)
+      
+      let errorTitle = 'Erro na Geração'
+      let errorMessage = 'Erro desconhecido'
+      
+      if (error instanceof Error) {
+        if (error.message.includes('fetch')) {
+          errorTitle = 'Erro de Conexão'
+          errorMessage = 'Não foi possível conectar ao servidor. Verifique sua conexão.'
+        } else if (error.message.includes('timeout')) {
+          errorTitle = 'Timeout'
+          errorMessage = 'Operação demorou muito tempo. Alguns usuários podem ter sido criados.'
+        } else {
+          errorMessage = error.message
+        }
+      }
+      
+      addToast({
+        type: 'error',
+        title: errorTitle,
+        description: errorMessage
+      })
+      
+      // Atualizar lista mesmo em caso de erro (pode ter criado alguns)
+      await fetchUsers()
+    }
+  }
+
+  // Print Passwords handler
+  const handlePrintPasswords = () => {
+    setShowPrintModal(true)
   }
 
   // Profile handlers
@@ -1581,10 +1679,15 @@ export default function MikrotikDashboard() {
         )}
 
         {/* System Info Cards */}
-        {stats && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-            {/* CPU Card */}
-            <div className="group bg-black border border-gray-800 hover:border-blue-500 hover:bg-gray-900/50 rounded-xl transition-all duration-300 hover:scale-[1.02] p-4 sm:p-6 shadow-lg">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+          {/* CPU Card */}
+          {stats ? (
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="group bg-black border border-gray-800 hover:border-blue-500 hover:bg-gray-900/50 rounded-xl transition-all duration-300 hover:scale-[1.02] p-4 sm:p-6 shadow-lg"
+            >
               <div className="flex items-center gap-3 mb-4">
                 <div className="p-2 bg-blue-600/20 rounded-lg">
                   <Database className="h-5 w-5 text-blue-400" />
@@ -1629,10 +1732,34 @@ export default function MikrotikDashboard() {
                 <p className="text-sm text-gray-400 truncate">{getCpuInfo(stats).type}</p>
                 <p className="text-xs text-gray-500 truncate">{getCpuInfo(stats).frequency}</p>
               </div>
+            </motion.div>
+          ) : (
+            <div className="bg-black border border-gray-800 rounded-xl p-4 sm:p-6 shadow-lg">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-blue-600/20 rounded-lg animate-pulse">
+                  <div className="h-5 w-5 bg-gray-700 rounded"></div>
+                </div>
+                <div className="h-6 bg-gray-700 rounded w-16 animate-pulse"></div>
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="h-8 bg-gray-700 rounded w-16 animate-pulse"></div>
+                  <div className="w-16 h-16 bg-gray-700 rounded-full animate-pulse"></div>
+                </div>
+                <div className="h-4 bg-gray-700 rounded w-24 animate-pulse"></div>
+                <div className="h-3 bg-gray-700 rounded w-20 animate-pulse"></div>
+              </div>
             </div>
+          )}
 
-            {/* Memory Card */}
-            <div className="group bg-black border border-gray-800 hover:border-green-500 hover:bg-gray-900/50 rounded-xl transition-all duration-300 hover:scale-[1.02] p-4 sm:p-6 shadow-lg">
+          {/* Memory Card */}
+          {stats ? (
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="group bg-black border border-gray-800 hover:border-green-500 hover:bg-gray-900/50 rounded-xl transition-all duration-300 hover:scale-[1.02] p-4 sm:p-6 shadow-lg"
+            >
               <div className="flex items-center gap-3 mb-4">
                 <div className="p-2 bg-green-600/20 rounded-lg">
                   <Server className="h-5 w-5 text-green-400" />
@@ -1683,10 +1810,36 @@ export default function MikrotikDashboard() {
                 </div>
                 <p className="text-xs text-gray-500 truncate">Total: {formatMemory(stats.resource?.['total-memory'])}</p>
               </div>
+            </motion.div>
+          ) : (
+            <div className="bg-black border border-gray-800 rounded-xl p-4 sm:p-6 shadow-lg">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-green-600/20 rounded-lg animate-pulse">
+                  <div className="h-5 w-5 bg-gray-700 rounded"></div>
+                </div>
+                <div className="h-6 bg-gray-700 rounded w-20 animate-pulse"></div>
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="h-6 bg-gray-700 rounded w-16 mb-2 animate-pulse"></div>
+                    <div className="h-4 bg-gray-700 rounded w-12 animate-pulse"></div>
+                  </div>
+                  <div className="w-16 h-16 bg-gray-700 rounded-full animate-pulse"></div>
+                </div>
+                <div className="h-3 bg-gray-700 rounded w-24 animate-pulse"></div>
+              </div>
             </div>
+          )}
 
-            {/* Sistema Card */}
-            <div className="group bg-black border border-gray-800 hover:border-purple-500 hover:bg-gray-900/50 rounded-xl transition-all duration-300 hover:scale-[1.02] p-4 sm:p-6 shadow-lg">
+          {/* Sistema Card */}
+          {stats ? (
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="group bg-black border border-gray-800 hover:border-purple-500 hover:bg-gray-900/50 rounded-xl transition-all duration-300 hover:scale-[1.02] p-4 sm:p-6 shadow-lg"
+            >
               <div className="flex items-center gap-3 mb-4">
                 <div className="p-2 bg-purple-600/20 rounded-lg">
                   <Settings className="h-5 w-5 text-purple-400" />
@@ -1698,10 +1851,31 @@ export default function MikrotikDashboard() {
                 <p className="text-sm text-gray-400 truncate">{getSystemInfo(stats).identity}</p>
                 <p className="text-xs text-gray-500 truncate">{getSystemInfo(stats).version}</p>
               </div>
+            </motion.div>
+          ) : (
+            <div className="bg-black border border-gray-800 rounded-xl p-4 sm:p-6 shadow-lg">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-purple-600/20 rounded-lg animate-pulse">
+                  <div className="h-5 w-5 bg-gray-700 rounded"></div>
+                </div>
+                <div className="h-6 bg-gray-700 rounded w-20 animate-pulse"></div>
+              </div>
+              <div className="space-y-2">
+                <div className="h-5 bg-gray-700 rounded w-32 animate-pulse"></div>
+                <div className="h-4 bg-gray-700 rounded w-28 animate-pulse"></div>
+                <div className="h-3 bg-gray-700 rounded w-24 animate-pulse"></div>
+              </div>
             </div>
+          )}
 
-            {/* Uptime Card */}
-            <div className="group bg-black border border-gray-800 hover:border-orange-500 hover:bg-gray-900/50 rounded-xl transition-all duration-300 hover:scale-[1.02] p-4 sm:p-6 shadow-lg">
+          {/* Uptime Card */}
+          {stats ? (
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+              className="group bg-black border border-gray-800 hover:border-orange-500 hover:bg-gray-900/50 rounded-xl transition-all duration-300 hover:scale-[1.02] p-4 sm:p-6 shadow-lg"
+            >
               <div className="flex items-center gap-3 mb-4">
                 <div className="p-2 bg-orange-600/20 rounded-lg">
                   <RefreshCw className="h-5 w-5 text-orange-400" />
@@ -1716,11 +1890,28 @@ export default function MikrotikDashboard() {
                   <p className="text-xs text-green-400">Online</p>
                 </div>
               </div>
+            </motion.div>
+          ) : (
+            <div className="bg-black border border-gray-800 rounded-xl p-4 sm:p-6 shadow-lg">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-orange-600/20 rounded-lg animate-pulse">
+                  <div className="h-5 w-5 bg-gray-700 rounded"></div>
+                </div>
+                <div className="h-6 bg-gray-700 rounded w-16 animate-pulse"></div>
+              </div>
+              <div className="space-y-2">
+                <div className="h-5 bg-gray-700 rounded w-24 animate-pulse"></div>
+                <div className="h-4 bg-gray-700 rounded w-20 animate-pulse"></div>
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-gray-700 rounded-full animate-pulse"></div>
+                  <div className="h-3 bg-gray-700 rounded w-12 animate-pulse"></div>
+                </div>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
-          {/* Tabs */}
+        {/* Tabs */}
           <div className="flex justify-center mb-6">
             <div className="flex bg-black border border-gray-800 rounded-xl p-1 gap-1 overflow-x-auto scrollbar-hide shadow-lg">
               {[
@@ -1756,82 +1947,196 @@ export default function MikrotikDashboard() {
               {/* Metrics Cards */}
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
                 {/* Total Users */}
-                <div className="group bg-black border border-gray-800 hover:border-blue-500 hover:bg-gray-900/50 rounded-xl transition-all duration-300 hover:scale-[1.02] p-4 shadow-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-blue-600/20 rounded-lg">
-                      <Users className="h-5 w-5 text-blue-400" />
+                {!loading ? (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.1 }}
+                    className="group bg-black border border-gray-800 hover:border-blue-500 hover:bg-gray-900/50 rounded-xl transition-all duration-300 hover:scale-[1.02] p-4 shadow-lg"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-blue-600/20 rounded-lg">
+                        <Users className="h-5 w-5 text-blue-400" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-2xl font-bold text-white">{users.length}</p>
+                        <p className="text-xs text-gray-400 truncate">Total Usuários</p>
+                      </div>
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-2xl font-bold text-white">{users.length}</p>
-                      <p className="text-xs text-gray-400 truncate">Total Usuários</p>
+                  </motion.div>
+                ) : (
+                  <div className="bg-black border border-gray-800 rounded-xl p-4 shadow-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-blue-600/20 rounded-lg animate-pulse">
+                        <div className="h-5 w-5 bg-gray-700 rounded"></div>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="h-6 bg-gray-700 rounded w-8 mb-2 animate-pulse"></div>
+                        <div className="h-3 bg-gray-700 rounded w-20 animate-pulse"></div>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
 
                 {/* Active Users */}
-                <div className="group bg-black border border-gray-800 hover:border-green-500 hover:bg-gray-900/50 rounded-xl transition-all duration-300 hover:scale-[1.02] p-4 shadow-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-green-600/20 rounded-lg">
-                      <UserCheck className="h-5 w-5 text-green-400" />
+                {!loading ? (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2 }}
+                    className="group bg-black border border-gray-800 hover:border-green-500 hover:bg-gray-900/50 rounded-xl transition-all duration-300 hover:scale-[1.02] p-4 shadow-lg"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-green-600/20 rounded-lg">
+                        <UserCheck className="h-5 w-5 text-green-400" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-2xl font-bold text-white">{activeUsers.length}</p>
+                        <p className="text-xs text-gray-400 truncate">Clientes Ativos</p>
+                      </div>
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-2xl font-bold text-white">{activeUsers.length}</p>
-                      <p className="text-xs text-gray-400 truncate">Clientes Ativos</p>
+                  </motion.div>
+                ) : (
+                  <div className="bg-black border border-gray-800 rounded-xl p-4 shadow-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-green-600/20 rounded-lg animate-pulse">
+                        <div className="h-5 w-5 bg-gray-700 rounded"></div>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="h-6 bg-gray-700 rounded w-8 mb-2 animate-pulse"></div>
+                        <div className="h-3 bg-gray-700 rounded w-24 animate-pulse"></div>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
 
                 {/* Profiles */}
-                <div className="group bg-black border border-gray-800 hover:border-purple-500 hover:bg-gray-900/50 rounded-xl transition-all duration-300 hover:scale-[1.02] p-4 shadow-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-purple-600/20 rounded-lg">
-                      <Settings className="h-5 w-5 text-purple-400" />
+                {!loading ? (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3 }}
+                    className="group bg-black border border-gray-800 hover:border-purple-500 hover:bg-gray-900/50 rounded-xl transition-all duration-300 hover:scale-[1.02] p-4 shadow-lg"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-purple-600/20 rounded-lg">
+                        <Settings className="h-5 w-5 text-purple-400" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-2xl font-bold text-white">{profiles.length}</p>
+                        <p className="text-xs text-gray-400 truncate">Planos</p>
+                      </div>
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-2xl font-bold text-white">{profiles.length}</p>
-                      <p className="text-xs text-gray-400 truncate">Planos</p>
+                  </motion.div>
+                ) : (
+                  <div className="bg-black border border-gray-800 rounded-xl p-4 shadow-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-purple-600/20 rounded-lg animate-pulse">
+                        <div className="h-5 w-5 bg-gray-700 rounded"></div>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="h-6 bg-gray-700 rounded w-8 mb-2 animate-pulse"></div>
+                        <div className="h-3 bg-gray-700 rounded w-16 animate-pulse"></div>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
 
                 {/* Servers */}
-                <div className="group bg-black border border-gray-800 hover:border-orange-500 hover:bg-gray-900/50 rounded-xl transition-all duration-300 hover:scale-[1.02] p-4 shadow-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-orange-600/20 rounded-lg">
-                      <Server className="h-5 w-5 text-orange-400" />
+                {!loading ? (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.4 }}
+                    className="group bg-black border border-gray-800 hover:border-orange-500 hover:bg-gray-900/50 rounded-xl transition-all duration-300 hover:scale-[1.02] p-4 shadow-lg"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-orange-600/20 rounded-lg">
+                        <Server className="h-5 w-5 text-orange-400" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-2xl font-bold text-white">{servers.length}</p>
+                        <p className="text-xs text-gray-400 truncate">Servidores</p>
+                      </div>
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-2xl font-bold text-white">{servers.length}</p>
-                      <p className="text-xs text-gray-400 truncate">Servidores</p>
+                  </motion.div>
+                ) : (
+                  <div className="bg-black border border-gray-800 rounded-xl p-4 shadow-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-orange-600/20 rounded-lg animate-pulse">
+                        <div className="h-5 w-5 bg-gray-700 rounded"></div>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="h-6 bg-gray-700 rounded w-8 mb-2 animate-pulse"></div>
+                        <div className="h-3 bg-gray-700 rounded w-20 animate-pulse"></div>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
 
                 {/* Server Profiles */}
-                <div className="group bg-black border border-gray-800 hover:border-cyan-500 hover:bg-gray-900/50 rounded-xl transition-all duration-300 hover:scale-[1.02] p-4 shadow-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-cyan-600/20 rounded-lg">
-                      <Database className="h-5 w-5 text-cyan-400" />
+                {!loading ? (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.5 }}
+                    className="group bg-black border border-gray-800 hover:border-cyan-500 hover:bg-gray-900/50 rounded-xl transition-all duration-300 hover:scale-[1.02] p-4 shadow-lg"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-cyan-600/20 rounded-lg">
+                        <Database className="h-5 w-5 text-cyan-400" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-2xl font-bold text-white">{serverProfiles.length}</p>
+                        <p className="text-xs text-gray-400 truncate">Perfis Servidor</p>
+                      </div>
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-2xl font-bold text-white">{serverProfiles.length}</p>
-                      <p className="text-xs text-gray-400 truncate">Perfis Servidor</p>
+                  </motion.div>
+                ) : (
+                  <div className="bg-black border border-gray-800 rounded-xl p-4 shadow-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-cyan-600/20 rounded-lg animate-pulse">
+                        <div className="h-5 w-5 bg-gray-700 rounded"></div>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="h-6 bg-gray-700 rounded w-8 mb-2 animate-pulse"></div>
+                        <div className="h-3 bg-gray-700 rounded w-24 animate-pulse"></div>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
 
                 {/* User Activity */}
-                <div className="group bg-black border border-gray-800 hover:border-yellow-500 hover:bg-gray-900/50 rounded-xl transition-all duration-300 hover:scale-[1.02] p-4 shadow-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-yellow-600/20 rounded-lg">
-                      <UserCheck className="h-5 w-5 text-yellow-400" />
+                {!loading ? (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.6 }}
+                    className="group bg-black border border-gray-800 hover:border-yellow-500 hover:bg-gray-900/50 rounded-xl transition-all duration-300 hover:scale-[1.02] p-4 shadow-lg"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-yellow-600/20 rounded-lg">
+                        <UserCheck className="h-5 w-5 text-yellow-400" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-2xl font-bold text-white">{users.filter(u => !u.disabled).length}</p>
+                        <p className="text-xs text-gray-400 truncate">Users Habilitados</p>
+                      </div>
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-2xl font-bold text-white">{users.filter(u => !u.disabled).length}</p>
-                      <p className="text-xs text-gray-400 truncate">Users Habilitados</p>
+                  </motion.div>
+                ) : (
+                  <div className="bg-black border border-gray-800 rounded-xl p-4 shadow-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-yellow-600/20 rounded-lg animate-pulse">
+                        <div className="h-5 w-5 bg-gray-700 rounded"></div>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="h-6 bg-gray-700 rounded w-8 mb-2 animate-pulse"></div>
+                        <div className="h-3 bg-gray-700 rounded w-28 animate-pulse"></div>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
 
               {/* Actions Grid */}
@@ -1937,6 +2242,8 @@ export default function MikrotikDashboard() {
               onEditUser={handleEditUser}
               onDeleteUser={handleDeleteUser}
               onToggleUser={handleToggleUser}
+              onGeneratePasswords={handleGeneratePasswords}
+              onPrintPasswords={handlePrintPasswords}
               loading={loading}
             />
           )}
@@ -2255,6 +2562,16 @@ export default function MikrotikDashboard() {
             </div>
           </div>
         )}
+
+        {/* Print Passwords Modal */}
+        <PrintPasswordsModal
+          isOpen={showPrintModal}
+          onClose={() => setShowPrintModal(false)}
+          users={users}
+          profiles={profiles}
+          mikrotikId={mikrotikId || ''}
+          session={session}
+        />
 
         </div>
       </div>

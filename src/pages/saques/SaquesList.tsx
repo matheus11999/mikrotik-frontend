@@ -9,13 +9,22 @@ interface Saque {
   id: string
   valor: number
   status: 'pendente' | 'aprovado' | 'rejeitado'
-  metodo_pagamento: string
-  dados_bancarios: string
+  metodo_pagamento: 'pix' | 'ted' | 'doc'
+  chave_pix?: string
+  dados_bancarios?: any
   observacoes?: string
+  observacoes_admin?: string
   created_at: string
   processed_at?: string
+  processed_by?: string
   user_id: string
-  users?: {
+  user?: {
+    id: string
+    nome: string
+    email: string
+  }
+  admin_user?: {
+    id: string
     nome: string
     email: string
   }
@@ -29,10 +38,12 @@ export function SaquesList() {
   const [showNewSaque, setShowNewSaque] = useState(false)
   const [newSaque, setNewSaque] = useState({
     valor: '',
-    metodo_pagamento: 'pix',
-    dados_bancarios: '',
+    metodo_pagamento: 'pix' as 'pix' | 'ted' | 'doc',
+    chave_pix: '',
+    dados_bancarios: null as any,
     observacoes: ''
   })
+  const [processingAction, setProcessingAction] = useState<string | null>(null)
 
   useEffect(() => {
     fetchSaques()
@@ -43,62 +54,59 @@ export function SaquesList() {
 
     try {
       setLoading(true)
+      
+      console.log('Fetching saques directly from Supabase for user:', user?.id, user?.role)
+      
+      // Buscar saques diretamente do Supabase (RLS desabilitado)
       let query = supabase
         .from('saques')
-        .select(`
-          *,
-          users (
-            nome,
-            email
-          )
-        `)
+        .select('*')
 
-      if (user.role !== 'admin') {
+      // Se não for admin, mostrar apenas próprios saques
+      if (user?.role !== 'admin') {
         query = query.eq('user_id', user.id)
       }
 
       const { data, error } = await query.order('created_at', { ascending: false })
 
+      console.log('Saques query result:', { data, error })
+
       if (error) throw error
-      setSaques(data || [])
+
+      // Buscar dados dos usuários para cada saque
+      const saquesWithUsers = await Promise.all(
+        (data || []).map(async (saque) => {
+          // Buscar dados do usuário
+          const { data: userData } = await supabase
+            .from('users')
+            .select('id, nome, email')
+            .eq('id', saque.user_id)
+            .single()
+
+          // Buscar dados do admin que processou (se houver)
+          let adminData = null
+          if (saque.processed_by) {
+            const { data: admin } = await supabase
+              .from('users')
+              .select('id, nome, email')
+              .eq('id', saque.processed_by)
+              .single()
+            adminData = admin
+          }
+
+          return {
+            ...saque,
+            user: userData,
+            admin_user: adminData
+          }
+        })
+      )
+
+      setSaques(saquesWithUsers)
     } catch (error) {
       console.error('Error fetching saques:', error)
-      // Dados mockados para demonstração
-      setSaques([
-        {
-          id: '1',
-          valor: 150.00,
-          status: 'aprovado',
-          metodo_pagamento: 'pix',
-          dados_bancarios: 'usuario@email.com',
-          created_at: new Date().toISOString(),
-          processed_at: new Date().toISOString(),
-          user_id: user?.id || '',
-          users: { nome: user?.nome || 'Usuário', email: user?.email || 'usuario@email.com' }
-        },
-        {
-          id: '2',
-          valor: 75.50,
-          status: 'pendente',
-          metodo_pagamento: 'ted',
-          dados_bancarios: 'Banco do Brasil - Ag: 1234-5 - CC: 12345-6',
-          created_at: new Date(Date.now() - 86400000).toISOString(),
-          user_id: user?.id || '',
-          users: { nome: user?.nome || 'Usuário', email: user?.email || 'usuario@email.com' }
-        },
-        {
-          id: '3',
-          valor: 200.00,
-          status: 'rejeitado',
-          metodo_pagamento: 'pix',
-          dados_bancarios: 'usuario2@email.com',
-          observacoes: 'Dados bancários incorretos',
-          created_at: new Date(Date.now() - 172800000).toISOString(),
-          processed_at: new Date(Date.now() - 172800000 + 3600000).toISOString(),
-          user_id: user?.id || '',
-          users: { nome: user?.nome || 'Usuário', email: user?.email || 'usuario@email.com' }
-        }
-      ])
+      setSaques([])
+      alert('Erro ao carregar saques: ' + (error.message || 'Erro desconhecido'))
     } finally {
       setLoading(false)
     }
@@ -107,40 +115,139 @@ export function SaquesList() {
   const handleSubmitSaque = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!user || parseFloat(newSaque.valor) > (user.saldo || 0)) {
+    const valor = parseFloat(newSaque.valor)
+    
+    if (!user || valor > (user.saldo || 0)) {
       alert('Saldo insuficiente')
       return
     }
 
+    if (valor < 50) {
+      alert('Valor mínimo para saque é R$ 50,00')
+      return
+    }
+
+    if (newSaque.metodo_pagamento === 'pix' && !newSaque.chave_pix) {
+      alert('Chave PIX é obrigatória')
+      return
+    }
+
     try {
-      // Aqui você faria a inserção no Supabase
-      console.log('Novo saque:', newSaque)
+      setLoading(true)
       
-      // Mock: adiciona o saque à lista
-      const novoSaque: Saque = {
-        id: Date.now().toString(),
-        valor: parseFloat(newSaque.valor),
-        status: 'pendente',
+      const requestBody: any = {
+        valor,
         metodo_pagamento: newSaque.metodo_pagamento,
-        dados_bancarios: newSaque.dados_bancarios,
-        observacoes: newSaque.observacoes,
-        created_at: new Date().toISOString(),
-        user_id: user.id,
-        users: { nome: user.nome, email: user.email }
+        observacoes: newSaque.observacoes
       }
-      
-      setSaques([novoSaque, ...saques])
-      setNewSaque({ valor: '', metodo_pagamento: 'pix', dados_bancarios: '', observacoes: '' })
+
+      if (newSaque.metodo_pagamento === 'pix') {
+        requestBody.chave_pix = newSaque.chave_pix
+      } else {
+        requestBody.dados_bancarios = newSaque.dados_bancarios
+      }
+
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/saques`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Erro ao criar saque')
+      }
+
+      alert('Solicitação de saque criada com sucesso!')
+      setNewSaque({ valor: '', metodo_pagamento: 'pix', chave_pix: '', dados_bancarios: null, observacoes: '' })
       setShowNewSaque(false)
-    } catch (error) {
+      fetchSaques() // Recarregar lista
+    } catch (error: any) {
       console.error('Error creating saque:', error)
+      alert(error.message || 'Erro ao criar solicitação de saque')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleApproveSaque = async (saqueId: string) => {
+    if (!user || user.role !== 'admin') return
+    
+    const observacoes = prompt('Observações sobre a aprovação (opcional):')
+    
+    try {
+      setProcessingAction(saqueId)
+      
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/saques/${saqueId}/approve`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ observacoes_admin: observacoes })
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Erro ao aprovar saque')
+      }
+
+      alert('Saque aprovado com sucesso!')
+      fetchSaques()
+    } catch (error: any) {
+      console.error('Error approving saque:', error)
+      alert(error.message || 'Erro ao aprovar saque')
+    } finally {
+      setProcessingAction(null)
+    }
+  }
+
+  const handleRejectSaque = async (saqueId: string) => {
+    if (!user || user.role !== 'admin') return
+    
+    const motivo = prompt('Motivo da rejeição (obrigatório):')
+    if (!motivo) {
+      alert('Motivo da rejeição é obrigatório')
+      return
+    }
+    
+    try {
+      setProcessingAction(saqueId)
+      
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/saques/${saqueId}/reject`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ observacoes_admin: motivo })
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Erro ao rejeitar saque')
+      }
+
+      alert('Saque rejeitado com sucesso!')
+      fetchSaques()
+    } catch (error: any) {
+      console.error('Error rejecting saque:', error)
+      alert(error.message || 'Erro ao rejeitar saque')
+    } finally {
+      setProcessingAction(null)
     }
   }
 
   const filteredSaques = saques.filter(saque => 
           (saque.dados_bancarios || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (saque.metodo_pagamento || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (saque.users?.nome || '').toLowerCase().includes(searchTerm.toLowerCase())
+      (saque.user?.nome || '').toLowerCase().includes(searchTerm.toLowerCase())
   )
 
   const totalSaques = saques.reduce((sum, saque) => sum + saque.valor, 0)
@@ -207,13 +314,15 @@ export function SaquesList() {
                 </div>
               </div>
 
-              <Button
-                onClick={() => setShowNewSaque(true)}
-                className="bg-orange-600 hover:bg-orange-700 text-white transition-all duration-300 w-full sm:w-auto"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Solicitar Saque
-              </Button>
+              {user?.role !== 'admin' && (
+                <Button
+                  onClick={() => setShowNewSaque(true)}
+                  className="bg-orange-600 hover:bg-orange-700 text-white transition-all duration-300 w-full sm:w-auto"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Solicitar Saque
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -260,13 +369,60 @@ export function SaquesList() {
 
                 <div>
                   <label className="block text-sm font-medium text-white mb-2">Dados para Recebimento</label>
-                  <Input
-                    value={newSaque.dados_bancarios}
-                    onChange={(e) => setNewSaque({ ...newSaque, dados_bancarios: e.target.value })}
-                    placeholder={newSaque.metodo_pagamento === 'pix' ? 'email@exemplo.com ou chave PIX' : 'Banco - Agência - Conta'}
-                    className="bg-gray-900 border-gray-800 text-white text-base"
-                    required
-                  />
+                  {newSaque.metodo_pagamento === 'pix' ? (
+                    <Input
+                      value={newSaque.chave_pix}
+                      onChange={(e) => setNewSaque({ ...newSaque, chave_pix: e.target.value })}
+                      placeholder="email@exemplo.com, CPF, telefone ou chave aleatória"
+                      className="bg-gray-900 border-gray-800 text-white text-base"
+                      required
+                    />
+                  ) : (
+                    <div className="space-y-3">
+                      <Input
+                        placeholder="Nome do Banco"
+                        value={newSaque.dados_bancarios?.banco || ''}
+                        onChange={(e) => setNewSaque({ 
+                          ...newSaque, 
+                          dados_bancarios: { ...newSaque.dados_bancarios, banco: e.target.value }
+                        })}
+                        className="bg-gray-900 border-gray-800 text-white text-base"
+                        required
+                      />
+                      <div className="grid grid-cols-2 gap-3">
+                        <Input
+                          placeholder="Agência"
+                          value={newSaque.dados_bancarios?.agencia || ''}
+                          onChange={(e) => setNewSaque({ 
+                            ...newSaque, 
+                            dados_bancarios: { ...newSaque.dados_bancarios, agencia: e.target.value }
+                          })}
+                          className="bg-gray-900 border-gray-800 text-white text-base"
+                          required
+                        />
+                        <Input
+                          placeholder="Conta"
+                          value={newSaque.dados_bancarios?.conta || ''}
+                          onChange={(e) => setNewSaque({ 
+                            ...newSaque, 
+                            dados_bancarios: { ...newSaque.dados_bancarios, conta: e.target.value }
+                          })}
+                          className="bg-gray-900 border-gray-800 text-white text-base"
+                          required
+                        />
+                      </div>
+                      <Input
+                        placeholder="Nome do Titular"
+                        value={newSaque.dados_bancarios?.titular || ''}
+                        onChange={(e) => setNewSaque({ 
+                          ...newSaque, 
+                          dados_bancarios: { ...newSaque.dados_bancarios, titular: e.target.value }
+                        })}
+                        className="bg-gray-900 border-gray-800 text-white text-base"
+                        required
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -425,18 +581,27 @@ export function SaquesList() {
                           <div className="w-2 h-2 rounded-full bg-green-400"></div>
                           <span className="text-green-400 text-sm font-medium">Dados Bancários</span>
                         </div>
-                        <p className="text-white break-all">{saque.dados_bancarios}</p>
+                        {saque.metodo_pagamento === 'pix' ? (
+                          <p className="text-white break-all">{saque.chave_pix}</p>
+                        ) : (
+                          <div className="text-white space-y-1">
+                            <p><span className="text-gray-400">Banco:</span> {saque.dados_bancarios?.banco}</p>
+                            <p><span className="text-gray-400">Agência:</span> {saque.dados_bancarios?.agencia}</p>
+                            <p><span className="text-gray-400">Conta:</span> {saque.dados_bancarios?.conta}</p>
+                            <p><span className="text-gray-400">Titular:</span> {saque.dados_bancarios?.titular}</p>
+                          </div>
+                        )}
                       </div>
 
                       {/* User Info - Only for admin */}
-                      {user?.role === 'admin' && saque.users && (
+                      {user?.role === 'admin' && saque.user && (
                         <div className="p-4 rounded-lg bg-gray-900 border border-gray-800">
                           <div className="flex items-center space-x-2 mb-2">
                             <User className="h-4 w-4 text-purple-400" />
                             <span className="text-purple-400 text-sm font-medium">Usuário</span>
                           </div>
-                          <p className="text-white font-medium">{saque.users.nome}</p>
-                          <p className="text-xs text-gray-400">{saque.users.email}</p>
+                          <p className="text-white font-medium">{saque.user.nome}</p>
+                          <p className="text-xs text-gray-400">{saque.user.email}</p>
                         </div>
                       )}
                     </div>
@@ -468,6 +633,48 @@ export function SaquesList() {
                             minute: '2-digit'
                           })}
                         </p>
+                      </div>
+                    )}
+
+                    {/* Admin Controls - Only for admin and pending saques */}
+                    {user?.role === 'admin' && saque.status === 'pendente' && (
+                      <div className="mt-4 flex space-x-3">
+                        <Button
+                          onClick={() => handleApproveSaque(saque.id)}
+                          disabled={processingAction === saque.id}
+                          className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                        >
+                          {processingAction === saque.id ? (
+                            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <CheckCircle className="h-4 w-4 mr-2" />
+                          )}
+                          Aprovar
+                        </Button>
+                        <Button
+                          onClick={() => handleRejectSaque(saque.id)}
+                          disabled={processingAction === saque.id}
+                          variant="destructive"
+                          className="flex-1"
+                        >
+                          {processingAction === saque.id ? (
+                            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <XCircle className="h-4 w-4 mr-2" />
+                          )}
+                          Rejeitar
+                        </Button>
+                      </div>
+                    )}
+
+                    {/* Admin Observations */}
+                    {saque.observacoes_admin && (
+                      <div className="mt-4 p-4 rounded-lg bg-red-900/20 border border-red-500/30">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <AlertCircle className="h-4 w-4 text-red-400" />
+                          <span className="text-red-400 text-sm font-medium">Observações do Admin</span>
+                        </div>
+                        <p className="text-white">{saque.observacoes_admin}</p>
                       </div>
                     )}
                   </div>

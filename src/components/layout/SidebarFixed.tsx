@@ -8,7 +8,6 @@ import { supabase } from "../../lib/supabase";
 import {
   LayoutDashboard,
   Router,
-  ListChecks,
   Shield,
   ShoppingCart,
   CreditCard,
@@ -86,8 +85,21 @@ export function SidebarFixed({ open, setOpen, collapsed, setCollapsed }: Sidebar
   };
 
   const handleLogout = async () => {
-    await signOut();
-    navigate("/login");
+    try {
+      const { error } = await signOut();
+      if (error) {
+        console.error('Logout error:', error);
+      }
+      // Force navigation even if there's an error
+      navigate("/login", { replace: true });
+      // Also reload the page to clear any cached data
+      window.location.reload();
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Force navigation even if there's an error
+      navigate("/login", { replace: true });
+      window.location.reload();
+    }
   };
 
   const toggleSection = (sectionName: string) => {
@@ -110,11 +122,6 @@ export function SidebarFixed({ open, setOpen, collapsed, setCollapsed }: Sidebar
         label: "MikroTiks",
         href: "/mikrotiks",
         icon: <Router className="h-5 w-5" />,
-      },
-      {
-        label: "MACs",
-        href: "/macs",
-        icon: <ListChecks className="h-5 w-5" />,
       },
       ...(user?.role === 'admin' ? [{
         label: "WireGuard",
@@ -143,7 +150,7 @@ export function SidebarFixed({ open, setOpen, collapsed, setCollapsed }: Sidebar
     admin: [
       ...(user?.role === 'admin' ? [{
         label: "Usuários",
-        href: "/usuarios",
+        href: "/users",
         icon: <Users className="h-5 w-5" />,
       }] : []),
     ]

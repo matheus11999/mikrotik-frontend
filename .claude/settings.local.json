@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run dev:*)",
+      "Bash(pkill:*)",
+      "Bash(apt:*)",
+      "Bash(apt install:*)",
+      "Bash(npm install:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(curl:*)",
+      "Bash(lsof:*)",
+      "Bash(rm:*)",
+      "Bash(ss:*)",
+      "Bash(npx tsc:*)",
+      "Bash(timeout 5s npm run dev)",
+      "Bash(timeout 10s npm run dev)"
+    ],
+    "deny": []
+  }
+}

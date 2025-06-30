@@ -81,7 +81,7 @@ interface DashboardStats {
   
   // Métricas de performance
   vendas30Dias: number
-  crescimentoMensal: number
+  vendasMensais: number
   
   // Estatísticas de pagamento
   paymentStats?: {
@@ -563,7 +563,7 @@ export function DashboardFinal() {
             user: (v as any).user
           })) || [],
           vendas30Dias,
-          crescimentoMensal: totalVendas > 0 ? ((vendas30Dias / totalVendas) * 100) : 0,
+          vendasMensais: vendas30Dias,
           paymentStats,
           mikrotikStats: mikrotiksResult.data || [],
           recentActivity
@@ -658,7 +658,7 @@ export function DashboardFinal() {
             mikrotik: (v as any).venda?.mikrotik
           })) || [],
           vendas30Dias: minhasVendas30Dias,
-          crescimentoMensal: minhasVendas > 0 ? ((minhasVendas30Dias / minhasVendas) * 100) : 0,
+          vendasMensais: minhasVendas30Dias,
           recentActivity
         })
       }
@@ -805,13 +805,13 @@ export function DashboardFinal() {
               />
               
               <StatsCard
-                title="Crescimento"
-                value={`${stats?.crescimentoMensal.toFixed(1)}%` || "0%"}
-                icon={ChartArea}
+                title="Vendas deste Mês"
+                value={`R$ ${stats?.vendasMensais?.toFixed(2) || "0.00"}`}
+                icon={ShoppingCart}
                 trend="up"
-                trendValue="+15.3%"
+                trendValue={`${stats?.vendas30Dias || 0} vendas`}
                 description="Últimos 30 dias"
-                color="yellow"
+                color="purple"
                 loading={loading}
               />
             </div>

@@ -14,7 +14,6 @@ import MikrotikDashboard from './pages/mikrotiks/MikrotikDashboardNew'
 import { VendasList } from './pages/vendas/VendasList'
 import { TransacoesList } from './pages/transacoes/TransacoesList'
 import { SaquesList } from './pages/saques/SaquesList'
-import { MacsList } from './pages/macs/MacsList'
 import { WireGuardManagement } from './pages/wireguard/WireGuardManagement'
 import UsersManagement from './pages/admin/UsersManagement'
 import { useEffect } from 'react'
@@ -98,14 +97,11 @@ function App() {
                   {/* Saques */}
                   <Route path="saques" element={<SaquesList />} />
                   
-                  {/* MACs */}
-                  <Route path="macs" element={<MacsList />} />
-                  
                   {/* WireGuard */}
                   <Route path="wireguard" element={<WireGuardManagement />} />
                   
                   {/* Admin Routes */}
-                  <Route path="admin/users" element={<UsersManagement />} />
+                  <Route path="users" element={<UsersManagement />} />
                 </Route>
                 
                 {/* Redirect any unknown routes to dashboard */}

@@ -9,14 +9,16 @@ interface Transacao {
   id: string
   tipo: 'credito' | 'debito'
   valor: number
-  descricao: string
+  motivo: string
   created_at: string
   user_id: string
-  origem?: string
+  referencia_tipo?: string
   users?: {
     nome: string
     email: string
   }
+  saldo_anterior?: number
+  saldo_atual?: number
 }
 
 export function TransacoesList() {
@@ -39,7 +41,7 @@ export function TransacoesList() {
     try {
       setLoading(true)
       
-      // Tentar buscar dados reais do Supabase
+      // Buscar dados reais do Supabase
       let query = supabase
         .from('transacoes')
         .select(`
@@ -58,105 +60,18 @@ export function TransacoesList() {
 
       if (error) throw error
       
-      // Se não houver dados, usar dados mockados
-      if (!data || data.length === 0) {
-        setTransacoes([
-          {
-            id: '1',
-            tipo: 'credito',
-            valor: 150.00,
-            descricao: 'Comissão de venda - MikroTik Principal',
-            created_at: new Date().toISOString(),
-            user_id: user?.id || '',
-            origem: 'comissao_venda',
-            users: { nome: user?.nome || 'Usuário', email: user?.email || 'usuario@email.com' }
-          },
-          {
-            id: '2',
-            tipo: 'debito',
-            valor: 50.00,
-            descricao: 'Saque solicitado',
-            created_at: new Date(Date.now() - 86400000).toISOString(),
-            user_id: user?.id || '',
-            origem: 'saque',
-            users: { nome: user?.nome || 'Usuário', email: user?.email || 'usuario@email.com' }
-          },
-          {
-            id: '3',
-            tipo: 'credito',
-            valor: 75.50,
-            descricao: 'Comissão de venda - MikroTik Secundário',
-            created_at: new Date(Date.now() - 172800000).toISOString(),
-            user_id: user?.id || '',
-            origem: 'comissao_venda',
-            users: { nome: user?.nome || 'Usuário', email: user?.email || 'usuario@email.com' }
-          },
-          {
-            id: '4',
-            tipo: 'credito',
-            valor: 200.00,
-            descricao: 'Comissão de venda - Plano Premium',
-            created_at: new Date(Date.now() - 259200000).toISOString(),
-            user_id: user?.id || '',
-            origem: 'comissao_venda',
-            users: { nome: user?.nome || 'Usuário', email: user?.email || 'usuario@email.com' }
-          },
-          {
-            id: '5',
-            tipo: 'debito',
-            valor: 25.00,
-            descricao: 'Taxa de processamento',
-            created_at: new Date(Date.now() - 345600000).toISOString(),
-            user_id: user?.id || '',
-            origem: 'taxa',
-            users: { nome: user?.nome || 'Usuário', email: user?.email || 'usuario@email.com' }
-          }
-        ])
-      } else {
-        setTransacoes(data)
-      }
+      // Se não houver dados, apenas setar array vazio
+      setTransacoes(data || [])
     } catch (error) {
       console.error('Error fetching transacoes:', error)
-      // Em caso de erro, usar dados mockados
-      setTransacoes([
-        {
-          id: '1',
-          tipo: 'credito',
-          valor: 150.00,
-          descricao: 'Comissão de venda - MikroTik Principal',
-          created_at: new Date().toISOString(),
-          user_id: user?.id || '',
-          origem: 'comissao_venda',
-          users: { nome: user?.nome || 'Usuário', email: user?.email || 'usuario@email.com' }
-        },
-        {
-          id: '2',
-          tipo: 'debito',
-          valor: 50.00,
-          descricao: 'Saque solicitado',
-          created_at: new Date(Date.now() - 86400000).toISOString(),
-          user_id: user?.id || '',
-          origem: 'saque',
-          users: { nome: user?.nome || 'Usuário', email: user?.email || 'usuario@email.com' }
-        },
-        {
-          id: '3',
-          tipo: 'credito',
-          valor: 75.50,
-          descricao: 'Comissão de venda - MikroTik Secundário',
-          created_at: new Date(Date.now() - 172800000).toISOString(),
-          user_id: user?.id || '',
-          origem: 'comissao_venda',
-          users: { nome: user?.nome || 'Usuário', email: user?.email || 'usuario@email.com' }
-        }
-      ])
+      setTransacoes([])
     } finally {
       setLoading(false)
     }
   }
 
   const filteredTransacoes = transacoes.filter(transacao => {
-    const matchesSearch = (transacao.descricao || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const matchesSearch = (transacao.motivo || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (transacao.users?.nome || '').toLowerCase().includes(searchTerm.toLowerCase())
     const matchesTipo = filtroTipo === 'todos' || transacao.tipo === filtroTipo
     return matchesSearch && matchesTipo
@@ -387,26 +302,26 @@ export function TransacoesList() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.1 }}
                   whileHover={{ scale: 1.01 }}
-                  className="bg-black/40 backdrop-blur-sm border border-gray-800/50 rounded-2xl p-6 hover:border-gray-700/50 transition-all duration-300 hover:shadow-2xl"
+                  className="bg-black/40 backdrop-blur-sm border border-gray-800/50 rounded-xl p-3 sm:p-4 hover:border-gray-700/50 transition-all duration-200 hover:shadow-lg"
                 >
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center space-x-4">
-                      <div className={`p-3 rounded-xl bg-gradient-to-br ${
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center space-x-3">
+                      <div className={`p-2 rounded-lg bg-gradient-to-br ${
                         transacao.tipo === 'credito' 
                           ? 'from-green-500/10 to-green-600/5 border border-green-500/20' 
                           : 'from-red-500/10 to-red-600/5 border border-red-500/20'
                       }`}>
                         {transacao.tipo === 'credito' ? (
-                          <ArrowUpRight className="h-6 w-6 text-green-400" />
+                          <ArrowUpRight className="h-5 w-5 text-green-400" />
                         ) : (
-                          <ArrowDownLeft className="h-6 w-6 text-red-400" />
+                          <ArrowDownLeft className="h-5 w-5 text-red-400" />
                         )}
                       </div>
                       <div>
-                        <h3 className="text-xl font-bold text-white group-hover:text-blue-400 transition-colors">
+                        <h3 className="text-lg font-bold text-white group-hover:text-blue-400 transition-colors">
                           {transacao.tipo === 'credito' ? 'Crédito' : 'Débito'}
                         </h3>
-                        <p className="text-gray-400">
+                        <p className="text-gray-400 text-xs">
                           {new Date(transacao.created_at).toLocaleDateString('pt-BR', {
                             year: 'numeric',
                             month: 'long',
@@ -419,50 +334,50 @@ export function TransacoesList() {
                     </div>
                     
                     <div className="text-right">
-                      <p className={`text-2xl font-bold ${
+                      <p className={`text-xl font-bold ${
                         transacao.tipo === 'credito' ? 'text-green-400' : 'text-red-400'
                       }`}>
                         {transacao.tipo === 'credito' ? '+' : '-'}R$ {transacao.valor.toFixed(2)}
                       </p>
-                      <p className="text-sm text-gray-400 capitalize">{transacao.tipo}</p>
+                      <p className="text-xs text-gray-400 capitalize">{transacao.tipo}</p>
                     </div>
                   </div>
 
-                  <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-2 md:grid-cols-2">
                     {/* Descrição */}
-                    <div className="p-4 rounded-lg bg-black/40 backdrop-blur-sm border border-gray-800/50">
-                      <div className="flex items-center space-x-2 mb-2">
+                    <div className="p-2 rounded bg-black/40 backdrop-blur-sm border border-gray-800/50">
+                      <div className="flex items-center space-x-2 mb-1">
                         <div className="w-2 h-2 rounded-full bg-blue-400"></div>
-                        <span className="text-blue-400 text-sm font-medium">Descrição</span>
+                        <span className="text-blue-400 text-xs font-medium">Descrição</span>
                       </div>
-                      <p className="text-white">{transacao.descricao}</p>
-                      {transacao.origem && (
+                      <p className="text-white text-sm">{transacao.motivo}</p>
+                      {transacao.referencia_tipo && (
                         <p className="text-xs text-gray-400 mt-1 capitalize">
-                          Origem: {transacao.origem.replace('_', ' ')}
+                          Origem: {transacao.referencia_tipo.replace('_', ' ')}
                         </p>
                       )}
                     </div>
 
                     {/* User Info - Only for admin */}
                     {user?.role === 'admin' && transacao.users && (
-                      <div className="p-4 rounded-lg bg-black/40 backdrop-blur-sm border border-gray-800/50">
-                        <div className="flex items-center space-x-2 mb-2">
+                      <div className="p-2 rounded bg-black/40 backdrop-blur-sm border border-gray-800/50">
+                        <div className="flex items-center space-x-2 mb-1">
                           <User className="h-4 w-4 text-purple-400" />
-                          <span className="text-purple-400 text-sm font-medium">Usuário</span>
+                          <span className="text-purple-400 text-xs font-medium">Usuário</span>
                         </div>
-                        <p className="text-white font-medium">{transacao.users.nome}</p>
+                        <p className="text-white font-medium text-sm">{transacao.users.nome}</p>
                         <p className="text-xs text-gray-400">{transacao.users.email}</p>
                       </div>
                     )}
 
                     {/* Date Info */}
                     {(!user?.role || user.role !== 'admin' || !transacao.users) && (
-                      <div className="p-4 rounded-lg bg-black/40 backdrop-blur-sm border border-gray-800/50">
-                        <div className="flex items-center space-x-2 mb-2">
+                      <div className="p-2 rounded bg-black/40 backdrop-blur-sm border border-gray-800/50">
+                        <div className="flex items-center space-x-2 mb-1">
                           <Calendar className="h-4 w-4 text-orange-400" />
-                          <span className="text-orange-400 text-sm font-medium">Data</span>
+                          <span className="text-orange-400 text-xs font-medium">Data</span>
                         </div>
-                        <p className="text-white">
+                        <p className="text-white text-sm">
                           {new Date(transacao.created_at).toLocaleDateString('pt-BR', {
                             weekday: 'long',
                             year: 'numeric',

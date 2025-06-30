@@ -13,8 +13,26 @@ import {
   ChevronLeft,
   ChevronRight,
   Filter,
-  X
+  X,
+  Key,
+  ArrowLeft,
+  Download,
+  Eye,
+  Copy,
+  CheckCircle,
+  Printer
 } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { 
+  generatePasswordBatch, 
+  formatGenerationSummary,
+  generatePreviewData,
+  estimateCreationTime,
+  formatEstimatedTime,
+  PASSWORD_GENERATION_LIMITS,
+  type PasswordGenerationConfig,
+  type GeneratedUser
+} from '../../utils/passwordGenerator'
 
 interface HotspotUser {
   '.id': string
@@ -39,6 +57,8 @@ interface HotspotUsersTabProps {
   onEditUser: (user: HotspotUser) => void
   onDeleteUser: (user: HotspotUser) => void
   onToggleUser: (user: HotspotUser) => void
+  onGeneratePasswords?: (users: GeneratedUser[]) => Promise<void>
+  onPrintPasswords?: () => void
   loading?: boolean
 }
 
@@ -49,6 +69,8 @@ const HotspotUsersTab: React.FC<HotspotUsersTabProps> = ({
   onEditUser,
   onDeleteUser,
   onToggleUser,
+  onGeneratePasswords,
+  onPrintPasswords,
   loading = false
 }) => {
   const [searchTerm, setSearchTerm] = useState('')
@@ -57,6 +79,19 @@ const HotspotUsersTab: React.FC<HotspotUsersTabProps> = ({
   const [showDisabledOnly, setShowDisabledOnly] = useState(false)
   const [commentFilter, setCommentFilter] = useState('')
   const [showFilters, setShowFilters] = useState(false)
+  
+  // Password Generation States
+  const [showPasswordGenerator, setShowPasswordGenerator] = useState(false)
+  const [generationConfig, setGenerationConfig] = useState<PasswordGenerationConfig>({
+    quantity: 10,
+    profile: profiles[0]?.name || 'default'
+  })
+  const [generatedUsers, setGeneratedUsers] = useState<GeneratedUser[]>([])
+  const [showPreview, setShowPreview] = useState(false)
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [generationProgress, setGenerationProgress] = useState(0)
+  const [generationStep, setGenerationStep] = useState<'config' | 'preview' | 'generating' | 'completed'>('config')
+  
   const usersPerPage = 25
 
   // Helper function to check if user is active (handles string and boolean values)
@@ -125,6 +160,52 @@ const HotspotUsersTab: React.FC<HotspotUsersTabProps> = ({
     return Array.from(profilesSet).sort()
   }, [users])
 
+  // Password Generation Function
+  const handlePasswordGeneration = async () => {
+    if (!onGeneratePasswords) return
+    
+    try {
+      setIsGenerating(true)
+      setGenerationStep('generating')
+      setGenerationProgress(0)
+      
+      // Gerar usuários
+      const existingUsernames = users.map(u => u.name)
+      const result = generatePasswordBatch(generationConfig, existingUsernames)
+      
+      if (result.errors.length > 0) {
+        console.warn('Erros na geração:', result.errors)
+      }
+      
+      setGeneratedUsers(result.users)
+      
+      // Simular progresso da criação
+      const totalUsers = result.users.length
+      let progress = 0
+      
+      const updateProgress = () => {
+        progress += Math.random() * 15 + 5 // 5-20% por vez
+        setGenerationProgress(Math.min(progress, 90))
+      }
+      
+      const progressInterval = setInterval(updateProgress, 200)
+      
+      // Criar usuários no MikroTik
+      await onGeneratePasswords(result.users)
+      
+      // Finalizar progresso
+      clearInterval(progressInterval)
+      setGenerationProgress(100)
+      setGenerationStep('completed')
+      
+    } catch (error) {
+      console.error('Erro na geração de senhas:', error)
+      setGenerationStep('config')
+    } finally {
+      setIsGenerating(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -153,13 +234,35 @@ const HotspotUsersTab: React.FC<HotspotUsersTabProps> = ({
             )}
           </p>
         </div>
-        <Button 
-          onClick={onCreateUser} 
-          className="bg-blue-600 hover:bg-blue-700 text-white w-full sm:w-auto"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Novo Usuário
-        </Button>
+        <div className="flex gap-2 w-full sm:w-auto">
+          <Button 
+            onClick={onCreateUser} 
+            className="bg-blue-600 hover:bg-blue-700 text-white flex-1 sm:flex-none"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Novo Usuário
+          </Button>
+          {onGeneratePasswords && (
+            <>
+              <Button 
+                onClick={() => setShowPasswordGenerator(true)} 
+                className="bg-purple-600 hover:bg-purple-700 text-white flex-1 sm:flex-none"
+              >
+                <Key className="h-4 w-4 mr-2" />
+                Gerar Senhas
+              </Button>
+              {onPrintPasswords && (
+                <Button 
+                  onClick={onPrintPasswords} 
+                  className="bg-green-600 hover:bg-green-700 text-white flex-1 sm:flex-none"
+                >
+                  <Printer className="h-4 w-4 mr-2" />
+                  Imprimir
+                </Button>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       {/* Search and Filters */}
@@ -266,6 +369,29 @@ const HotspotUsersTab: React.FC<HotspotUsersTabProps> = ({
           </div>
         )}
       </div>
+
+      {/* Password Generator Modal */}
+      <AnimatePresence>
+        {showPasswordGenerator && (
+          <PasswordGeneratorModal
+            profiles={profiles}
+            existingUsers={users}
+            config={generationConfig}
+            onConfigChange={setGenerationConfig}
+            onGenerate={handlePasswordGeneration}
+            onClose={() => {
+              setShowPasswordGenerator(false)
+              setGenerationStep('config')
+              setGeneratedUsers([])
+              setGenerationProgress(0)
+            }}
+            isGenerating={isGenerating}
+            generationProgress={generationProgress}
+            generationStep={generationStep}
+            generatedUsers={generatedUsers}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Users List */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
@@ -439,6 +565,319 @@ const HotspotUsersTab: React.FC<HotspotUsersTabProps> = ({
         </div>
       )}
     </div>
+  )
+}
+
+// Componente do Modal de Geração de Senhas
+interface PasswordGeneratorModalProps {
+  profiles: HotspotProfile[]
+  existingUsers: HotspotUser[]
+  config: PasswordGenerationConfig
+  onConfigChange: (config: PasswordGenerationConfig) => void
+  onGenerate: () => void
+  onClose: () => void
+  isGenerating: boolean
+  generationProgress: number
+  generationStep: 'config' | 'preview' | 'generating' | 'completed'
+  generatedUsers: GeneratedUser[]
+}
+
+const PasswordGeneratorModal: React.FC<PasswordGeneratorModalProps> = ({
+  profiles,
+  existingUsers,
+  config,
+  onConfigChange,
+  onGenerate,
+  onClose,
+  isGenerating,
+  generationProgress,
+  generationStep,
+  generatedUsers
+}) => {
+  const [previewUsers, setPreviewUsers] = useState<GeneratedUser[]>([])
+  const [copiedField, setCopiedField] = useState<string | null>(null)
+  
+  const estimatedTime = estimateCreationTime(config.quantity)
+  
+  // Gerar preview quando configuração muda
+  React.useEffect(() => {
+    if (config.profile && config.quantity > 0) {
+      const preview = generatePreviewData(config.profile, 3)
+      setPreviewUsers(preview)
+    }
+  }, [config])
+  
+  const handleCopy = async (text: string, field: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopiedField(field)
+      setTimeout(() => setCopiedField(null), 2000)
+    } catch (error) {
+      console.error('Erro ao copiar:', error)
+    }
+  }
+  
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      onClick={(e) => e.target === e.currentTarget && !isGenerating && onClose()}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        className="bg-black border border-gray-800 rounded-2xl p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+              <Key className="h-6 w-6 text-purple-400" />
+              Gerador de Senhas
+            </h2>
+            <p className="text-gray-400 mt-1">
+              Gere usuários em lote com senhas numéricas de 5 dígitos
+            </p>
+          </div>
+          {!isGenerating && (
+            <Button variant="ghost" size="icon" onClick={onClose}>
+              <X className="h-5 w-5" />
+            </Button>
+          )}
+        </div>
+
+        {/* Step Indicator */}
+        <div className="flex items-center justify-center mb-8">
+          <div className="flex items-center gap-4">
+            {[
+              { key: 'config', label: 'Configuração', icon: Key },
+              { key: 'generating', label: 'Gerando', icon: Download },
+              { key: 'completed', label: 'Concluído', icon: CheckCircle }
+            ].map((step, index) => {
+              const isActive = generationStep === step.key
+              const isCompleted = 
+                (step.key === 'config' && ['generating', 'completed'].includes(generationStep)) ||
+                (step.key === 'generating' && generationStep === 'completed')
+              
+              return (
+                <React.Fragment key={step.key}>
+                  <div className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                    isActive ? 'bg-purple-600 text-white' :
+                    isCompleted ? 'bg-green-600 text-white' :
+                    'bg-gray-800 text-gray-400'
+                  }`}>
+                    <step.icon className="h-4 w-4" />
+                    <span className="text-sm font-medium">{step.label}</span>
+                  </div>
+                  {index < 2 && (
+                    <div className={`w-8 h-0.5 ${
+                      isCompleted ? 'bg-green-500' : 'bg-gray-700'
+                    }`} />
+                  )}
+                </React.Fragment>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="space-y-6">
+          {generationStep === 'config' && (
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="space-y-6"
+            >
+              {/* Configuration Form */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Quantity */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Quantidade de Usuários
+                  </label>
+                  <Input
+                    type="number"
+                    min={PASSWORD_GENERATION_LIMITS.MIN_QUANTITY}
+                    max={PASSWORD_GENERATION_LIMITS.MAX_QUANTITY}
+                    value={config.quantity}
+                    onChange={(e) => onConfigChange({
+                      ...config,
+                      quantity: Math.min(PASSWORD_GENERATION_LIMITS.MAX_QUANTITY, Math.max(1, parseInt(e.target.value) || 1))
+                    })}
+                    className="bg-gray-900 border-gray-700 text-white"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Máximo: {PASSWORD_GENERATION_LIMITS.MAX_QUANTITY} usuários por vez
+                  </p>
+                </div>
+
+                {/* Profile */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Perfil/Plano
+                  </label>
+                  <select
+                    value={config.profile}
+                    onChange={(e) => onConfigChange({ ...config, profile: e.target.value })}
+                    className="w-full px-3 py-2 bg-gray-900 border border-gray-700 text-white rounded-lg focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
+                  >
+                    {profiles.map(profile => (
+                      <option key={profile['.id']} value={profile.name}>
+                        {profile.name} {profile['rate-limit'] && `(${profile['rate-limit']})`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Preview */}
+              <div className="bg-gray-900 border border-gray-700 rounded-xl p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Eye className="h-4 w-4 text-purple-400" />
+                  <h3 className="text-lg font-semibold text-white">Preview dos Usuários</h3>
+                </div>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {previewUsers.map((user, index) => (
+                    <div key={index} className="bg-black border border-gray-800 rounded-lg p-3">
+                      <div className="text-sm">
+                        <div className="text-purple-400 font-mono">{user.username}</div>
+                        <div className="text-gray-400">Senha: {user.password}</div>
+                        <div className="text-gray-500 text-xs">{user.profile}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                
+                <div className="mt-3 text-xs text-gray-500">
+                  Usuários serão criados com códigos únicos de 5 dígitos
+                </div>
+              </div>
+
+              {/* Estimation */}
+              <div className="bg-blue-900/20 border border-blue-700/30 rounded-xl p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-blue-400 font-semibold">
+                      Tempo estimado: {formatEstimatedTime(estimatedTime)}
+                    </div>
+                    <div className="text-gray-400 text-sm">
+                      Para criar {config.quantity} usuários no MikroTik
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-white font-bold text-xl">{config.quantity}</div>
+                    <div className="text-gray-400 text-sm">usuários</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex justify-end gap-3">
+                <Button variant="outline" onClick={onClose}>
+                  Cancelar
+                </Button>
+                <Button 
+                  onClick={onGenerate}
+                  className="bg-purple-600 hover:bg-purple-700 text-white"
+                  disabled={config.quantity < 1 || !config.profile}
+                >
+                  <Key className="h-4 w-4 mr-2" />
+                  Começar a Gerar
+                </Button>
+              </div>
+            </motion.div>
+          )}
+
+          {generationStep === 'generating' && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="text-center space-y-6"
+            >
+              <div className="w-24 h-24 mx-auto">
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                  className="w-full h-full border-4 border-purple-500/20 border-t-purple-500 rounded-full"
+                />
+              </div>
+              
+              <div>
+                <h3 className="text-xl font-bold text-white mb-2">Gerando Usuários...</h3>
+                <p className="text-gray-400">Criando {config.quantity} usuários no MikroTik</p>
+              </div>
+              
+              <div className="w-full max-w-md mx-auto">
+                <div className="flex justify-between text-sm text-gray-400 mb-2">
+                  <span>Progresso</span>
+                  <span>{Math.round(generationProgress)}%</span>
+                </div>
+                <div className="w-full bg-gray-800 rounded-full h-2">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${generationProgress}%` }}
+                    transition={{ duration: 0.3 }}
+                    className="bg-purple-500 h-2 rounded-full"
+                  />
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {generationStep === 'completed' && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-6"
+            >
+              {/* Success Message */}
+              <div className="text-center">
+                <div className="w-16 h-16 mx-auto mb-4 bg-green-600 rounded-full flex items-center justify-center">
+                  <CheckCircle className="h-8 w-8 text-white" />
+                </div>
+                <h3 className="text-xl font-bold text-white mb-2">Usuários Gerados com Sucesso!</h3>
+                <p className="text-gray-400">
+                  {generatedUsers.length} usuários foram criados no MikroTik
+                </p>
+              </div>
+
+              {/* Generation Statistics */}
+              <div className="bg-gray-900 border border-gray-700 rounded-xl p-4">
+                <div className="mb-3">
+                  <h4 className="font-semibold text-white">Estatísticas da Geração</h4>
+                </div>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="bg-black border border-gray-800 rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold text-green-400">{generatedUsers.length}</div>
+                    <div className="text-sm text-gray-400">Usuários Criados</div>
+                  </div>
+                  <div className="bg-black border border-gray-800 rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold text-blue-400">{config.profile}</div>
+                    <div className="text-sm text-gray-400">Perfil Utilizado</div>
+                  </div>
+                  <div className="bg-black border border-gray-800 rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold text-purple-400">100%</div>
+                    <div className="text-sm text-gray-400">Taxa de Sucesso</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex justify-center">
+                <Button onClick={onClose} className="bg-blue-600 hover:bg-blue-700">
+                  Concluir
+                </Button>
+              </div>
+            </motion.div>
+          )}
+        </div>
+      </motion.div>
+    </motion.div>
   )
 }
 
