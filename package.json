@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "start": "npx serve -s dist -l 3000",
+    "start": "node server.js",
     "dev": "vite --host",
     "dev:debug": "vite --host --debug hmr",
     "build": "tsc -b && vite build",
@@ -25,6 +25,7 @@
     "@tanstack/react-query": "^5.81.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "express": "^5.1.0",
     "framer-motion": "^12.19.2",
     "lucide-react": "^0.523.0",
     "motion": "^12.19.1",
