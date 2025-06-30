@@ -168,7 +168,7 @@ export function SaquesList() {
       fetchSaques() // Recarregar lista
     } catch (error: any) {
       console.error('Error creating saque:', error)
-      alert(error.message || 'Erro ao criar solicitação de saque')
+      alert(error?.message || 'Erro ao criar solicitação de saque')
     } finally {
       setLoading(false)
     }
@@ -201,7 +201,7 @@ export function SaquesList() {
       fetchSaques()
     } catch (error: any) {
       console.error('Error approving saque:', error)
-      alert(error.message || 'Erro ao aprovar saque')
+      alert(error?.message || 'Erro ao aprovar saque')
     } finally {
       setProcessingAction(null)
     }
@@ -238,7 +238,7 @@ export function SaquesList() {
       fetchSaques()
     } catch (error: any) {
       console.error('Error rejecting saque:', error)
-      alert(error.message || 'Erro ao rejeitar saque')
+      alert(error?.message || 'Erro ao rejeitar saque')
     } finally {
       setProcessingAction(null)
     }
