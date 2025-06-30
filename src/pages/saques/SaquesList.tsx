@@ -3,7 +3,7 @@ import { useAuthContext } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
-import { TrendingUp, Search, Clock, CheckCircle, XCircle, Calendar, User, DollarSign, Plus, AlertCircle, ArrowDown } from 'lucide-react'
+import { TrendingUp, Search, Clock, CheckCircle, XCircle, Calendar, User, DollarSign, Plus, AlertCircle, ArrowDown, RefreshCw } from 'lucide-react'
 
 interface Saque {
   id: string
@@ -106,7 +106,7 @@ export function SaquesList() {
     } catch (error) {
       console.error('Error fetching saques:', error)
       setSaques([])
-      alert('Erro ao carregar saques: ' + (error.message || 'Erro desconhecido'))
+      alert('Erro ao carregar saques: ' + (error instanceof Error ? error.message : 'Erro desconhecido'))
     } finally {
       setLoading(false)
     }
@@ -356,7 +356,7 @@ export function SaquesList() {
                     <label className="block text-sm font-medium text-white mb-2">Método de Pagamento</label>
                     <select
                       value={newSaque.metodo_pagamento}
-                      onChange={(e) => setNewSaque({ ...newSaque, metodo_pagamento: e.target.value })}
+                      onChange={(e) => setNewSaque({ ...newSaque, metodo_pagamento: e.target.value as 'pix' | 'ted' | 'doc' })}
                       className="w-full p-3 bg-gray-900 border border-gray-800 text-white rounded-lg text-base"
                       required
                     >
