@@ -12,7 +12,7 @@ import {
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuthContext } from '../../contexts/AuthContext'
-import Badge from '../../components/ui/badge'
+import { Badge } from '../../components/ui/badge'
 import { Button } from '../../components/ui/button'
 import { Card } from '../../components/ui/card'
 import { useToast } from '../../components/ui/toast'
@@ -1678,7 +1678,7 @@ export default function MikrotikDashboard() {
 
   if (loading && !stats) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-black pt-16 lg:pt-0 flex items-center justify-center">
+      <div className="min-h-screen bg-black pt-16 lg:pt-0 flex items-center justify-center">
         <motion.div 
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -1703,7 +1703,7 @@ export default function MikrotikDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-black pt-16 lg:pt-0">
+    <div className="min-h-screen bg-black pt-16 lg:pt-0">
       {/* Header */}
       <motion.div 
         initial={{ opacity: 0, y: -20 }}

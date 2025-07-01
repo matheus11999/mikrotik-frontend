@@ -1,9 +1,18 @@
 import { useEffect, useState } from 'react'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
-import { Button } from '../../components/ui/button'
-import { Input } from '../../components/ui/input'
-import { TrendingUp, Search, Clock, CheckCircle, XCircle, Calendar, User, DollarSign, Plus, AlertCircle, ArrowDown, RefreshCw } from 'lucide-react'
+import { 
+  Button, 
+  Input, 
+  Switch, 
+  useToast, 
+  useModal, 
+  useConfirm,
+  InlineLoader,
+  ListLoading
+} from '../../components/ui'
+import { SaqueModal } from '../../components/saques/SaqueModal'
+import { TrendingUp, Search, Clock, CheckCircle, XCircle, Calendar, User, DollarSign, Plus, AlertCircle, RefreshCw, Zap } from 'lucide-react'
 
 interface Saque {
   id: string
@@ -14,6 +23,7 @@ interface Saque {
   dados_bancarios?: any
   observacoes?: string
   observacoes_admin?: string
+  automatico?: boolean
   created_at: string
   processed_at?: string
   processed_by?: string
@@ -22,6 +32,7 @@ interface Saque {
     id: string
     nome: string
     email: string
+    saque_automatico?: boolean
   }
   admin_user?: {
     id: string
@@ -32,22 +43,72 @@ interface Saque {
 
 export function SaquesList() {
   const { user } = useAuthContext()
+  const { addToast } = useToast()
+  const saqueModal = useModal()
+  const { confirm, ConfirmComponent } = useConfirm()
+  
   const [saques, setSaques] = useState<Saque[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
-  const [showNewSaque, setShowNewSaque] = useState(false)
-  const [newSaque, setNewSaque] = useState({
-    valor: '',
-    metodo_pagamento: 'pix' as 'pix' | 'ted' | 'doc',
-    chave_pix: '',
-    dados_bancarios: null as any,
-    observacoes: ''
-  })
+  const [saqueAutomatico, setSaqueAutomatico] = useState(false)
+  const [updatingSaqueAutomatico, setUpdatingSaqueAutomatico] = useState(false)
   const [processingAction, setProcessingAction] = useState<string | null>(null)
 
   useEffect(() => {
     fetchSaques()
+    fetchUserSaqueAutomatico()
   }, [user])
+
+  const fetchUserSaqueAutomatico = async () => {
+    if (!user) return
+    
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('saque_automatico')
+        .eq('id', user.id)
+        .single()
+
+      if (error) throw error
+      setSaqueAutomatico(data?.saque_automatico || false)
+    } catch (error) {
+      console.error('Error fetching saque automatico status:', error)
+    }
+  }
+
+  const updateSaqueAutomatico = async (enabled: boolean) => {
+    if (!user) return
+    
+    try {
+      setUpdatingSaqueAutomatico(true)
+      
+      const { error } = await supabase
+        .from('users')
+        .update({ saque_automatico: enabled })
+        .eq('id', user.id)
+
+      if (error) throw error
+      
+      setSaqueAutomatico(enabled)
+      
+      addToast({
+        type: 'success',
+        title: enabled ? 'Saque automático ativado!' : 'Saque automático desativado',
+        description: enabled 
+          ? 'Quando seu saldo atingir R$ 50,00, um saque será solicitado automaticamente.'
+          : 'Você precisará solicitar saques manualmente.'
+      })
+    } catch (error) {
+      console.error('Error updating saque automatico:', error)
+      addToast({
+        type: 'error',
+        title: 'Erro!',
+        description: 'Não foi possível atualizar a configuração de saque automático'
+      })
+    } finally {
+      setUpdatingSaqueAutomatico(false)
+    }
+  }
 
   const fetchSaques = async () => {
     if (!user) return
@@ -112,72 +173,18 @@ export function SaquesList() {
     }
   }
 
-  const handleSubmitSaque = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    const valor = parseFloat(newSaque.valor)
-    
-    if (!user || valor > (user.saldo || 0)) {
-      alert('Saldo insuficiente')
-      return
-    }
-
-    if (valor < 50) {
-      alert('Valor mínimo para saque é R$ 50,00')
-      return
-    }
-
-    if (newSaque.metodo_pagamento === 'pix' && !newSaque.chave_pix) {
-      alert('Chave PIX é obrigatória')
-      return
-    }
-
-    try {
-      setLoading(true)
-      
-      const requestBody: any = {
-        valor,
-        metodo_pagamento: newSaque.metodo_pagamento,
-        observacoes: newSaque.observacoes
-      }
-
-      if (newSaque.metodo_pagamento === 'pix') {
-        requestBody.chave_pix = newSaque.chave_pix
-      } else {
-        requestBody.dados_bancarios = newSaque.dados_bancarios
-      }
-
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/saques`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(requestBody)
-      })
-
-      const result = await response.json()
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Erro ao criar saque')
-      }
-
-      alert('Solicitação de saque criada com sucesso!')
-      setNewSaque({ valor: '', metodo_pagamento: 'pix', chave_pix: '', dados_bancarios: null, observacoes: '' })
-      setShowNewSaque(false)
-      fetchSaques() // Recarregar lista
-    } catch (error: any) {
-      console.error('Error creating saque:', error)
-      alert(error?.message || 'Erro ao criar solicitação de saque')
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const handleApproveSaque = async (saqueId: string) => {
     if (!user || user.role !== 'admin') return
     
-    const observacoes = prompt('Observações sobre a aprovação (opcional):')
+    const confirmed = await confirm({
+      title: 'Aprovar Saque',
+      description: 'Tem certeza que deseja aprovar esta solicitação de saque?',
+      confirmText: 'Aprovar',
+      variant: 'default'
+    })
+
+    if (!confirmed) return
     
     try {
       setProcessingAction(saqueId)
@@ -188,7 +195,7 @@ export function SaquesList() {
           'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ observacoes_admin: observacoes })
+        body: JSON.stringify({ observacoes_admin: 'Aprovado pelo admin' })
       })
 
       const result = await response.json()
@@ -197,11 +204,20 @@ export function SaquesList() {
         throw new Error(result.error || 'Erro ao aprovar saque')
       }
 
-      alert('Saque aprovado com sucesso!')
+      addToast({
+        type: 'success',
+        title: 'Saque aprovado!',
+        description: 'A solicitação foi aprovada com sucesso.'
+      })
+      
       fetchSaques()
     } catch (error: any) {
       console.error('Error approving saque:', error)
-      alert(error?.message || 'Erro ao aprovar saque')
+      addToast({
+        type: 'error',
+        title: 'Erro ao aprovar saque',
+        description: error?.message || 'Tente novamente em alguns instantes.'
+      })
     } finally {
       setProcessingAction(null)
     }
@@ -210,11 +226,14 @@ export function SaquesList() {
   const handleRejectSaque = async (saqueId: string) => {
     if (!user || user.role !== 'admin') return
     
-    const motivo = prompt('Motivo da rejeição (obrigatório):')
-    if (!motivo) {
-      alert('Motivo da rejeição é obrigatório')
-      return
-    }
+    const confirmed = await confirm({
+      title: 'Rejeitar Saque',
+      description: 'Esta ação não pode ser desfeita. O saldo será devolvido ao usuário.',
+      confirmText: 'Rejeitar',
+      variant: 'destructive'
+    })
+
+    if (!confirmed) return
     
     try {
       setProcessingAction(saqueId)
@@ -225,7 +244,7 @@ export function SaquesList() {
           'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ observacoes_admin: motivo })
+        body: JSON.stringify({ observacoes_admin: 'Rejeitado pelo admin' })
       })
 
       const result = await response.json()
@@ -234,11 +253,20 @@ export function SaquesList() {
         throw new Error(result.error || 'Erro ao rejeitar saque')
       }
 
-      alert('Saque rejeitado com sucesso!')
+      addToast({
+        type: 'success',
+        title: 'Saque rejeitado',
+        description: 'A solicitação foi rejeitada e o saldo foi devolvido.'
+      })
+      
       fetchSaques()
     } catch (error: any) {
       console.error('Error rejecting saque:', error)
-      alert(error?.message || 'Erro ao rejeitar saque')
+      addToast({
+        type: 'error',
+        title: 'Erro ao rejeitar saque',
+        description: error?.message || 'Tente novamente em alguns instantes.'
+      })
     } finally {
       setProcessingAction(null)
     }
@@ -271,32 +299,11 @@ export function SaquesList() {
   }
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-black p-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="mb-8">
-            <div className="h-8 bg-gray-800 rounded-lg w-64 mb-2 animate-pulse"></div>
-            <div className="h-4 bg-gray-800 rounded w-96 animate-pulse"></div>
-          </div>
-          
-          <div className="grid gap-6 md:grid-cols-3 mb-8">
-            {[...Array(3)].map((_, i) => (
-              <div key={i} className="h-32 bg-black rounded-xl animate-pulse"></div>
-            ))}
-          </div>
-          
-          <div className="space-y-4">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="h-32 bg-black rounded-xl animate-pulse"></div>
-            ))}
-          </div>
-        </div>
-      </div>
-    )
+    return <ListLoading isLoading={loading} message="Carregando dados dos saques..." />
   }
 
   return (
-    <div className="min-h-screen bg-black">
+    <div className="min-h-screen bg-black pt-16 lg:pt-0">
       {/* Header */}
       <div className="border-b border-gray-800 bg-black">
         <div className="px-4 sm:px-6 py-6 sm:py-8">
@@ -316,7 +323,7 @@ export function SaquesList() {
 
               {user?.role !== 'admin' && (
                 <Button
-                  onClick={() => setShowNewSaque(true)}
+                  onClick={saqueModal.open}
                   className="bg-orange-600 hover:bg-orange-700 text-white transition-all duration-300 w-full sm:w-auto"
                 >
                   <Plus className="h-4 w-4 mr-2" />
@@ -330,129 +337,47 @@ export function SaquesList() {
 
       <div className="p-4 sm:p-6">
         <div className="max-w-7xl mx-auto space-y-6 sm:space-y-8">
-          {/* New Saque Form */}
-          {showNewSaque && (
+
+          {/* Saque Automático Switch - Apenas para usuários não-admin */}
+          {user?.role !== 'admin' && (
             <div className="bg-black border border-gray-800 rounded-xl p-4 sm:p-6">
-              <h3 className="text-lg sm:text-xl font-bold text-white mb-4 sm:mb-6">Solicitar Novo Saque</h3>
-              
-              <form onSubmit={handleSubmitSaque} className="space-y-4 sm:space-y-6">
-                <div className="grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2">
-                  <div>
-                    <label className="block text-sm font-medium text-white mb-2">Valor (R$)</label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={newSaque.valor}
-                      onChange={(e) => setNewSaque({ ...newSaque, valor: e.target.value })}
-                      placeholder="0.00"
-                      max={user?.saldo || 0}
-                      className="bg-gray-900 border-gray-800 text-white text-base"
-                      required
-                    />
-                    <p className="text-xs text-gray-400 mt-1">Saldo disponível: R$ {user?.saldo?.toFixed(2) || '0.00'}</p>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <div className="p-3 rounded-xl bg-gray-900 border border-gray-800">
+                    <Zap className="h-6 w-6 text-orange-400" />
                   </div>
-
                   <div>
-                    <label className="block text-sm font-medium text-white mb-2">Método de Pagamento</label>
-                    <select
-                      value={newSaque.metodo_pagamento}
-                      onChange={(e) => setNewSaque({ ...newSaque, metodo_pagamento: e.target.value as 'pix' | 'ted' | 'doc' })}
-                      className="w-full p-3 bg-gray-900 border border-gray-800 text-white rounded-lg text-base"
-                      required
-                    >
-                      <option value="pix">PIX</option>
-                      <option value="ted">TED</option>
-                      <option value="doc">DOC</option>
-                    </select>
+                    <h3 className="text-lg font-bold text-white">Saque Automático</h3>
+                    <p className="text-gray-400 text-sm">
+                      Solicitar saque automaticamente ao atingir R$ 50,00
+                    </p>
                   </div>
                 </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-white mb-2">Dados para Recebimento</label>
-                  {newSaque.metodo_pagamento === 'pix' ? (
-                    <Input
-                      value={newSaque.chave_pix}
-                      onChange={(e) => setNewSaque({ ...newSaque, chave_pix: e.target.value })}
-                      placeholder="email@exemplo.com, CPF, telefone ou chave aleatória"
-                      className="bg-gray-900 border-gray-800 text-white text-base"
-                      required
-                    />
-                  ) : (
-                    <div className="space-y-3">
-                      <Input
-                        placeholder="Nome do Banco"
-                        value={newSaque.dados_bancarios?.banco || ''}
-                        onChange={(e) => setNewSaque({ 
-                          ...newSaque, 
-                          dados_bancarios: { ...newSaque.dados_bancarios, banco: e.target.value }
-                        })}
-                        className="bg-gray-900 border-gray-800 text-white text-base"
-                        required
-                      />
-                      <div className="grid grid-cols-2 gap-3">
-                        <Input
-                          placeholder="Agência"
-                          value={newSaque.dados_bancarios?.agencia || ''}
-                          onChange={(e) => setNewSaque({ 
-                            ...newSaque, 
-                            dados_bancarios: { ...newSaque.dados_bancarios, agencia: e.target.value }
-                          })}
-                          className="bg-gray-900 border-gray-800 text-white text-base"
-                          required
-                        />
-                        <Input
-                          placeholder="Conta"
-                          value={newSaque.dados_bancarios?.conta || ''}
-                          onChange={(e) => setNewSaque({ 
-                            ...newSaque, 
-                            dados_bancarios: { ...newSaque.dados_bancarios, conta: e.target.value }
-                          })}
-                          className="bg-gray-900 border-gray-800 text-white text-base"
-                          required
-                        />
-                      </div>
-                      <Input
-                        placeholder="Nome do Titular"
-                        value={newSaque.dados_bancarios?.titular || ''}
-                        onChange={(e) => setNewSaque({ 
-                          ...newSaque, 
-                          dados_bancarios: { ...newSaque.dados_bancarios, titular: e.target.value }
-                        })}
-                        className="bg-gray-900 border-gray-800 text-white text-base"
-                        required
-                      />
-                    </div>
+                <div className="flex items-center space-x-3">
+                  {updatingSaqueAutomatico && (
+                    <InlineLoader size="sm" />
                   )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-white mb-2">Observações (opcional)</label>
-                  <Input
-                    value={newSaque.observacoes}
-                    onChange={(e) => setNewSaque({ ...newSaque, observacoes: e.target.value })}
-                    placeholder="Informações adicionais..."
-                    className="bg-gray-900 border-gray-800 text-white text-base"
+                  <Switch
+                    checked={saqueAutomatico}
+                    onCheckedChange={updateSaqueAutomatico}
+                    disabled={updatingSaqueAutomatico}
+                    className="data-[state=checked]:bg-orange-600"
                   />
+                  <span className="text-sm text-gray-400">
+                    {saqueAutomatico ? 'Ativado' : 'Desativado'}
+                  </span>
                 </div>
-
-                <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setShowNewSaque(false)}
-                    className="flex-1 border-gray-800 text-gray-300 hover:text-white py-3"
-                  >
-                    Cancelar
-                  </Button>
-                  <Button
-                    type="submit"
-                    className="flex-1 bg-orange-600 hover:bg-orange-700 text-white py-3"
-                  >
-                    <ArrowDown className="h-4 w-4 mr-2" />
-                    Solicitar Saque
-                  </Button>
+              </div>
+              {saqueAutomatico && !user?.pix_key && (
+                <div className="mt-4 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
+                  <div className="flex items-center space-x-2">
+                    <AlertCircle className="h-4 w-4 text-yellow-400" />
+                    <span className="text-yellow-400 text-sm font-medium">
+                      Configure sua chave PIX padrão no perfil para ativar o saque automático
+                    </span>
+                  </div>
                 </div>
-              </form>
+              )}
             </div>
           )}
 
@@ -462,7 +387,7 @@ export function SaquesList() {
             <Input
               placeholder="Buscar por dados bancários, método ou usuário..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
               className="pl-12 pr-4 py-3 sm:py-4 bg-gray-900 border-gray-800 text-white placeholder:text-gray-500 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 rounded-xl text-base sm:text-lg"
             />
           </div>
@@ -558,9 +483,17 @@ export function SaquesList() {
                       
                       <div className="text-right">
                         <p className="text-2xl font-bold text-orange-400">R$ {saque.valor.toFixed(2)}</p>
-                        <div className={`inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(saque.status)}`}>
-                          {getStatusIcon(saque.status)}
-                          <span className="capitalize">{saque.status}</span>
+                        <div className="flex flex-col space-y-1 items-end">
+                          <div className={`inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(saque.status)}`}>
+                            {getStatusIcon(saque.status)}
+                            <span className="capitalize">{saque.status}</span>
+                          </div>
+                          {saque.automatico && (
+                            <div className="inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium border border-orange-500/30 bg-orange-500/10 text-orange-400">
+                              <Zap className="h-3 w-3" />
+                              <span>Automático</span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -645,7 +578,7 @@ export function SaquesList() {
                           className="flex-1 bg-green-600 hover:bg-green-700 text-white"
                         >
                           {processingAction === saque.id ? (
-                            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                            <InlineLoader size="sm" />
                           ) : (
                             <CheckCircle className="h-4 w-4 mr-2" />
                           )}
@@ -658,7 +591,7 @@ export function SaquesList() {
                           className="flex-1"
                         >
                           {processingAction === saque.id ? (
-                            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                            <InlineLoader size="sm" />
                           ) : (
                             <XCircle className="h-4 w-4 mr-2" />
                           )}
@@ -684,6 +617,16 @@ export function SaquesList() {
           )}
         </div>
       </div>
+
+      {/* Modal de Saque */}
+      <SaqueModal
+        open={saqueModal.isOpen}
+        onOpenChange={saqueModal.setOpen}
+        onSuccess={fetchSaques}
+      />
+
+      {/* Diálogo de Confirmação */}
+      <ConfirmComponent />
     </div>
   )
 } 

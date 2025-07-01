@@ -1,13 +1,12 @@
+import React from 'react'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Link, Navigate } from 'react-router-dom'
 import { useAuthContext } from '../../contexts/AuthContext'
-import { Button } from '../../components/ui/button'
-import { Input } from '../../components/ui/input'
+import { Button, Input, InlineLoader } from '../../components/ui'
 import { Eye, EyeOff, Mail, Lock, User, UserPlus, ArrowLeft, Wifi, CheckCircle } from 'lucide-react'
-import { motion } from 'framer-motion'
 
 const registerSchema = z.object({
   nome: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
@@ -16,6 +15,30 @@ const registerSchema = z.object({
 })
 
 type RegisterForm = z.infer<typeof registerSchema>
+
+// Remove props de animação antes de renderizar no DOM
+function stripMotionProps(props: any) {
+  const { initial, animate, exit, transition, whileHover, whileTap, ...rest } = props;
+  return rest;
+}
+
+// Stub motion sem Framer Motion
+const motion = {
+  div: (props: any) => <div {...stripMotionProps(props)} />,
+  h1: (props: any) => <h1 {...stripMotionProps(props)} />,
+  h3: (props: any) => <h3 {...stripMotionProps(props)} />,
+  p: (props: any) => <p {...stripMotionProps(props)} />,
+  button: (props: any) => <button {...stripMotionProps(props)} />,
+  form: (props: any) => <form {...stripMotionProps(props)} />,
+}
+
+function traduzErroSupabase(msg: string): string {
+  const mapa: Record<string, string> = {
+    'User already registered': 'Usuário já registrado. Faça login ou recupere a senha.',
+    'Invalid password': 'Senha inválida.',
+  };
+  return mapa[msg] || msg;
+}
 
 export function Register() {
   const { signUp, user } = useAuthContext()
@@ -43,7 +66,7 @@ export function Register() {
       
       const { error } = await signUp(data.email, data.password, data.nome)
       if (error) {
-        setError(error.message)
+        setError(traduzErroSupabase(error.message))
       } else {
         setSuccess(true)
       }
@@ -56,7 +79,7 @@ export function Register() {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-black flex items-center justify-center p-6">
+      <div className="min-h-screen bg-black flex items-center justify-center p-6">
         <motion.div 
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -113,7 +136,7 @@ export function Register() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-black flex items-center justify-center p-6">
+    <div className="min-h-screen bg-black flex items-center justify-center p-6">
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -276,13 +299,9 @@ export function Register() {
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-xl font-medium transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl"
               >
                 {loading ? (
-                  <div className="flex items-center justify-center space-x-2">
-                    <motion.div
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                      className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full"
-                    />
-                    <span>Criando conta...</span>
+                  <div className="w-full flex items-center justify-center space-x-2">
+                    <InlineLoader size="sm" />
+                    <span>Criando...</span>
                   </div>
                 ) : (
                   <div className="flex items-center justify-center space-x-2">

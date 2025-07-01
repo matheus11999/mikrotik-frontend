@@ -347,7 +347,7 @@ export function UsersManagement() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-black pt-16 lg:pt-0 flex items-center justify-center">
+      <div className="min-h-screen bg-black pt-16 lg:pt-0 flex items-center justify-center">
         <motion.div 
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -381,7 +381,7 @@ export function UsersManagement() {
 
   if (user?.role !== 'admin') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-black pt-16 lg:pt-0 flex items-center justify-center">
+      <div className="min-h-screen bg-black pt-16 lg:pt-0 flex items-center justify-center">
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -418,7 +418,7 @@ export function UsersManagement() {
 
   return (
     <>
-      <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-black pt-16 lg:pt-0">
+      <div className="min-h-screen bg-black pt-16 lg:pt-0">
         {/* Header */}
         <motion.div 
           initial={{ opacity: 0, y: -20 }}

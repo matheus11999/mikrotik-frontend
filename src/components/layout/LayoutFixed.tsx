@@ -1,14 +1,18 @@
 import { useState, useEffect } from "react";
 import { SidebarFixed } from "./SidebarFixed";
 import { Outlet } from 'react-router-dom';
-import { PageLoadingOverlay } from "../ui/loading-overlay-improved";
+import { PageLoadingOverlay, useToast } from "../ui";
 import { motion, AnimatePresence } from "framer-motion";
+import { usePWAInstallPrompt } from "../../hooks/usePWAInstallPrompt";
 
 export function LayoutFixed() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+
+  const { addToast } = useToast();
+  const { isInstallable, promptInstall } = usePWAInstallPrompt();
 
   // Loading inicial da aplicação
   useEffect(() => {
@@ -34,12 +38,22 @@ export function LayoutFixed() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  useEffect(() => {
+    if (isInstallable) {
+      addToast({
+        type: 'info',
+        title: 'Instale o aplicativo',
+        description: 'Você pode adicionar o MikroPix à tela inicial para acesso rápido. Clique no banner ou use as opções do navegador.'
+      });
+    }
+  }, [isInstallable, addToast, promptInstall]);
+
   return (
     <>
       {/* Loading overlay para carregamento inicial */}
       <PageLoadingOverlay isLoading={isPageLoading} />
       
-      <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-black">
+      <div className="min-h-screen bg-black">
         {/* Sidebar */}
         <SidebarFixed 
           open={sidebarOpen} 
@@ -58,7 +72,7 @@ export function LayoutFixed() {
               ? 'ml-0' 
               : collapsed 
                 ? 'lg:ml-20' 
-                : 'lg:ml-80'
+                : 'lg:ml-[263px]'
           }`}
         >
           {/* Overlay para mobile quando sidebar está aberta */}

@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
 import { useToast } from '../../components/ui/toast'
+import { ListLoading } from '../../components/ui'
 import { Router, Plus, Edit, Trash2, Search, Users, Zap, Signal, RefreshCw, Eye, Copy, Check, Globe, Code, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import * as Dialog from '@radix-ui/react-dialog'
@@ -11,7 +12,6 @@ import { PlaceholdersAndVanishInput } from '../../components/ui/placeholders-and
 import { v4 as uuidv4 } from 'uuid'
 import CreateMikrotikWithWireGuardModal from '../../components/modals/CreateMikrotikWithWireGuardModal'
 import { api } from '../../config/api'
-import { motion, AnimatePresence } from 'framer-motion'
 
 // Componente para indicador circular
 const CircularProgress = ({ value, label, color = "blue" }: { value: number, label: string, color?: string }) => {
@@ -818,44 +818,13 @@ remove [find name="${interfaceName}"]
   })
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-black pt-16 lg:pt-0">
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="p-6"
-        >
-          <div className="max-w-7xl mx-auto">
-            <div className="mb-8">
-              <div className="h-8 bg-gray-800/50 rounded-lg w-64 mb-2 animate-pulse"></div>
-              <div className="h-4 bg-gray-800/30 rounded w-96 animate-pulse"></div>
-            </div>
-            
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {[...Array(6)].map((_, i) => (
-                <motion.div 
-                  key={i} 
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.1 }}
-                  className="h-64 bg-black/40 backdrop-blur-sm border border-gray-800/50 rounded-xl animate-pulse"
-                />
-              ))}
-            </div>
-          </div>
-        </motion.div>
-      </div>
-    )
+    return <ListLoading isLoading={loading} message="Carregando MikroTiks..." />
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-black pt-16 lg:pt-0">
+    <div className="min-h-screen bg-black pt-16 lg:pt-0">
       {/* Header */}
-      <motion.div 
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="border-b border-gray-800/50 bg-black/20 backdrop-blur-sm sticky top-0 lg:top-0 z-10"
-      >
+      <div className="border-b border-gray-800/50 bg-black/20 backdrop-blur-sm sticky top-0 lg:top-0 z-10">
         <div className="px-4 sm:px-6 py-6">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center space-x-4">
@@ -872,47 +841,29 @@ remove [find name="${interfaceName}"]
               </div>
             </div>
             
-            <motion.div 
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="flex gap-2"
-            >
-              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                <Button 
-                  onClick={fetchMikrotikStats} 
-                  variant="outline" 
-                  className="border-gray-700 text-gray-300 hover:text-white hover:border-orange-500/50 hover:bg-orange-500/10 transition-all duration-200"
-                >
-                  <RefreshCw className="h-4 w-4 mr-2" /> Atualizar
-                </Button>
-              </motion.div>
-              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                <Button 
-                  onClick={() => setNewCreateModalOpen(true)} 
-                  className="bg-orange-600 hover:bg-orange-700 text-white shadow-lg transition-all duration-200"
-                >
-                  <Plus className="h-4 w-4 mr-2" /> Novo MikroTik
-                </Button>
-              </motion.div>
-            </motion.div>
+            <div className="flex gap-2">
+              <Button 
+                onClick={fetchMikrotikStats} 
+                variant="outline" 
+                className="border-gray-700 text-gray-300 hover:text-white hover:border-orange-500/50 hover:bg-orange-500/10 transition-all duration-200 hover:scale-105"
+              >
+                <RefreshCw className="h-4 w-4 mr-2" /> Atualizar
+              </Button>
+              <Button 
+                onClick={() => setNewCreateModalOpen(true)} 
+                className="bg-orange-600 hover:bg-orange-700 text-white shadow-lg transition-all duration-200 hover:scale-105"
+              >
+                <Plus className="h-4 w-4 mr-2" /> Novo MikroTik
+              </Button>
+            </div>
           </div>
         </div>
-      </motion.div>
+      </div>
 
       <div className="p-4 sm:p-6">
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.1 }}
-          className="space-y-6 sm:space-y-8"
-        >
+        <div className="space-y-6 sm:space-y-8">
           {/* Search and Filters */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="space-y-4"
-          >
+          <div className="space-y-4">
             {/* Search Bar */}
             <div className="flex justify-center">
               <div className="relative w-full max-w-2xl">
@@ -929,107 +880,68 @@ remove [find name="${interfaceName}"]
             {/* Filter Buttons */}
             <div className="flex justify-center">
               <div className="flex bg-black/40 backdrop-blur-sm border border-gray-800/50 rounded-xl p-1 gap-1">
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
+                <button
                   onClick={() => setActiveFilter('all')}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:scale-105 ${
                     activeFilter === 'all'
                       ? 'bg-orange-600 text-white shadow-lg'
                       : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
                   }`}
                 >
                   Todos ({mikrotiks.length})
-                </motion.button>
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
+                </button>
+                <button
                   onClick={() => setActiveFilter('active')}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:scale-105 ${
                     activeFilter === 'active'
                       ? 'bg-green-600 text-white shadow-lg'
                       : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
                   }`}
                 >
                   Ativos ({mikrotiks.filter(m => m.ativo).length})
-                </motion.button>
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
+                </button>
+                <button
                   onClick={() => setActiveFilter('inactive')}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:scale-105 ${
                     activeFilter === 'inactive'
                       ? 'bg-red-600 text-white shadow-lg'
                       : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
                   }`}
                 >
                   Inativos ({mikrotiks.filter(m => !m.ativo).length})
-                </motion.button>
+                </button>
               </div>
             </div>
-          </motion.div>
+          </div>
 
           {/* MikroTiks Grid */}
           {filteredMikrotiks.length === 0 ? (
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="flex justify-center py-16"
-            >
+            <div className="flex justify-center py-16">
               <div className="text-center max-w-md px-4">
-                <motion.div 
-                  initial={{ scale: 0.8 }}
-                  animate={{ scale: 1 }}
-                  transition={{ delay: 0.4, type: "spring", stiffness: 200 }}
-                  className="relative mb-8"
-                >
+                <div className="relative mb-8">
                   <div className="w-20 h-20 sm:w-24 sm:h-24 mx-auto rounded-2xl bg-gradient-to-br from-orange-500/20 to-orange-600/10 border border-orange-500/20 flex items-center justify-center backdrop-blur-sm">
                     <Router className="h-10 w-10 sm:h-12 sm:w-12 text-orange-400" />
                   </div>
-                </motion.div>
-                <motion.h3 
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.5 }}
-                  className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent mb-4"
-                >
+                </div>
+                <h3 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent mb-4">
                   {mikrotiks.length === 0 ? 'Nenhum MikroTik cadastrado' : 'Nenhum resultado encontrado'}
-                </motion.h3>
-                <motion.p 
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.6 }}
-                  className="text-gray-400 mb-8 text-base sm:text-lg"
-                >
+                </h3>
+                <p className="text-gray-400 mb-8 text-base sm:text-lg">
                   {mikrotiks.length === 0 
                     ? 'Comece criando seu primeiro MikroTik para gerenciar vendas e configurações'
                     : 'Tente ajustar os termos de busca para encontrar o que procura'
                   }
-                </motion.p>
+                </p>
                 {mikrotiks.length === 0 && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.7 }}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    <Button onClick={handleOpenModal} className="bg-orange-600 hover:bg-orange-700 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-xl font-medium shadow-lg transition-all duration-300 w-full sm:w-auto">
-                      <Plus className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
-                      Criar Primeiro MikroTik
-                    </Button>
-                  </motion.div>
+                  <Button onClick={handleOpenModal} className="bg-orange-600 hover:bg-orange-700 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-xl font-medium shadow-lg transition-all duration-300 w-full sm:w-auto hover:scale-105">
+                    <Plus className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
+                    Criar Primeiro MikroTik
+                  </Button>
                 )}
               </div>
-            </motion.div>
+            </div>
           ) : (
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.3 }}
-              className="grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
-            >
+            <div className="grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
               {filteredMikrotiks.map((mikrotik, index) => {
                 const stats = mikrotikStats[mikrotik.id]
                 const hasValidCredentials = mikrotik.ip && mikrotik.username && mikrotik.password
@@ -1044,14 +956,9 @@ remove [find name="${interfaceName}"]
                 const formattedUptime = formatUptime(stats?.uptime)
                 
                 return (
-                  <motion.div
+                  <div
                     key={mikrotik.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    className="group bg-black/40 backdrop-blur-sm border border-gray-800/50 hover:border-orange-500/50 hover:bg-gray-900/30 rounded-2xl transition-all duration-300 cursor-pointer relative shadow-lg hover:shadow-2xl"
+                    className="group bg-black/40 backdrop-blur-sm border border-gray-800/50 hover:border-orange-500/50 hover:bg-gray-900/30 rounded-2xl transition-all duration-300 cursor-pointer relative shadow-lg hover:shadow-2xl hover:scale-[1.02]"
                   >
                     {/* Status indicators - Improved */}
                     <div className="absolute top-4 right-4 flex gap-2">
@@ -1241,12 +1148,12 @@ remove [find name="${interfaceName}"]
                         )}
                       </div>
                     </div>
-                  </motion.div>
+                  </div>
                 )
               })}
-            </motion.div>
+            </div>
           )}
-        </motion.div>
+        </div>
       </div>
 
       <Dialog.Root open={modalOpen} onOpenChange={setModalOpen}>

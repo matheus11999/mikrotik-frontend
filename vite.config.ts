@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
+import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -11,6 +12,31 @@ export default defineConfig({
       babel: {
         plugins: [
           ['@emotion/babel-plugin', { autoLabel: 'dev-only' }]
+        ]
+      }
+    }),
+    // @ts-ignore – compatibilidade de tipos entre versões do Vite
+    VitePWA({
+      registerType: 'autoUpdate',
+      includeAssets: ['favicon.ico', 'robots.txt', 'img/logo-white.png'],
+      manifest: {
+        name: 'MikroPix',
+        short_name: 'MikroPix',
+        description: 'Sistema de gestão MikroTik',
+        theme_color: '#000000',
+        background_color: '#000000',
+        display: 'standalone',
+        icons: [
+          {
+            src: '/img/logo-white.png',
+            sizes: '192x192',
+            type: 'image/png'
+          },
+          {
+            src: '/img/logo-white.png',
+            sizes: '512x512',
+            type: 'image/png'
+          }
         ]
       }
     })

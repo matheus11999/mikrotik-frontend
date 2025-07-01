@@ -8,7 +8,8 @@ import {
   User, Router, Eye, Clock, CheckCircle, XCircle, 
   Loader2, Filter, ArrowUpDown
 } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
+import React from 'react'
+import { ListLoading } from '../../components/ui/unified-loading'
 
 interface Venda {
   id: string
@@ -39,6 +40,15 @@ interface Venda {
     valor: number
     session_timeout: number
   }
+}
+
+const motion = {
+  div: (props: any) => <div {...props} />,
+  h1: (props: any) => <h1 {...props} />,
+  h3: (props: any) => <h3 {...props} />,
+  p: (props: any) => <p {...props} />,
+  select: (props: any) => <select {...props} />,
+  span: (props: any) => <span {...props} />,
 }
 
 export function VendasList() {
@@ -151,41 +161,11 @@ export function VendasList() {
   const vendasCompletas = filteredVendas.filter(v => v.status === 'completed').length
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-black pt-16 lg:pt-0 flex items-center justify-center">
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="text-center"
-        >
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-            className="w-16 h-16 border-4 border-green-500/20 border-t-green-500 rounded-full mx-auto mb-6"
-          />
-          <motion.h3 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.2 }}
-            className="text-xl font-semibold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent mb-2"
-          >
-            Carregando vendas...
-          </motion.h3>
-          <motion.p 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.3 }}
-            className="text-gray-400"
-          >
-            Aguarde um momento
-          </motion.p>
-        </motion.div>
-      </div>
-    )
+    return <ListLoading isLoading={loading} message="Carregando vendas..." />
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-black pt-16 lg:pt-0">
+    <div className="min-h-screen bg-black pt-16 lg:pt-0">
       {/* Header */}
       <motion.div 
         initial={{ opacity: 0, y: -20 }}
@@ -241,14 +221,14 @@ export function VendasList() {
               <Input
                 placeholder="Buscar por MAC, ID do pagamento, MikroTik..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
                 className="pl-12 pr-4 py-3 bg-black/40 backdrop-blur-sm border-gray-800/50 text-white placeholder:text-gray-500 focus:border-green-500 focus:ring-2 focus:ring-green-500/20 rounded-xl transition-all duration-200"
               />
             </div>
             <motion.select
               whileHover={{ scale: 1.02 }}
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setStatusFilter(e.target.value)}
               className="px-4 py-3 bg-black/40 backdrop-blur-sm border border-gray-800/50 text-white rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-500/20 transition-all duration-200"
             >
               <option value="all">Todos os Status</option>

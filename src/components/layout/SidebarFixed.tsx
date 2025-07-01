@@ -196,7 +196,7 @@ export function SidebarFixed({ open, setOpen, collapsed, setCollapsed }: Sidebar
       <motion.aside
         initial={false}
         animate={{ 
-          width: collapsed ? 80 : 320,
+          width: collapsed ? 80 : 263,
           x: 0 
         }}
         transition={{ duration: 0.3, ease: "easeInOut" }}
@@ -428,11 +428,11 @@ export function SidebarFixed({ open, setOpen, collapsed, setCollapsed }: Sidebar
       <AnimatePresence>
         {open && (
           <motion.div
-            initial={{ x: -320 }}
+            initial={{ x: -263 }}
             animate={{ x: 0 }}
-            exit={{ x: -320 }}
+            exit={{ x: -263 }}
             transition={{ duration: 0.3, ease: "easeInOut" }}
-            className="fixed top-0 left-0 h-full w-80 z-50 lg:hidden bg-black/95 backdrop-blur-xl border-r border-gray-800/50"
+            className="fixed top-0 left-0 h-full w-[263px] z-50 lg:hidden bg-black/95 backdrop-blur-xl border-r border-gray-800/50"
           >
             {/* Mobile Header */}
             <div className="p-4 border-b border-gray-800/50 flex items-center justify-between">

@@ -40,8 +40,7 @@ import {
   Gauge
 } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
-import { motion, AnimatePresence } from 'framer-motion'
-import { LoadingOverlay, InlineLoader } from '../../components/ui/loading-overlay-improved'
+import { DashboardLoading } from '../../components/ui'
 import { cn } from '../../lib/utils'
 
 interface DashboardStats {
@@ -58,6 +57,15 @@ interface DashboardStats {
     saldo: number
     vendas_count: number
     vendas_valor: number
+  }>
+  
+  // Usuários com saque automático ativado e saldo >= 50
+  usuariosSaqueAutomatico?: Array<{
+    id: string
+    nome: string
+    email: string
+    saldo: number
+    saque_automatico: boolean
   }>
   
   // Histórico de transações
@@ -133,30 +141,6 @@ interface DashboardStats {
   }>
 }
 
-// Animações
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.1,
-      delayChildren: 0.1
-    }
-  }
-}
-
-const itemVariants = {
-  hidden: { y: 20, opacity: 0 },
-  visible: { 
-    y: 0, 
-    opacity: 1,
-    transition: {
-      type: "spring" as const,
-      stiffness: 300,
-      damping: 24
-    }
-  }
-}
 
 // Componente de Card Estatística
 const StatsCard = ({ 
@@ -197,14 +181,11 @@ const StatsCard = ({
   const TrendIcon = trend === 'up' ? ArrowUpRight : trend === 'down' ? ArrowDownRight : Activity
 
   return (
-    <motion.div
-      variants={itemVariants}
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.98 }}
+    <div
       className={cn(
         "relative bg-black/40 backdrop-blur-sm border rounded-2xl p-6 transition-all duration-300 shadow-lg hover:shadow-xl",
         `bg-gradient-to-br ${config} border`,
-        onClick && "cursor-pointer",
+        onClick && "cursor-pointer hover:scale-[1.02]",
         loading && "animate-pulse"
       )}
       onClick={onClick}
@@ -251,16 +232,13 @@ const StatsCard = ({
           </>
         )}
       </div>
-    </motion.div>
+    </div>
   )
 }
 
 // Componente de Tabela de MikroTiks
 const MikrotikTable = ({ mikrotiks, loading }: { mikrotiks?: DashboardStats['mikrotikStats'], loading: boolean }) => (
-  <motion.div 
-    variants={itemVariants}
-    className="bg-black/40 backdrop-blur-sm border border-gray-800/50 rounded-2xl p-6"
-  >
+  <div className="bg-black/40 backdrop-blur-sm border border-gray-800/50 rounded-2xl p-6">
     <div className="flex items-center gap-3 mb-6">
       <div className="p-3 rounded-xl bg-gradient-to-br from-orange-500/10 to-orange-600/5 border border-orange-500/20">
         <Router className="h-5 w-5 text-orange-400" />
@@ -277,11 +255,8 @@ const MikrotikTable = ({ mikrotiks, loading }: { mikrotiks?: DashboardStats['mik
     ) : (
       <div className="space-y-3">
         {mikrotiks?.slice(0, 6).map((mikrotik, index) => (
-          <motion.div 
+          <div 
             key={mikrotik.id}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: index * 0.1 }}
             className="flex items-center justify-between p-4 rounded-xl bg-gray-900/30 border border-gray-800/50 hover:border-gray-700/50 transition-all duration-200"
           >
             <div className="flex items-center gap-4">
@@ -301,19 +276,16 @@ const MikrotikTable = ({ mikrotiks, loading }: { mikrotiks?: DashboardStats['mik
                 {new Date(mikrotik.created_at).toLocaleDateString('pt-BR')}
               </p>
             </div>
-          </motion.div>
+          </div>
         ))}
       </div>
     )}
-  </motion.div>
+  </div>
 )
 
 // Componente de Atividade Recente
 const RecentActivity = ({ activities, loading }: { activities?: DashboardStats['recentActivity'], loading: boolean }) => (
-  <motion.div 
-    variants={itemVariants}
-    className="bg-black/40 backdrop-blur-sm border border-gray-800/50 rounded-2xl p-6"
-  >
+  <div className="bg-black/40 backdrop-blur-sm border border-gray-800/50 rounded-2xl p-6">
     <div className="flex items-center justify-between mb-6">
       <div className="flex items-center gap-3">
         <div className="p-3 rounded-xl bg-gradient-to-br from-cyan-500/10 to-cyan-600/5 border border-cyan-500/20">
@@ -350,11 +322,8 @@ const RecentActivity = ({ activities, loading }: { activities?: DashboardStats['
           const IconComponent = config.icon
           
           return (
-            <motion.div 
+            <div 
               key={item.id}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: index * 0.05 }}
               className="flex items-center gap-4 p-4 rounded-xl bg-gray-900/30 border border-gray-800/50 hover:border-gray-700/50 transition-all duration-200"
             >
               <div className={`p-3 rounded-full ${config.bg} ${config.border} border`}>
@@ -388,12 +357,12 @@ const RecentActivity = ({ activities, loading }: { activities?: DashboardStats['
                   'bg-yellow-400'
                 }`} />
               </div>
-            </motion.div>
+            </div>
           )
         })
       )}
     </div>
-  </motion.div>
+  </div>
 )
 
 export function DashboardFinal() {
@@ -426,7 +395,8 @@ export function DashboardFinal() {
           vendas30DiasResult,
           paymentsResult,
           planosResult,
-          userCreationLogsResult
+          userCreationLogsResult,
+          usuariosSaqueAutomaticoResult
         ] = await Promise.all([
           // Total de usuários
           supabase.from('users').select('id, saldo').eq('role', 'user'),
@@ -484,7 +454,14 @@ export function DashboardFinal() {
           supabase.from('mikrotik_user_creation_logs')
             .select('*')
             .order('created_at', { ascending: false })
-            .limit(50)
+            .limit(50),
+
+          // Usuários com saque automático ativado e saldo >= 50
+          supabase.from('users')
+            .select('id, nome, email, saldo, saque_automatico')
+            .eq('role', 'user')
+            .eq('saque_automatico', true)
+            .gte('saldo', 50)
         ])
 
         const totalVendas = vendasResult.data?.reduce((sum, v) => sum + (v.valor_total || 0), 0) || 0
@@ -553,6 +530,7 @@ export function DashboardFinal() {
           totalUsuarios: usersResult.data?.length || 0,
           totalMikrotiks: mikrotiksResult.data?.length || 0,
           topUsuarios,
+          usuariosSaqueAutomatico: usuariosSaqueAutomaticoResult.data || [],
           transacoesRecentes: transacoesResult.data || [],
           vendasRecentes: vendasRecentesResult.data?.map(v => ({
             id: v.id,
@@ -673,17 +651,13 @@ export function DashboardFinal() {
   const isAdmin = user?.role === 'admin'
 
   if (loading) {
-    return <LoadingOverlay isLoading={loading} message="Carregando dados do dashboard..." />
+    return <DashboardLoading isLoading={loading} message="Carregando dados do dashboard..." />
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-black pt-16 lg:pt-0">
+    <div className="min-h-screen bg-black pt-16 lg:pt-0">
       {/* Header */}
-      <motion.div 
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="border-b border-gray-800/50 bg-black/20 backdrop-blur-sm sticky top-0 lg:top-0 z-10"
-      >
+      <div className="border-b border-gray-800/50 bg-black/20 backdrop-blur-sm sticky top-0 lg:top-0 z-10">
         <div className="px-4 sm:px-6 py-6">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center space-x-4">
@@ -700,31 +674,28 @@ export function DashboardFinal() {
               </div>
             </div>
             
-            <motion.button 
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
+            <button 
               onClick={fetchDashboardStats}
               disabled={refreshing}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors disabled:opacity-50 hover:scale-105"
             >
-              {refreshing ? <InlineLoader size="sm" /> : <RefreshCw className="h-4 w-4" />}
+              {refreshing ? (
+                <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
               {refreshing ? 'Atualizando...' : 'Atualizar'}
-            </motion.button>
+            </button>
           </div>
         </div>
-      </motion.div>
+      </div>
 
       {/* Content */}
       <div className="p-4 sm:p-6">
-        <motion.div
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-          className="space-y-6"
-        >
+        <div className="space-y-6">
           {/* Stats Cards */}
           {isAdmin ? (
-            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
               <StatsCard
                 title="Total de Vendas"
                 value={stats?.totalVendas.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) || 'R$ 0,00'}
@@ -766,6 +737,17 @@ export function DashboardFinal() {
                 trendValue="+5.4%"
                 description="Total de usuários"
                 color="purple"
+                loading={loading}
+              />
+
+              <StatsCard
+                title="Saques Automáticos"
+                value={stats?.usuariosSaqueAutomatico?.length || 0}
+                icon={Zap}
+                trend="neutral"
+                trendValue={`R$ ${stats?.usuariosSaqueAutomatico?.reduce((sum, u) => sum + u.saldo, 0)?.toFixed(2) || '0,00'}`}
+                description="Usuários com saldo ≥ R$ 50"
+                color="orange"
                 loading={loading}
               />
             </div>
@@ -829,10 +811,7 @@ export function DashboardFinal() {
               {isAdmin ? (
                 <MikrotikTable mikrotiks={stats?.mikrotikStats} loading={loading} />
               ) : (
-                <motion.div 
-                  variants={itemVariants}
-                  className="bg-black/40 backdrop-blur-sm border border-gray-800/50 rounded-2xl p-6"
-                >
+                <div className="bg-black/40 backdrop-blur-sm border border-gray-800/50 rounded-2xl p-6">
                   <div className="flex items-center gap-3 mb-6">
                     <div className="p-3 rounded-xl bg-gradient-to-br from-blue-500/10 to-blue-600/5 border border-blue-500/20">
                       <Star className="h-5 w-5 text-blue-400" />
@@ -861,11 +840,11 @@ export function DashboardFinal() {
                       </div>
                     </div>
                   </div>
-                </motion.div>
+                </div>
               )}
             </div>
           </div>
-        </motion.div>
+        </div>
       </div>
     </div>
   )
