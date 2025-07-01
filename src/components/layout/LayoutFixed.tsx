@@ -1,27 +1,17 @@
 import { useState, useEffect } from "react";
 import { SidebarFixed } from "./SidebarFixed";
 import { Outlet } from 'react-router-dom';
-import { PageLoadingOverlay, useToast } from "../ui";
+import { useToast } from "../ui";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePWAInstallPrompt } from "../../hooks/usePWAInstallPrompt";
 
 export function LayoutFixed() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [isPageLoading, setIsPageLoading] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
   const { addToast } = useToast();
   const { isInstallable, promptInstall } = usePWAInstallPrompt();
-
-  // Loading inicial da aplicação
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsPageLoading(false);
-    }, 800);
-
-    return () => clearTimeout(timer);
-  }, []);
 
   // Responsividade
   useEffect(() => {
@@ -50,9 +40,6 @@ export function LayoutFixed() {
 
   return (
     <>
-      {/* Loading overlay para carregamento inicial */}
-      <PageLoadingOverlay isLoading={isPageLoading} />
-      
       <div className="min-h-screen bg-black">
         {/* Sidebar */}
         <SidebarFixed 
