@@ -103,7 +103,7 @@ export function SaqueModal({ open, onOpenChange, onSuccess }: SaqueModalProps) {
 
   const handleUseDefaultPix = () => {
     if (user?.pix_key) {
-      setFormData(prev => ({ ...prev, chave_pix: user.pix_key }))
+      setFormData(prev => ({ ...prev, chave_pix: user.pix_key || '' }))
     }
   }
 
