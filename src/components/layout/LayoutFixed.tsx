@@ -30,11 +30,15 @@ export function LayoutFixed() {
 
   useEffect(() => {
     if (isInstallable) {
-      addToast({
-        type: 'info',
-        title: 'Instale o aplicativo',
-        description: 'Você pode adicionar o MikroPix à tela inicial para acesso rápido. Clique no banner ou use as opções do navegador.'
-      });
+      // Aciona prompt nativo imediatamente
+      promptInstall().catch(() => {
+        // Se o usuário dispensar, exibe toast informativo
+        addToast({
+          type: 'info',
+          title: 'Dica: instale o aplicativo',
+          description: 'Use as opções do navegador para adicionar o MikroPix à tela inicial.'
+        })
+      })
     }
   }, [isInstallable, addToast, promptInstall]);
 
