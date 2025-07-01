@@ -147,7 +147,8 @@ interface TemplateVariable {
   description: string
   defaultValue: string
   required: boolean
-  type: 'text' | 'color' | 'url' | 'number'
+  type: 'text' | 'color' | 'url' | 'number' | 'select'
+  options?: { value: string; label: string }[] // Para tipo select
 }
 
 interface TemplateProfileModalProps {
@@ -335,28 +336,45 @@ export default function MikrotikDashboard() {
       },
       variables: [
         {
-          key: 'PROVIDER_NAME',
-          label: 'Nome do Provedor',
-          description: 'Nome da sua empresa/provedor',
-          defaultValue: 'MikroPix',
-          required: true,
-          type: 'text'
-        },
-        {
-          key: 'LOGO_URL',
-          label: 'URL do Logo',
-          description: 'URL para o logo da empresa',
-          defaultValue: '/img/logo.png',
-          required: false,
-          type: 'url'
-        },
-        {
           key: 'PRIMARY_COLOR',
           label: 'Cor Primária',
-          description: 'Cor principal do template',
+          description: 'Cor principal do template (hexadecimal)',
           defaultValue: '#007bff',
           required: false,
           type: 'color'
+        },
+        {
+          key: 'LOGO_ICON',
+          label: 'Icone do Logo',
+          description: 'Emoji ou texto para o logo (ex: 📶, WiFi, etc)',
+          defaultValue: '📶',
+          required: false,
+          type: 'text'
+        },
+        {
+          key: 'WELCOME_TITLE',
+          label: 'Título de Boas-Vindas',
+          description: 'Título principal da página de login',
+          defaultValue: 'Bem-vindo ao WiFi',
+          required: false,
+          type: 'text'
+        },
+        {
+          key: 'WELCOME_MESSAGE',
+          label: 'Mensagem de Boas-Vindas',
+          description: 'Mensagem descritiva abaixo do título',
+          defaultValue: 'Conecte-se à internet de forma rápida e segura',
+          required: false,
+          type: 'text'
+        },
+        {
+          key: 'DEBUG_MODE',
+          label: 'Modo Debug',
+          description: 'Ativar informações de debug na página',
+          defaultValue: 'false',
+          required: false,
+          type: 'select',
+          options: [{ value: 'false', label: 'Desativado' }, { value: 'true', label: 'Ativado' }]
         }
       ]
     },
@@ -1478,36 +1496,111 @@ export default function MikrotikDashboard() {
     setModals(prev => ({ ...prev, templateLoading: true }))
 
     try {
-      // Buscar o conteúdo do template
       addToast({
         type: 'info',
         title: 'Processando...',
-        description: 'Carregando template...'
+        description: 'Enviando template...'
       })
 
-      const templateResponse = await fetch(selectedTemplate.files.login)
-      if (!templateResponse.ok) {
-        throw new Error(`Erro ao carregar template: ${templateResponse.statusText}`)
+      // Buscar todos os arquivos da pasta do template
+      const templateFolder = selectedTemplate.files.login.replace('/login.html', '')
+      const templateFiles = []
+
+      // Lista de todos os arquivos que realmente existem na pasta do template (exceto preview.png)
+      const possibleFiles = [
+        'alogin.html',
+        'api.json',
+        'error.html',
+        'errors.txt',
+        'favicon.ico',
+        'frp.html',
+        'login.html',
+        'logout.html',
+        'md5.js',
+        'page.html',
+        'pix.png',
+        'radvert.html',
+        'redirect.html',
+        'rlogin.html',
+        'status.html',
+        'teste.html',
+        // Arquivos XML
+        'xml/alogin.html',
+        'xml/error.html',
+        'xml/flogout.html',
+        'xml/login.html',
+        'xml/logout.html',
+        'xml/rlogin.html',
+        'xml/WISPAccessGatewayParam.xsd'
+      ]
+
+      // Buscar todos os arquivos que existem na pasta do template
+      for (const fileName of possibleFiles) {
+        try {
+          const fileUrl = `${templateFolder}/${fileName}`
+          const fileResponse = await fetch(fileUrl)
+          
+                     if (fileResponse.ok) {
+             let fileContent: string | ArrayBuffer | null = null
+             
+             // Para arquivos de imagem, usar blob e converter para base64
+             if (fileName.match(/\.(png|jpg|jpeg|gif|svg|ico)$/i)) {
+               const blob = await fileResponse.blob()
+               const reader = new FileReader()
+               
+               await new Promise<void>((resolve) => {
+                 reader.onload = () => {
+                   fileContent = reader.result
+                   resolve()
+                 }
+                 reader.readAsDataURL(blob)
+               })
+             } else {
+               // Para arquivos de texto (HTML, CSS, JS)
+               fileContent = await fileResponse.text()
+               
+               // Se for o login.html, aplicar as variáveis
+               if (fileName === 'login.html' && typeof fileContent === 'string') {
+                 // Substituir variáveis no template
+                 Object.entries(templateVariables).forEach(([key, value]) => {
+                   const regex = new RegExp(`{{${key}}}`, 'g')
+                   fileContent = (fileContent as string).replace(regex, value)
+                 })
+                 
+                 // Substituir MIKROTIK_ID e API_URL automaticamente
+                 fileContent = (fileContent as string).replace(/{{MIKROTIK_ID}}/g, mikrotikId || '')
+                 fileContent = (fileContent as string).replace(/{{API_URL}}/g, baseUrl || '')
+               }
+             }
+            
+            templateFiles.push({
+              name: fileName,
+              content: fileContent,
+              path: `/flash/mikropix/${fileName}`
+            })
+            
+            console.log(`Arquivo do template encontrado: ${fileName}`)
+          }
+        } catch (error) {
+          // Arquivo não existe, continuar silenciosamente
+          console.log(`Arquivo ${fileName} não encontrado no template (normal)`)
+        }
       }
 
-      let templateHtml = await templateResponse.text()
+      if (templateFiles.length === 0) {
+        throw new Error('Nenhum arquivo foi encontrado no template')
+      }
 
-      // Substituir variáveis no template
-      Object.entries(templateVariables).forEach(([key, value]) => {
-        const regex = new RegExp(`{{${key}}}`, 'g')
-        templateHtml = templateHtml.replace(regex, value)
-      })
-
-      // Substituir MIKROTIK_ID automaticamente
-      templateHtml = templateHtml.replace(/{{MIKROTIK_ID}}/g, mikrotikId || '')
+      console.log(`Template ${selectedTemplate.name}: ${templateFiles.length} arquivo(s) encontrado(s)`, templateFiles.map(f => f.name))
 
       addToast({
         type: 'info',
         title: 'Processando...',
-        description: 'Aplicando template ao MikroTik...'
+        description: 'Enviando template...'
       })
 
-      // Aplicar o template usando o novo endpoint
+      // Usar o mesmo método de envio que já estava sendo usado (endpoint templates/apply)
+      // mas agora enviando todos os arquivos
       const response = await fetch(`${baseUrl}/api/mikrotik/templates/apply`, {
         method: 'POST',
         headers: {
@@ -1518,7 +1611,7 @@ export default function MikrotikDashboard() {
           mikrotikId: mikrotikId,
           serverProfileId: selectedServerProfile,
           templateId: selectedTemplate.id,
-          templateContent: templateHtml,
+          templateFiles: templateFiles, // Enviar todos os arquivos
           variables: templateVariables,
           mikrotikParams: getMikrotikParams()
         })
@@ -1544,7 +1637,7 @@ export default function MikrotikDashboard() {
       addToast({
         type: 'success',
         title: 'Template Aplicado!',
-        description: `Template "${selectedTemplate.name}" aplicado com sucesso ao perfil "${selectedProfileName}". HTML enviado para /flash/mikropix/ e diretório atualizado.`
+        description: 'Template enviado com sucesso!'
       })
 
       await fetchServerProfiles()
@@ -2427,7 +2520,7 @@ export default function MikrotikDashboard() {
         {/* Template Configuration Modal */}
         {modals.templateProfile && selectedTemplate && (
           <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-            <div className="bg-black border border-gray-800 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="bg-black border border-gray-800 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl relative">
               <div className="p-4 sm:p-6">
                 <div className="flex justify-between items-center mb-6">
                   <div>
@@ -2515,6 +2608,22 @@ export default function MikrotikDashboard() {
                               placeholder={variable.defaultValue}
                               required={variable.required}
                             />
+                          ) : variable.type === 'select' ? (
+                            <select
+                              value={templateVariables[variable.key] || variable.defaultValue}
+                              onChange={(e) => setTemplateVariables(prev => ({
+                                ...prev,
+                                [variable.key]: e.target.value
+                              }))}
+                              className="w-full bg-black border border-gray-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all"
+                              required={variable.required}
+                            >
+                              {variable.options?.map(option => (
+                                <option key={option.value} value={option.value} className="bg-black text-white">
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
                           ) : (
                             <input
                               type={variable.type === 'url' ? 'url' : 'text'}
@@ -2545,20 +2654,39 @@ export default function MikrotikDashboard() {
                         setTemplateVariables({})
                         setSelectedServerProfile('')
                       }}
-                      className="flex-1 border-gray-700 text-gray-300 hover:text-white hover:border-gray-600 hover:bg-gray-800 py-3 rounded-lg transition-all"
+                      disabled={modals.templateLoading}
+                      className="flex-1 border-gray-700 text-gray-300 hover:text-white hover:border-gray-600 hover:bg-gray-800 py-3 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Cancelar
                     </Button>
                     <Button
                       onClick={handleApplyTemplate}
-                      disabled={!selectedServerProfile || (selectedTemplate.variables.some(v => v.required && !templateVariables[v.key]))}
+                      disabled={!selectedServerProfile || (selectedTemplate.variables.some(v => v.required && !templateVariables[v.key])) || modals.templateLoading}
                       className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Aplicar Template
+                      {modals.templateLoading ? (
+                        <div className="flex items-center gap-2">
+                          <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                          Enviando...
+                        </div>
+                      ) : (
+                        'Aplicar Template'
+                      )}
                     </Button>
                   </div>
                 </div>
               </div>
+              
+              {/* Loading Overlay */}
+              {modals.templateLoading && (
+                <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center rounded-xl">
+                  <div className="bg-black/80 border border-gray-700 rounded-lg p-6 text-center">
+                    <div className="w-12 h-12 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin mx-auto mb-4"></div>
+                    <h3 className="text-white font-medium mb-2">Enviando Template</h3>
+                    <p className="text-gray-400 text-sm">Por favor aguarde...</p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

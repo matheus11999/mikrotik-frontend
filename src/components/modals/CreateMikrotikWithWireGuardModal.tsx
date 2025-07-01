@@ -206,24 +206,22 @@ export const CreateMikrotikWithWireGuardModal: React.FC<CreateMikrotikWithWireGu
     }
     
     return `/interface/wireguard
-add name="${interfaceName}" private-key="${peer.privateKey}" listen-port=64326 comment="Interface WireGuard cliente - Criado automaticamente"
+add name="${interfaceName}" private-key="${peer.privateKey}" listen-port=64326 comment="MikroPix - Conexão"
 /interface/wireguard/peers
-add interface="${interfaceName}" public-key="${serverPublicKey}" preshared-key="${peer.presharedKey || ''}" allowed-address="0.0.0.0/0,::/0" endpoint-address="${SERVER_ENDPOINT}" endpoint-port="${SERVER_PORT}" persistent-keepalive="25s" comment="Peer servidor WireGuard - Criado automaticamente"
+add interface="${interfaceName}" public-key="${serverPublicKey}" preshared-key="${peer.presharedKey || ''}" allowed-address="0.0.0.0/0,::/0" endpoint-address="${SERVER_ENDPOINT}" endpoint-port="${SERVER_PORT}" persistent-keepalive="25s" comment="MikroPix - Conexão"
 /ip/address
-add address="${clientIP}/24" interface="${interfaceName}" comment="IP WireGuard tunnel - Criado automaticamente"
+add address="${clientIP}/24" interface="${interfaceName}" comment="MikroPix - Conexão"
 /ip/dns
 set servers="1.1.1.1" allow-remote-requests=yes
-/ip/route
-add dst-address="0.0.0.0/0" gateway="${interfaceName}" distance=1 comment="Rota padrão via WireGuard - Criado automaticamente"
 /ip/firewall/filter
-add chain="input" protocol="udp" port="64326" action="accept" comment="Permitir WireGuard UDP - Criado automaticamente"
-add chain="forward" out-interface="${interfaceName}" action="accept" comment="Permitir forward para WireGuard - Criado automaticamente"
-add chain="forward" in-interface="${interfaceName}" action="accept" comment="Permitir forward do WireGuard - Criado automaticamente"
+add chain="input" protocol="udp" port="64326" action="accept" comment="MikroPix - Conexão"
+add chain="forward" out-interface="${interfaceName}" action="accept" comment="MikroPix - Conexão"
+add chain="forward" in-interface="${interfaceName}" action="accept" comment="MikroPix - Conexão"
 /ip/firewall/nat
-add chain="srcnat" out-interface="${interfaceName}" action="masquerade" comment="NAT para WireGuard - Criado automaticamente"
+add chain="srcnat" out-interface="${interfaceName}" action="masquerade" comment="MikroPix - Conexão"
 /ip/firewall/mangle
-add chain="prerouting" in-interface="${interfaceName}" action="mark-connection" new-connection-mark="wireguard-conn" comment="Marcar conexões WireGuard - Criado automaticamente"
-add chain="prerouting" connection-mark="wireguard-conn" action="mark-packet" new-packet-mark="wireguard-packet" comment="Marcar pacotes WireGuard - Criado automaticamente"
+add chain="prerouting" in-interface="${interfaceName}" action="mark-connection" new-connection-mark="wireguard-conn" comment="MikroPix - Conexão"
+add chain="prerouting" connection-mark="wireguard-conn" action="mark-packet" new-packet-mark="wireguard-packet" comment="MikroPix - Conexão"
 /interface/wireguard
 set [find name="${interfaceName}"] disabled=no
 

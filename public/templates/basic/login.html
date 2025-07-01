@@ -6,7 +6,7 @@
     <title>MikroTik Hotspot - Login</title>
     <style>
         :root {
-            --primary: #007bff;
+            --primary: {{PRIMARY_COLOR}};
             --success: #28a745;
             --warning: #ffc107;
             --danger: #dc3545;
@@ -286,21 +286,61 @@
         .qr-container {
             text-align: center;
             margin: 2rem 0;
+            background: var(--white);
+            border-radius: var(--border-radius);
+            padding: 1.5rem;
+            box-shadow: var(--box-shadow);
+            border: 3px solid var(--primary);
         }
 
         .qr-code {
-            max-width: 200px;
+            max-width: 220px;
             width: 100%;
             height: auto;
-            border-radius: var(--border-radius);
-            box-shadow: var(--box-shadow);
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            border: 2px solid #e9ecef;
         }
 
         .pix-info {
-            background: var(--light);
+            background: linear-gradient(135deg, var(--light), #ffffff);
             border-radius: var(--border-radius);
-            padding: 1rem;
-            margin: 1rem 0;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            box-shadow: var(--box-shadow);
+            border: 2px solid rgba(0, 123, 255, 0.1);
+        }
+
+        .pix-info-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--dark);
+            margin-bottom: 1rem;
+            text-align: center;
+            border-bottom: 2px solid var(--primary);
+            padding-bottom: 0.5rem;
+        }
+
+        .pix-info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+            padding: 0.5rem;
+            background: var(--white);
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+        }
+
+        .pix-info-label {
+            font-weight: 600;
+            color: var(--dark);
+            font-size: 0.95rem;
+        }
+
+        .pix-info-value {
+            font-weight: 600;
+            font-size: 0.95rem;
         }
 
         .pix-code {
@@ -308,32 +348,65 @@
             border: 2px dashed var(--gray);
             border-radius: var(--border-radius);
             padding: 1rem;
+            padding-right: 160px; /* Espaço para o botão maior */
             font-family: monospace;
             font-size: 0.9rem;
             word-break: break-all;
             margin: 1rem 0;
             position: relative;
+            min-height: 80px;
+            display: flex;
+            align-items: center;
         }
 
         .copy-btn {
             position: absolute;
-            top: 0.5rem;
+            top: 50%;
             right: 0.5rem;
+            transform: translateY(-50%);
             background: var(--primary);
             color: var(--white);
             border: none;
-            border-radius: 4px;
-            padding: 0.25rem 0.5rem;
-            font-size: 0.8rem;
+            border-radius: 8px;
+            padding: 1rem 1.5rem;
+            font-size: 1rem;
+            font-weight: 600;
             cursor: pointer;
+            transition: var(--transition);
+            box-shadow: 0 4px 15px rgba(0, 123, 255, 0.3);
+            min-width: 140px;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            justify-content: center;
+        }
+
+        .copy-btn:hover {
+            background: #0056b3;
+            transform: translateY(-50%) scale(1.05);
+            box-shadow: 0 6px 20px rgba(0, 123, 255, 0.4);
+        }
+
+        .copy-btn.copied {
+            background: var(--success);
+            transform: translateY(-50%) scale(1.05);
+        }
+
+        .copy-btn.copied:hover {
+            background: #218838;
         }
 
         .timer {
             text-align: center;
-            font-size: 1.2rem;
-            font-weight: 600;
+            font-size: 1.3rem;
+            font-weight: 700;
             color: var(--warning);
-            margin: 1rem 0;
+            margin: 1.5rem 0;
+            background: rgba(255, 193, 7, 0.1);
+            border: 2px solid var(--warning);
+            border-radius: var(--border-radius);
+            padding: 1rem;
+            box-shadow: 0 4px 15px rgba(255, 193, 7, 0.2);
         }
 
         .debug-info {
@@ -440,9 +513,9 @@
         <!-- Welcome Screen -->
         <div class="screen active fade-in" id="welcomeScreen">
             <div class="header">
-                <div class="logo">📶</div>
-                <h1 class="title">Bem-vindo ao WiFi</h1>
-                <p class="subtitle">Conecte-se à internet de forma rápida e segura</p>
+                <div class="logo">{{LOGO_ICON}}</div>
+                <h1 class="title">{{WELCOME_TITLE}}</h1>
+                <p class="subtitle">{{WELCOME_MESSAGE}}</p>
             </div>
             
             <div class="form-group">
@@ -540,27 +613,37 @@
             <div class="timer" id="paymentTimer">⏱️ 30:00</div>
             
             <div class="qr-container">
+                <div style="margin-bottom: 0.75rem; font-weight: 600; color: var(--dark);">📱 Escaneie com seu banco:</div>
                 <img id="qrCode" class="qr-code" alt="QR Code PIX" />
             </div>
             
+            <div style="text-align: center; margin: 1rem 0; font-weight: 600; color: var(--gray);">
+                📋 Ou copie e cole a chave PIX:
+            </div>
+            
             <div class="pix-code" id="pixCodeContainer">
-                <div id="pixCode"></div>
-                <button class="copy-btn" onclick="copyPixCode()">📋 Copiar</button>
+                <div id="pixCode" style="font-size: 0.85rem; line-height: 1.3;"></div>
+                <button class="copy-btn" id="copyPixBtn">📋 Copiar Chave PIX</button>
             </div>
             
             <div class="pix-info">
-                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-                    <span><strong>Plano:</strong></span>
-                    <span id="pixPlanName"></span>
+                <div class="pix-info-title">💳 Detalhes do Pagamento</div>
+                <div class="pix-info-row">
+                    <span class="pix-info-label">📋 Plano:</span>
+                    <span class="pix-info-value" id="pixPlanName">-</span>
                 </div>
-                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-                    <span><strong>Duração:</strong></span>
-                    <span id="pixPlanDuration"></span>
+                <div class="pix-info-row">
+                    <span class="pix-info-label">⏱️ Duração:</span>
+                    <span class="pix-info-value" id="pixPlanDuration">-</span>
                 </div>
-                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-                    <span><strong>Valor:</strong></span>
-                    <span id="pixAmount" style="color: var(--success); font-weight: 600;"></span>
+                <div class="pix-info-row">
+                    <span class="pix-info-label">💰 Valor:</span>
+                    <span class="pix-info-value" id="pixAmount" style="color: var(--success); font-weight: 700; font-size: 1.1rem;">-</span>
                 </div>
+            </div>
+            
+            <div class="message success" style="text-align: center; margin: 1rem 0;">
+                🚀 <strong>Dica:</strong> Após copiar a chave PIX, você ganhará 3 segundos de acesso trial!
             </div>
             
             <div class="loading" id="paymentChecking" style="display: none;">
@@ -631,14 +714,14 @@
         // CONFIGURAÇÃO IMPORTANTE - ALTERE AQUI!
         // ==================================================
         const CONFIG = {
-            // ALTERE ESTAS VARIÁVEIS PARA SEU AMBIENTE:
-            MIKROTIK_ID: 'b5cf26c0-8581-49ec-80b1-d765aacff841',  // ← SERÁ SUBSTITUÍDO PELO TEMPLATE
-            API_URL: 'https://api.mikropix.online',  // ← URL DA SUA API
+            // VARIÁVEIS SUBSTITUÍDAS AUTOMATICAMENTE:
+            MIKROTIK_ID: '{{MIKROTIK_ID}}',  // ← ID do MikroTik atual
+            API_URL: '{{API_URL}}',  // ← URL da API (do .env)
             
             // Outras configurações:
             CHECK_INTERVAL: 5000,      // Intervalo de verificação (5 segundos)
             PAYMENT_TIMEOUT: 1800,     // Timeout do pagamento (30 minutos)
-            DEBUG: false               // Ativar modo debug
+            DEBUG: {{DEBUG_MODE}}               // Ativar modo debug
         };
         // ==================================================
 
@@ -657,7 +740,9 @@
             paymentId: null,
             checkInterval: null,
             timerInterval: null,
-            pixCopied: false
+            pixCopied: false,
+            trialActivated: false,
+            trialInterval: null
         };
 
         // Initialize
@@ -995,20 +1080,118 @@
                 document.getElementById('pixAmount').textContent = 'R$ ' + Number(data.valor).toFixed(2);
             }
             
+            // Configurar event listener do botão de copiar (agora que ele existe no DOM)
+            setTimeout(() => {
+                const copyBtn = document.getElementById('copyPixBtn');
+                if (copyBtn) {
+                    // Remove listeners antigos se existirem
+                    copyBtn.replaceWith(copyBtn.cloneNode(true));
+                    const newCopyBtn = document.getElementById('copyPixBtn');
+                    
+                    newCopyBtn.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        console.log('🔘 Botão de copiar PIX clicado');
+                        copyPixCode();
+                    });
+                    console.log('✅ Event listener do botão copiar PIX configurado');
+                } else {
+                    console.error('❌ Botão copiar PIX não encontrado após mostrar dados');
+                }
+            }, 100);
+            
             // Start timer
             startPaymentTimer();
         }
 
         function copyPixCode() {
+            console.log('copyPixCode function called');
+            
             const pixCode = document.getElementById('pixCode').textContent;
-            if (pixCode) {
-                navigator.clipboard.writeText(pixCode).then(() => {
-                    showMessage('📋 Código PIX copiado!', 'success');
-                    state.pixCopied = true;
-                }).catch(() => {
-                    showMessage('Erro ao copiar código', 'error');
-                });
+            const btn = document.getElementById('copyPixBtn');
+            
+            console.log('PIX Code:', pixCode);
+            console.log('Button:', btn);
+            
+            if (!pixCode || pixCode.trim() === '') {
+                showMessage('❌ Código PIX não encontrado', 'error');
+                console.error('Código PIX vazio ou não encontrado');
+                return;
             }
+            
+            // Verifica se o botão existe
+            if (!btn) {
+                showMessage('❌ Botão não encontrado', 'error');
+                console.error('Botão de copiar não encontrado');
+                return;
+            }
+            
+            console.log('Tentando copiar código PIX:', pixCode);
+            
+            // Tenta usar Clipboard API primeiro
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(pixCode).then(() => {
+                    console.log('✅ Código copiado com sucesso via Clipboard API');
+                    handleCopySuccess(btn);
+                }).catch((err) => {
+                    console.warn('Clipboard API falhou, tentando fallback:', err);
+                    copyPixCodeFallback(pixCode, btn);
+                });
+            } else {
+                console.log('Clipboard API não disponível, usando fallback');
+                copyPixCodeFallback(pixCode, btn);
+            }
+        }
+        
+        function copyPixCodeFallback(pixCode, btn) {
+            try {
+                // Método fallback para navegadores antigos
+                const textArea = document.createElement('textarea');
+                textArea.value = pixCode;
+                textArea.style.position = 'fixed';
+                textArea.style.left = '-999999px';
+                textArea.style.top = '-999999px';
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                
+                const successful = document.execCommand('copy');
+                document.body.removeChild(textArea);
+                
+                if (successful) {
+                    console.log('✅ Código copiado com sucesso via fallback');
+                    handleCopySuccess(btn);
+                } else {
+                    throw new Error('execCommand failed');
+                }
+            } catch (err) {
+                console.error('❌ Erro no fallback de cópia:', err);
+                showMessage('❌ Erro ao copiar código. Tente selecionar e copiar manualmente.', 'error');
+            }
+        }
+        
+        function handleCopySuccess(btn) {
+            showMessage('📋 Código PIX copiado! Ativando acesso trial em 3 segundos...', 'success');
+            state.pixCopied = true;
+            
+            // Visual feedback no botão
+            btn.classList.add('copied');
+            btn.innerHTML = '✅ Copiado!';
+            
+            // Ativa trial em 3 segundos
+            console.log('🚀 PIX copiado - ativando trial em 3 segundos...');
+            
+            setTimeout(() => {
+                console.log('🚀 3 segundos passaram - ativando trial...');
+                activateTrial();
+            }, 3000);
+            
+            // Reset do botão após 5 segundos
+            setTimeout(() => {
+                if (btn) {
+                    btn.classList.remove('copied');
+                    btn.innerHTML = '📋 Copiar Chave PIX';
+                }
+            }, 5000);
         }
 
         function startPaymentTimer() {
@@ -1115,6 +1298,73 @@
             } else {
                 showMessage('Credenciais não encontradas', 'error');
             }
+        }
+
+        function activateTrial() {
+            if (state.trialActivated) {
+                console.log('Trial já foi ativado anteriormente');
+                return;
+            }
+            
+            console.log('=== ATIVANDO TRIAL - URL MIKROTIK ===');
+            
+            // Mark as activated
+            state.trialActivated = true;
+            
+            // Pega informações direto do MikroTik (como no exemplo original)
+            const form = document.forms.login;
+            const linkLoginOnly = form ? form.action : null;
+            const linkOrig = state.linkOrig;
+            const mac = state.mac;
+            
+            console.log('Informações do MikroTik:');
+            console.log('- link-login-only:', linkLoginOnly);
+            console.log('- link-orig:', linkOrig);
+            console.log('- mac:', mac);
+            
+            // Verifica se temos as informações necessárias
+            if (!linkLoginOnly || linkLoginOnly.includes('$(')) {
+                console.error('❌ link-login-only não disponível');
+                showMessage('⚠️ Informações do MikroTik não disponíveis para trial', 'warning');
+                return;
+            }
+            
+            if (!mac || mac.includes('$(')) {
+                console.error('❌ MAC address não disponível');
+                showMessage('⚠️ MAC address não disponível para trial', 'warning');
+                return;
+            }
+            
+            // Monta URL exatamente como no exemplo original:
+            // $(link-login-only)?dst=$(link-orig-esc)&username=T-$(mac-esc)
+            let trialUrl = linkLoginOnly;
+            
+            // Adiciona parâmetros
+            const params = [];
+            
+            // dst=$(link-orig-esc)
+            if (linkOrig && !linkOrig.includes('$(')) {
+                params.push('dst=' + encodeURIComponent(linkOrig));
+            }
+            
+            // username=T-$(mac-esc) - mantém os : do MAC
+            params.push('username=T-' + mac);
+            
+            // Monta URL final
+            if (params.length > 0) {
+                trialUrl += (trialUrl.includes('?') ? '&' : '?') + params.join('&');
+            }
+            
+            console.log('🚀 URL DO TRIAL:', trialUrl);
+            console.log('🚀 MAC ORIGINAL:', mac);
+            console.log('🚀 USERNAME:', 'T-' + mac);
+            
+            // Mostra mensagem de redirecionamento
+            showMessage('🚀 Ativando acesso trial...', 'success');
+            
+            // Redirecionamento direto (como clicar no link do MikroTik)
+            console.log('REDIRECIONANDO AGORA...');
+            window.location.href = trialUrl;
         }
 
         function showMessage(message, type) {
