@@ -657,7 +657,7 @@ export function DashboardFinal() {
   return (
     <div className="min-h-screen bg-black pt-16 lg:pt-0">
       {/* Header */}
-      <div className="border-b border-gray-800/50 bg-black/20 backdrop-blur-sm sticky top-0 lg:top-0 z-10">
+      <div className="border-b border-gray-800/50 bg-black/20 backdrop-blur-sm sticky top-16 lg:top-0 z-10">
         <div className="px-4 sm:px-6 py-6">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center space-x-4">
