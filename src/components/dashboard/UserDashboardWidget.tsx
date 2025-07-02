@@ -177,7 +177,7 @@ export function UserDashboardWidget() {
       }
 
       // Buscar vendas PIX via tabela vendas_pix (comissões do usuário)
-      const { data: vendasPix, error: vendasPixError } = await supabase
+      const { data: vendasPixFromDB, error: vendasPixError } = await supabase
         .from('vendas_pix')
         .select(`
           id, payment_id, valor_total, valor_usuario, valor_admin,
@@ -189,7 +189,7 @@ export function UserDashboardWidget() {
         .not('mercadopago_payment_id', 'is', null)
         .order('created_at', { ascending: false })
 
-      console.log('PIX sales query result:', { vendasPix, vendasPixError })
+      console.log('PIX sales query result:', { vendasPixFromDB, vendasPixError })
 
       // Buscar vendas diretas da tabela vendas (incluindo vouchers captive)
       const { data: vendasDiretas, error: vendasDiretasError } = await supabase
@@ -249,7 +249,7 @@ export function UserDashboardWidget() {
       const vendasFisicasDiretas = vendasDiretas?.filter(v => !isVendaPix(v)) || []
 
       // Preparar dados das vendas PIX (comissões do usuário)
-      const vendasPixData = (vendasPix || []).map(v => ({
+      const vendasPixData = (vendasPixFromDB || []).map(v => ({
         id: v.id,
         valor: v.valor_usuario, // Comissão do usuário (90%)
         created_at: v.created_at,
