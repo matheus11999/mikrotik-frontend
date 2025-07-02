@@ -248,18 +248,20 @@ export function UserDashboardWidget() {
       const vendasPixDiretas = vendasDiretas?.filter(isVendaPix) || []
       const vendasFisicasDiretas = vendasDiretas?.filter(v => !isVendaPix(v)) || []
 
-      // Preparar dados das vendas PIX (comissões do usuário)
-      const vendasPixData = (vendasPixFromDB || []).map(v => ({
-        id: v.id,
-        valor: v.valor_usuario, // Comissão do usuário (90%)
-        created_at: v.created_at,
-        plano_nome: v.plano_nome || 'Plano PIX',
-        plano_valor: v.valor_total,
-        mac_address: v.mac_address,
-        mikrotik_id: v.mikrotik_id,
-        status: v.status,
-        tipo: 'pix'
-      }))
+      // Preparar dados das vendas PIX (apenas para relatório, sem comissão)
+      const vendasPixData = (vendasPixFromDB || [])
+        .filter(v => v.valor_usuario > 0) // Filtrar apenas vendas que realmente geram comissão
+        .map(v => ({
+          id: v.id,
+          valor: v.valor_usuario, // Comissão do usuário (se houver)
+          created_at: v.created_at,
+          plano_nome: v.plano_nome || 'Plano PIX',
+          plano_valor: v.valor_total,
+          mac_address: v.mac_address,
+          mikrotik_id: v.mikrotik_id,
+          status: v.status,
+          tipo: 'pix'
+        }))
       
       // Preparar dados das vendas físicas (vouchers da tabela voucher + vendas captive)
       const vendasFisicasData = [
@@ -311,13 +313,13 @@ export function UserDashboardWidget() {
           .reduce((sum, v) => sum + (v.plano_valor || v.valor || 0), 0)
       }
 
-      // Totais gerais (principalmente comissões para o usuário)
-      const totalVendas = vendasPix.total + vendasFisicas.total
-      const vendasDia = vendasPix.totalDia + vendasFisicas.totalDia
-      const vendasMes = vendasPix.totalMes + vendasFisicas.totalMes
-      const rendaTotal = vendasPix.valorTotal
-      const rendaDia = vendasPix.valorDia
-      const rendaMes = vendasPix.valorMes
+      // Totais gerais (apenas comissões PIX para o usuário - vouchers são só relatório)
+      const totalVendas = vendasPix.total + vendasFisicas.total // Total de vendas para estatística
+      const vendasDia = vendasPix.totalDia + vendasFisicas.totalDia // Total do dia para estatística  
+      const vendasMes = vendasPix.totalMes + vendasFisicas.totalMes // Total do mês para estatística
+      const rendaTotal = vendasPix.valorTotal // Receita real = só comissões PIX
+      const rendaDia = vendasPix.valorDia // Receita do dia = só comissões PIX
+      const rendaMes = vendasPix.valorMes // Receita do mês = só comissões PIX
 
       // Top MikroTik - combinando PIX e físicas
       const mikrotikStats = [...vendasPixData, ...vendasFisicasData].reduce((acc, venda) => {
@@ -519,9 +521,9 @@ export function UserDashboardWidget() {
         >
           <div className="flex items-center justify-between mb-3">
             <div>
-              <p className="text-green-200/80 text-sm font-medium">Performance Total</p>
+              <p className="text-green-200/80 text-sm font-medium">Receita Total</p>
               <p className="text-2xl font-bold text-green-100">
-                {formatCurrency(stats.vendasPix.valorTotal + stats.vendasFisicas.valorTotal)}
+                {formatCurrency(stats.vendasPix.valorTotal)}
               </p>
             </div>
             <div className="p-3 rounded-xl bg-green-500/30 border border-green-400/30">
@@ -530,10 +532,10 @@ export function UserDashboardWidget() {
           </div>
           <div className="space-y-1">
             <div className="text-xs text-green-300/70">
-              {stats.totalVendas} vendas totais • PIX + Vouchers
+              {stats.vendasPix.total} vendas com comissão • Apenas PIX
             </div>
             <div className="text-xs text-green-400/80 font-medium">
-              Hoje: {stats.vendasDia} vendas • Receita real: {formatCurrency(stats.rendaDia)} (só comissões PIX)
+              Hoje: {formatCurrency(stats.vendasPix.valorDia)} • Mês: {formatCurrency(stats.vendasPix.valorMes)}
             </div>
           </div>
         </motion.div>
