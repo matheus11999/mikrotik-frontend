@@ -176,16 +176,20 @@ export function UserDashboardWidget() {
         return
       }
 
-      // Buscar vendas PIX (comissões) via historico_vendas 
-      const { data: historicoVendas, error: vendasError } = await supabase
-        .from('historico_vendas')
-        .select('id, valor, created_at, status, plano_nome, plano_valor, mac_address, mikrotik_id, tipo, descricao')
-        .eq('user_id', user.id)
-        .eq('tipo', 'usuario')
-        .eq('status', 'completed')
+      // Buscar vendas PIX via tabela vendas_pix (comissões do usuário)
+      const { data: vendasPix, error: vendasPixError } = await supabase
+        .from('vendas_pix')
+        .select(`
+          id, payment_id, valor_total, valor_usuario, valor_admin,
+          mac_address, created_at, status, mikrotik_id,
+          plano_nome, plano_valor
+        `)
+        .in('mikrotik_id', userMikrotikIds)
+        .eq('status', 'approved')
+        .not('mercadopago_payment_id', 'is', null)
         .order('created_at', { ascending: false })
 
-      console.log('PIX sales query result:', { historicoVendas, vendasError })
+      console.log('PIX sales query result:', { vendasPix, vendasPixError })
 
       // Buscar vendas diretas da tabela vendas (incluindo vouchers captive)
       const { data: vendasDiretas, error: vendasDiretasError } = await supabase
@@ -212,8 +216,8 @@ export function UserDashboardWidget() {
 
       console.log('Physical vouchers query result:', { vouchersData, vouchersError })
 
-      if (vendasError && vouchersError && vendasDiretasError) {
-        console.warn('Error fetching sales data, using fallback:', { vendasError, vouchersError, vendasDiretasError })
+      if (vendasPixError && vouchersError && vendasDiretasError) {
+        console.warn('Error fetching sales data, using fallback:', { vendasPixError, vouchersError, vendasDiretasError })
         setStats({
           totalVendas: 0,
           vendasDia: 0,
@@ -244,21 +248,18 @@ export function UserDashboardWidget() {
       const vendasPixDiretas = vendasDiretas?.filter(isVendaPix) || []
       const vendasFisicasDiretas = vendasDiretas?.filter(v => !isVendaPix(v)) || []
 
-      // Preparar dados das vendas PIX (comissões do usuário - histórico + diretas)
-      const vendasPixData = [
-        ...(historicoVendas || []),
-        ...vendasPixDiretas.map(v => ({
-          id: v.id,
-          valor: v.valor_usuario, // Comissão do usuário
-          created_at: v.created_at,
-          plano_nome: v.planos?.nome || 'Plano PIX',
-          plano_valor: v.valor_total,
-          mac_address: v.mac_address,
-          mikrotik_id: v.mikrotik_id,
-          status: v.status,
-          tipo: 'pix'
-        }))
-      ]
+      // Preparar dados das vendas PIX (comissões do usuário)
+      const vendasPixData = (vendasPix || []).map(v => ({
+        id: v.id,
+        valor: v.valor_usuario, // Comissão do usuário (90%)
+        created_at: v.created_at,
+        plano_nome: v.plano_nome || 'Plano PIX',
+        plano_valor: v.valor_total,
+        mac_address: v.mac_address,
+        mikrotik_id: v.mikrotik_id,
+        status: v.status,
+        tipo: 'pix'
+      }))
       
       // Preparar dados das vendas físicas (vouchers da tabela voucher + vendas captive)
       const vendasFisicasData = [
@@ -466,7 +467,7 @@ export function UserDashboardWidget() {
         >
           <div className="flex items-center justify-between mb-3">
             <div>
-              <p className="text-blue-200/80 text-sm font-medium">Suas Comissões PIX</p>
+              <p className="text-blue-200/80 text-sm font-medium">Vendas no PIX</p>
               <p className="text-2xl font-bold text-blue-100">{formatCurrency(stats.vendasPix.valorTotal)}</p>
             </div>
             <div className="p-3 rounded-xl bg-blue-500/30 border border-blue-400/30">
