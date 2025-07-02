@@ -185,7 +185,7 @@ export function UserDashboardWidget() {
           plano_nome, plano_valor
         `)
         .in('mikrotik_id', userMikrotikIds)
-        .eq('status', 'approved')
+        .eq('status', 'completed')
         .not('mercadopago_payment_id', 'is', null)
         .order('created_at', { ascending: false })
 
