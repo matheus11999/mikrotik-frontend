@@ -44,23 +44,29 @@ interface UserSalesHistory {
 interface UserStats {
   // Totais gerais
   totalVendas: number
+  vendasDia: number
   vendasMes: number
   rendaTotal: number
+  rendaDia: number
   rendaMes: number
   
   // Vendas PIX (comissão do usuário)
   vendasPix: {
     total: number
+    totalDia: number
     totalMes: number
     valorTotal: number
+    valorDia: number
     valorMes: number
   }
   
   // Vendas físicas/vouchers (valor total sem comissão)
   vendasFisicas: {
     total: number
+    totalDia: number
     totalMes: number
     valorTotal: number
+    valorDia: number
     valorMes: number
   }
   
@@ -96,19 +102,25 @@ export function UserDashboardWidget() {
   const { user } = useAuthContext()
   const [stats, setStats] = useState<UserStats>({
     totalVendas: 0,
+    vendasDia: 0,
     vendasMes: 0,
     rendaTotal: 0,
+    rendaDia: 0,
     rendaMes: 0,
     vendasPix: {
       total: 0,
+      totalDia: 0,
       totalMes: 0,
       valorTotal: 0,
+      valorDia: 0,
       valorMes: 0
     },
     vendasFisicas: {
       total: 0,
+      totalDia: 0,
       totalMes: 0,
       valorTotal: 0,
+      valorDia: 0,
       valorMes: 0
     },
     vendasRecentes: [],
@@ -128,9 +140,10 @@ export function UserDashboardWidget() {
     try {
       setLoading(true)
 
-      // Data atual e primeiro dia do mês
+      // Data atual, primeiro dia do mês e início do dia atual
       const now = new Date()
       const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
 
       // Buscar MikroTiks do usuário primeiro
       const { data: userMikrotiks, error: mikrotiksError } = await supabase
@@ -150,11 +163,13 @@ export function UserDashboardWidget() {
         console.log('User has no MikroTiks, using empty data')
         setStats({
           totalVendas: 0,
+          vendasDia: 0,
           vendasMes: 0,
           rendaTotal: 0,
+          rendaDia: 0,
           rendaMes: 0,
-          vendasPix: { total: 0, totalMes: 0, valorTotal: 0, valorMes: 0 },
-          vendasFisicas: { total: 0, totalMes: 0, valorTotal: 0, valorMes: 0 },
+          vendasPix: { total: 0, totalDia: 0, totalMes: 0, valorTotal: 0, valorDia: 0, valorMes: 0 },
+          vendasFisicas: { total: 0, totalDia: 0, totalMes: 0, valorTotal: 0, valorDia: 0, valorMes: 0 },
           vendasRecentes: [],
           topMikroTik: null
         })
@@ -201,11 +216,13 @@ export function UserDashboardWidget() {
         console.warn('Error fetching sales data, using fallback:', { vendasError, vouchersError, vendasDiretasError })
         setStats({
           totalVendas: 0,
+          vendasDia: 0,
           vendasMes: 0,
           rendaTotal: 0,
+          rendaDia: 0,
           rendaMes: 0,
-          vendasPix: { total: 0, totalMes: 0, valorTotal: 0, valorMes: 0 },
-          vendasFisicas: { total: 0, totalMes: 0, valorTotal: 0, valorMes: 0 },
+          vendasPix: { total: 0, totalDia: 0, totalMes: 0, valorTotal: 0, valorDia: 0, valorMes: 0 },
+          vendasFisicas: { total: 0, totalDia: 0, totalMes: 0, valorTotal: 0, valorDia: 0, valorMes: 0 },
           vendasRecentes: [],
           topMikroTik: null
         })
@@ -272,8 +289,11 @@ export function UserDashboardWidget() {
       // Calcular estatísticas PIX (comissões do usuário)
       const vendasPix = {
         total: vendasPixData.length,
+        totalDia: vendasPixData.filter(v => new Date(v.created_at) >= startOfToday).length,
         totalMes: vendasPixData.filter(v => new Date(v.created_at) >= firstDayOfMonth).length,
         valorTotal: vendasPixData.reduce((sum, v) => sum + (v.valor || 0), 0),
+        valorDia: vendasPixData.filter(v => new Date(v.created_at) >= startOfToday)
+          .reduce((sum, v) => sum + (v.valor || 0), 0),
         valorMes: vendasPixData.filter(v => new Date(v.created_at) >= firstDayOfMonth)
           .reduce((sum, v) => sum + (v.valor || 0), 0)
       }
@@ -281,16 +301,21 @@ export function UserDashboardWidget() {
       // Calcular estatísticas vendas físicas (valor total sem comissão)
       const vendasFisicas = {
         total: vendasFisicasData.length,
+        totalDia: vendasFisicasData.filter(v => new Date(v.created_at) >= startOfToday).length,
         totalMes: vendasFisicasData.filter(v => new Date(v.created_at) >= firstDayOfMonth).length,
         valorTotal: vendasFisicasData.reduce((sum, v) => sum + (v.plano_valor || v.valor || 0), 0),
+        valorDia: vendasFisicasData.filter(v => new Date(v.created_at) >= startOfToday)
+          .reduce((sum, v) => sum + (v.plano_valor || v.valor || 0), 0),
         valorMes: vendasFisicasData.filter(v => new Date(v.created_at) >= firstDayOfMonth)
           .reduce((sum, v) => sum + (v.plano_valor || v.valor || 0), 0)
       }
 
       // Totais gerais (principalmente comissões para o usuário)
-      const totalVendas = vendasPix.total
-      const vendasMes = vendasPix.totalMes
+      const totalVendas = vendasPix.total + vendasFisicas.total
+      const vendasDia = vendasPix.totalDia + vendasFisicas.totalDia
+      const vendasMes = vendasPix.totalMes + vendasFisicas.totalMes
       const rendaTotal = vendasPix.valorTotal
+      const rendaDia = vendasPix.valorDia
       const rendaMes = vendasPix.valorMes
 
       // Top MikroTik - combinando PIX e físicas
@@ -348,8 +373,10 @@ export function UserDashboardWidget() {
 
       setStats({
         totalVendas,
+        vendasDia,
         vendasMes,
         rendaTotal,
+        rendaDia,
         rendaMes,
         vendasPix,
         vendasFisicas,
@@ -451,7 +478,7 @@ export function UserDashboardWidget() {
               {stats.vendasPix.total} vendas PIX • Total recebido
             </div>
             <div className="text-xs text-blue-400/80 font-medium">
-              Este mês: {formatCurrency(stats.vendasPix.valorMes)} ({stats.vendasPix.totalMes} vendas)
+              Hoje: {formatCurrency(stats.vendasPix.valorDia)} ({stats.vendasPix.totalDia} vendas) • Mês: {formatCurrency(stats.vendasPix.valorMes)} ({stats.vendasPix.totalMes})
             </div>
           </div>
         </motion.div>
@@ -477,7 +504,7 @@ export function UserDashboardWidget() {
               {stats.vendasFisicas.total} vouchers • Apenas relatório
             </div>
             <div className="text-xs text-purple-400/80 font-medium">
-              Este mês: {formatCurrency(stats.vendasFisicas.valorMes)} ({stats.vendasFisicas.totalMes} vouchers)
+              Hoje: {formatCurrency(stats.vendasFisicas.valorDia)} ({stats.vendasFisicas.totalDia} vouchers) • Mês: {formatCurrency(stats.vendasFisicas.valorMes)} ({stats.vendasFisicas.totalMes})
             </div>
           </div>
         </motion.div>
@@ -502,10 +529,10 @@ export function UserDashboardWidget() {
           </div>
           <div className="space-y-1">
             <div className="text-xs text-green-300/70">
-              {stats.vendasPix.total + stats.vendasFisicas.total} vendas • PIX + Vouchers
+              {stats.totalVendas} vendas totais • PIX + Vouchers
             </div>
             <div className="text-xs text-green-400/80 font-medium">
-              Receita real: {formatCurrency(stats.vendasPix.valorTotal)} (só comissões PIX)
+              Hoje: {stats.vendasDia} vendas • Receita real: {formatCurrency(stats.rendaDia)} (só comissões PIX)
             </div>
           </div>
         </motion.div>
