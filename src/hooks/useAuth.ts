@@ -60,16 +60,30 @@ export function useAuth() {
     return { data, error }
   }
 
-  const signUp = async (email: string, password: string, nome: string) => {
+  const signUp = async (email: string, password: string, nome: string, cpf: string) => {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: {
           nome,
+          cpf,
         },
       },
     })
+
+    // Se o usuário foi criado com sucesso, atualizar a tabela users com o CPF
+    if (data.user && !error) {
+      try {
+        await supabase
+          .from('users')
+          .update({ cpf })
+          .eq('id', data.user.id)
+      } catch (updateError) {
+        console.error('Error updating user with CPF:', updateError)
+      }
+    }
+
     return { data, error }
   }
 
@@ -97,6 +111,17 @@ export function useAuth() {
     }
   }
 
+  const updateUser = async () => {
+    if (!session?.user) return { error: new Error('No user logged in') }
+    
+    try {
+      await fetchUserProfile(session.user.id)
+      return { error: null }
+    } catch (error) {
+      return { error }
+    }
+  }
+
   return {
     session,
     user,
@@ -105,5 +130,6 @@ export function useAuth() {
     signUp,
     signOut,
     updateProfile,
+    updateUser,
   }
 }

@@ -6,11 +6,51 @@ import { z } from 'zod'
 import { Link, Navigate } from 'react-router-dom'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { Button, Input, InlineLoader } from '../../components/ui'
-import { Eye, EyeOff, Mail, Lock, User, UserPlus, ArrowLeft, Wifi, CheckCircle } from 'lucide-react'
+import { Eye, EyeOff, Mail, Lock, User, UserPlus, ArrowLeft, Wifi, CheckCircle, CreditCard } from 'lucide-react'
+
+// Função para validar CPF
+function isValidCPF(cpf: string): boolean {
+  // Remove caracteres não numéricos
+  cpf = cpf.replace(/[^\d]/g, '')
+  
+  // Verifica se tem 11 dígitos
+  if (cpf.length !== 11) return false
+  
+  // Verifica se todos os dígitos são iguais
+  if (/^(\d)\1{10}$/.test(cpf)) return false
+  
+  // Validação do primeiro dígito verificador
+  let sum = 0
+  for (let i = 0; i < 9; i++) {
+    sum += parseInt(cpf.charAt(i)) * (10 - i)
+  }
+  let digit1 = 11 - (sum % 11)
+  if (digit1 > 9) digit1 = 0
+  
+  // Validação do segundo dígito verificador
+  sum = 0
+  for (let i = 0; i < 10; i++) {
+    sum += parseInt(cpf.charAt(i)) * (11 - i)
+  }
+  let digit2 = 11 - (sum % 11)
+  if (digit2 > 9) digit2 = 0
+  
+  // Verifica se os dígitos calculados conferem com os informados
+  return parseInt(cpf.charAt(9)) === digit1 && parseInt(cpf.charAt(10)) === digit2
+}
+
+// Função para formatar CPF
+function formatCPF(value: string): string {
+  const numbers = value.replace(/\D/g, '')
+  return numbers.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+}
 
 const registerSchema = z.object({
   nome: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
   email: z.string().email('Email inválido'),
+  cpf: z.string()
+    .min(11, 'CPF deve ter 11 dígitos')
+    .refine((cpf) => isValidCPF(cpf), 'CPF inválido'),
   password: z.string().min(6, 'Senha deve ter pelo menos 6 caracteres'),
 })
 
@@ -46,11 +86,14 @@ export function Register() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
+  const [cpfValue, setCpfValue] = useState('')
 
   const {
     register,
     handleSubmit,
     formState: { errors },
+    setValue,
+    watch
   } = useForm<RegisterForm>({
     resolver: zodResolver(registerSchema),
   })
@@ -64,7 +107,10 @@ export function Register() {
       setLoading(true)
       setError('')
       
-      const { error } = await signUp(data.email, data.password, data.nome)
+      // Remove formatação do CPF antes de enviar
+      const cleanCpf = data.cpf.replace(/[^\d]/g, '')
+      
+      const { error } = await signUp(data.email, data.password, data.nome, cleanCpf)
       if (error) {
         setError(traduzErroSupabase(error.message))
       } else {
@@ -75,6 +121,12 @@ export function Register() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleCpfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatCPF(e.target.value)
+    setCpfValue(formatted)
+    setValue('cpf', e.target.value.replace(/[^\d]/g, ''))
   }
 
   if (success) {
@@ -198,91 +250,95 @@ export function Register() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.7, duration: 0.6 }}
-              className="space-y-6"
+              className="space-y-2"
             >
-              {/* Nome */}
-              <div>
-                <label className="block text-sm font-medium text-white mb-3">
-                  Nome completo
-                </label>
-                <div className="relative">
-                  <User className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                  <Input
-                    type="text"
-                    placeholder="Seu nome completo"
-                    className="pl-12 pr-4 py-3 bg-black/40 backdrop-blur-sm border-gray-800/50 text-white placeholder:text-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 rounded-xl transition-all duration-200"
-                    {...register('nome')}
-                  />
-                </div>
-                {errors.nome && (
-                  <motion.p 
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    className="mt-2 text-sm text-red-400"
-                  >
-                    {errors.nome.message}
-                  </motion.p>
-                )}
-              </div>
+              <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
+                <User className="h-4 w-4" />
+                Nome completo
+              </label>
+              <Input
+                {...register('nome')}
+                type="text"
+                placeholder="Digite seu nome completo"
+                className="bg-gray-900/50 border-gray-700/50 text-white placeholder-gray-400 focus:border-blue-500 focus:ring-blue-500 rounded-xl h-12"
+              />
+              {errors.nome && (
+                <p className="text-red-400 text-sm">{errors.nome.message}</p>
+              )}
+            </motion.div>
 
-              {/* Email */}
-              <div>
-                <label className="block text-sm font-medium text-white mb-3">
-                  Email
-                </label>
-                <div className="relative">
-                  <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                  <Input
-                    type="email"
-                    placeholder="seu@email.com"
-                    className="pl-12 pr-4 py-3 bg-black/40 backdrop-blur-sm border-gray-800/50 text-white placeholder:text-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 rounded-xl transition-all duration-200"
-                    {...register('email')}
-                  />
-                </div>
-                {errors.email && (
-                  <motion.p 
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    className="mt-2 text-sm text-red-400"
-                  >
-                    {errors.email.message}
-                  </motion.p>
-                )}
-              </div>
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.8, duration: 0.6 }}
+              className="space-y-2"
+            >
+              <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
+                <Mail className="h-4 w-4" />
+                Email
+              </label>
+              <Input
+                {...register('email')}
+                type="email"
+                placeholder="Digite seu email"
+                className="bg-gray-900/50 border-gray-700/50 text-white placeholder-gray-400 focus:border-blue-500 focus:ring-blue-500 rounded-xl h-12"
+              />
+              {errors.email && (
+                <p className="text-red-400 text-sm">{errors.email.message}</p>
+              )}
+            </motion.div>
 
-              {/* Password */}
-              <div>
-                <label className="block text-sm font-medium text-white mb-3">
-                  Senha
-                </label>
-                <div className="relative">
-                  <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                  <Input
-                    type={showPassword ? 'text' : 'password'}
-                    placeholder="••••••••"
-                    className="pl-12 pr-12 py-3 bg-black/40 backdrop-blur-sm border-gray-800/50 text-white placeholder:text-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 rounded-xl transition-all duration-200"
-                    {...register('password')}
-                  />
-                  <motion.button
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.95 }}
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
-                  >
-                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                  </motion.button>
-                </div>
-                {errors.password && (
-                  <motion.p 
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    className="mt-2 text-sm text-red-400"
-                  >
-                    {errors.password.message}
-                  </motion.p>
-                )}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.9, duration: 0.6 }}
+              className="space-y-2"
+            >
+              <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
+                <CreditCard className="h-4 w-4" />
+                CPF
+              </label>
+              <Input
+                value={cpfValue}
+                onChange={handleCpfChange}
+                type="text"
+                placeholder="000.000.000-00"
+                maxLength={14}
+                className="bg-gray-900/50 border-gray-700/50 text-white placeholder-gray-400 focus:border-blue-500 focus:ring-blue-500 rounded-xl h-12"
+              />
+              {errors.cpf && (
+                <p className="text-red-400 text-sm">{errors.cpf.message}</p>
+              )}
+            </motion.div>
+
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 1.0, duration: 0.6 }}
+              className="space-y-2"
+            >
+              <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
+                <Lock className="h-4 w-4" />
+                Senha
+              </label>
+              <div className="relative">
+                <Input
+                  {...register('password')}
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Digite sua senha"
+                  className="bg-gray-900/50 border-gray-700/50 text-white placeholder-gray-400 focus:border-blue-500 focus:ring-blue-500 rounded-xl h-12 pr-12"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                >
+                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                </button>
               </div>
+              {errors.password && (
+                <p className="text-red-400 text-sm">{errors.password.message}</p>
+              )}
             </motion.div>
 
             {/* Submit Button */}

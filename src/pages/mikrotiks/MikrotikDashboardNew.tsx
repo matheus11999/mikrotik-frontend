@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { 
   Users, 
   UserCheck, 
@@ -8,7 +8,8 @@ import {
   Database,
   RefreshCw,
   AlertCircle,
-  X
+  X,
+  ArrowLeft
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuthContext } from '../../contexts/AuthContext'
@@ -35,6 +36,7 @@ import ProfileModal from '../../components/mikrotik/modals/ProfileModal'
 import ServerModal from '../../components/mikrotik/modals/ServerModal'
 import ServerProfileModal from '../../components/mikrotik/modals/ServerProfileModal'
 import PrintPasswordsModal from '../../components/mikrotik/PrintPasswordsModal'
+import GeneratePasswordsModal from '../../components/mikrotik/GeneratePasswordsModal'
 
 // Types
 interface MikrotikStats {
@@ -290,6 +292,7 @@ export default function MikrotikDashboard() {
   const { mikrotikId } = useParams<{ mikrotikId: string }>()
   const { user, session } = useAuthContext()
   const { addToast } = useToast()
+  const navigate = useNavigate()
   
   // States
   const [stats, setStats] = useState<MikrotikStats | null>(null)
@@ -313,7 +316,8 @@ export default function MikrotikDashboard() {
     serverProfile: false,
     templateProfile: false,
     templateLoading: false,
-    wireguard: false
+    wireguard: false,
+    generatePasswords: false
   })
 
   // Editing states
@@ -586,13 +590,35 @@ export default function MikrotikDashboard() {
     if (!mikrotikId || !session?.access_token) return
 
     try {
+      console.log(`[FETCH-USERS] Iniciando busca de usuários para MikroTik ${mikrotikId}`)
       const usersRes = await fetch(`${baseUrl}/api/mikrotik/hotspot/users/${mikrotikId}`, { headers })
+      
+      console.log(`[FETCH-USERS] Status da resposta: ${usersRes.status}`)
+      
       if (usersRes.ok) {
         const usersData = await usersRes.json()
-        setUsers(usersData.data || [])
+        console.log(`[FETCH-USERS] Dados recebidos:`, usersData)
+        console.log(`[FETCH-USERS] Tipo de usersData.data:`, typeof usersData.data)
+        console.log(`[FETCH-USERS] É array?:`, Array.isArray(usersData.data))
+        console.log(`[FETCH-USERS] Contagem:`, usersData.count)
+        
+        // Garantir que sempre seja um array
+        const userData = usersData.data || []
+        if (!Array.isArray(userData)) {
+          console.error(`[FETCH-USERS] ERRO: userData não é um array:`, userData)
+          setUsers([])
+        } else {
+          console.log(`[FETCH-USERS] Definindo ${userData.length} usuários`)
+          setUsers(userData)
+        }
+      } else {
+        const errorData = await usersRes.text()
+        console.error(`[FETCH-USERS] Erro na resposta: ${usersRes.status} - ${errorData}`)
+        setUsers([])
       }
     } catch (error) {
-      console.error('Error fetching users:', error)
+      console.error('[FETCH-USERS] Erro na requisição:', error)
+      setUsers([])
     }
   }, [mikrotikId, session?.access_token, baseUrl])
 
@@ -929,7 +955,8 @@ export default function MikrotikDashboard() {
       console.log(`[GENERATE-PASSWORDS] Iniciando criação de ${generatedUsers.length} usuários em lote`)
       
       // Formatar usuários para API
-      const usersForAPI = formatUsersForAPI(generatedUsers, getMikrotikParams())
+      const { password: _pw, ...mikrotikParamsWithoutPassword } = getMikrotikParams()
+      const usersForAPI = formatUsersForAPI(generatedUsers, mikrotikParamsWithoutPassword)
       
       // Fazer requisição para endpoint de geração em lote
       const response = await fetch(`${baseUrl}/api/mikrotik/hotspot/users/bulk/${mikrotikId}`, {
@@ -1069,6 +1096,10 @@ export default function MikrotikDashboard() {
         } else {
           // Update only in MikroTik
           console.log('Updating MikroTik-only plan:', editingItems.profile['.id'])
+          
+          // Adicionar parâmetros de conexão na query string
+          // Não é necessário enviar parâmetros adicionais; rota usa Mikrotik ID e credenciais no servidor
+          
           const response = await fetch(`${baseUrl}/api/mikrotik/hotspot/profiles/${mikrotikId}/${editingItems.profile['.id']}`, {
             method: 'PUT',
             headers: {
@@ -1077,10 +1108,11 @@ export default function MikrotikDashboard() {
             },
             body: JSON.stringify({
               name: profileData.name,
-              'rate-limit': profileData.rate_limit,
-              'session-timeout': profileData.session_timeout,
-              'idle-timeout': profileData.idle_timeout,
-              comment: profileData.comment
+              'rate-limit': profileData.rate_limit || '',
+              'session-timeout': profileData.session_timeout || '',
+              'idle-timeout': profileData.idle_timeout || '',
+              comment: profileData.comment || '',
+              disabled: profileData.disabled || false
             })
           })
           
@@ -1107,7 +1139,8 @@ export default function MikrotikDashboard() {
             rate_limit: profileData.rate_limit,
             session_timeout: profileData.session_timeout,
             idle_timeout: profileData.idle_timeout,
-            comment: profileData.comment
+            comment: profileData.comment,
+            ativo: !profileData.disabled
           })
         })
 
@@ -1705,45 +1738,44 @@ export default function MikrotikDashboard() {
   return (
     <div className="min-h-screen bg-black pt-16 lg:pt-0">
       {/* Header */}
-      <motion.div 
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="border-b border-gray-800/50 bg-black/20 backdrop-blur-sm sticky top-16 lg:top-0 z-30"
-      >
-        <div className="px-4 sm:px-6 py-6">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center space-x-3 sm:space-x-4 min-w-0 flex-1">
-              <div className="min-w-0 flex-1">
-                <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent truncate">
-                  {mikrotikInfo?.nome || mikrotikInfo?.name || mikrotikInfo?.descricao || 'MikroTik'} - {stats?.routerboard?.model || 'RouterBoard'}
-                </h1>
-                <p className="text-gray-400 text-xs sm:text-sm truncate">
-                  {stats?.identity?.name || 'RouterOS'} - {stats?.routerboard?.['current-firmware'] || stats?.resource?.version || 'N/A'}
-                </p>
+      <div className="bg-black border-b border-gray-800 px-4 sm:px-6 py-4 sticky top-0 z-10">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => navigate('/mikrotiks')}
+              className="flex items-center gap-2 px-3 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg transition-colors"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span className="hidden sm:inline">Voltar</span>
+            </button>
+            
+            <div>
+              <h1 className="text-lg sm:text-xl lg:text-2xl xl:text-3xl font-bold text-white">
+                {mikrotikInfo?.nome || 'MikroTik Dashboard'}
+              </h1>
+              <div className="text-gray-400 text-sm space-y-1">
+                <p>{mikrotikInfo?.host} • {mikrotikInfo?.location}</p>
+                {stats && (
+                  <p className="text-green-400 font-medium">
+                    {stats.routerboard?.model || stats.resource?.['board-name'] || 'RouterBoard'} • {stats.identity?.name || 'RouterOS'}
+                  </p>
+                )}
               </div>
             </div>
-            
-            <motion.div 
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="flex gap-2 shrink-0"
-            >
-              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                <Button 
-                  onClick={fetchData} 
-                  variant="outline" 
-                  disabled={loading}
-                  className="border-gray-700 text-gray-300 hover:text-white hover:border-purple-500/50 hover:bg-purple-500/10 text-sm px-3 py-2 transition-all duration-200"
-                >
-                  <RefreshCw className={`h-4 w-4 mr-1 sm:mr-2 ${loading ? 'animate-spin' : ''}`} /> 
-                  <span className="hidden sm:inline">Atualizar</span>
-                </Button>
-              </motion.div>
-
-            </motion.div>
           </div>
+
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => window.location.reload()}
+            disabled={loading}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 text-white rounded-lg transition-colors"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">Atualizar</span>
+          </motion.button>
         </div>
-      </motion.div>
+      </div>
 
       <div className="p-4 sm:p-6">
         <div className="max-w-7xl mx-auto space-y-6 sm:space-y-8">
@@ -2335,7 +2367,7 @@ export default function MikrotikDashboard() {
               onEditUser={handleEditUser}
               onDeleteUser={handleDeleteUser}
               onToggleUser={handleToggleUser}
-              onGeneratePasswords={handleGeneratePasswords}
+              onGeneratePasswords={() => openModal('generatePasswords')}
               onPrintPasswords={handlePrintPasswords}
               loading={loading}
             />
@@ -2394,12 +2426,13 @@ export default function MikrotikDashboard() {
               
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 lg:gap-6">
                 {templates.map((template, index) => (
-                  <motion.div 
+                  <motion.div
                     key={template.id}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.1 }}
                     className="group relative bg-black/40 backdrop-blur-sm border border-gray-800/50 rounded-2xl overflow-hidden transition-all duration-500 hover:scale-105 hover:shadow-2xl hover:shadow-blue-500/20 cursor-pointer"
+                    onClick={() => handleUseTemplate(template)}
                   >
                     {/* Template Preview Image */}
                     <div className="aspect-[16/10] relative overflow-hidden bg-gradient-to-br from-gray-800 to-gray-900">
@@ -2439,9 +2472,8 @@ export default function MikrotikDashboard() {
                       </motion.div>
                     </div>
 
-                    {/* Bottom section with overlay button */}
+                    {/* Bottom section */}
                     <div className="relative p-4">
-                      {/* Content that shows when not hovering */}
                       <div className="group-hover:opacity-0 transition-opacity duration-300">
                         <h3 className="text-base font-semibold text-white truncate">{template.name}</h3>
                         <p className="text-sm text-gray-400 truncate mt-1">{template.description}</p>
@@ -2453,22 +2485,6 @@ export default function MikrotikDashboard() {
                           </div>
                           <span className="text-xs text-gray-500">{template.variables.length} vars</span>
                         </div>
-                      </div>
-
-                      {/* Button that appears over description on hover */}
-                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 z-10 group-hover:translate-y-0 translate-y-2">
-                        <motion.button
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleUseTemplate(template);
-                          }}
-                          className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white text-base font-semibold rounded-xl shadow-2xl backdrop-blur-sm border border-blue-500/30 transition-all duration-300 flex items-center gap-3"
-                        >
-                          <FiLayout className="h-5 w-5" />
-                          Usar esse
-                        </motion.button>
                       </div>
                     </div>
 
@@ -2519,8 +2535,8 @@ export default function MikrotikDashboard() {
 
         {/* Template Configuration Modal */}
         {modals.templateProfile && selectedTemplate && (
-          <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-            <div className="bg-black border border-gray-800 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl relative">
+          <div className="fixed inset-0 bg-black/95 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-black border border-gray-700 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl relative">
               <div className="p-4 sm:p-6">
                 <div className="flex justify-between items-center mb-6">
                   <div>
@@ -2699,6 +2715,15 @@ export default function MikrotikDashboard() {
           profiles={profiles}
           mikrotikId={mikrotikId || ''}
           session={session}
+        />
+
+        {/* Generate Passwords Modal */}
+        <GeneratePasswordsModal
+          open={modals.generatePasswords}
+          onOpenChange={(open) => setModals(prev => ({ ...prev, generatePasswords: open }))}
+          profiles={profiles}
+          existingUsers={users.map(u => u.name)}
+          onGenerate={handleGeneratePasswords}
         />
 
         </div>

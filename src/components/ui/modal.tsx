@@ -1,5 +1,4 @@
 import * as React from "react"
-import * as Dialog from "@radix-ui/react-dialog"
 import { X } from "lucide-react"
 import { cn } from "../../lib/utils"
 import { motion, AnimatePresence } from "framer-motion"
@@ -17,7 +16,7 @@ interface ModalProps {
 }
 
 const sizeClasses = {
-  sm: "max-w-md",
+  sm: "max-w-sm",
   md: "max-w-lg", 
   lg: "max-w-2xl",
   xl: "max-w-4xl",
@@ -35,79 +34,98 @@ export function Modal({
   showCloseButton = true,
   closeOnOverlayClick = true
 }: ModalProps) {
-  return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <AnimatePresence>
-        {open && (
-          <Dialog.Portal forceMount>
-            <Dialog.Overlay asChild>
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50"
-                onClick={closeOnOverlayClick ? () => onOpenChange(false) : undefined}
-              />
-            </Dialog.Overlay>
-            
-            <Dialog.Content asChild>
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ duration: 0.2 }}
-                className={cn(
-                  "fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] z-50",
-                  "bg-black border border-gray-800 rounded-2xl shadow-2xl",
-                  "w-[90vw] max-h-[85vh] overflow-auto",
-                  sizeClasses[size],
-                  className
-                )}
-                onClick={(e) => e.stopPropagation()}
-              >
-                {/* Header */}
-                {(title || showCloseButton) && (
-                  <div className="flex items-center justify-between p-6 border-b border-gray-800">
-                    <div>
-                      {title && (
-                        <Dialog.Title className="text-xl font-bold text-white">
-                          {title}
-                        </Dialog.Title>
-                      )}
-                      {description && (
-                        <Dialog.Description className="text-gray-400 mt-1">
-                          {description}
-                        </Dialog.Description>
-                      )}
-                    </div>
-                    
-                    {showCloseButton && (
-                      <Dialog.Close asChild>
-                        <button
-                          className="rounded-lg p-2 text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
-                          aria-label="Fechar modal"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </Dialog.Close>
-                    )}
-                  </div>
-                )}
+  // Fechar modal com ESC e prevenir scroll
+  React.useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && open) {
+        onOpenChange(false)
+      }
+    }
+    
+    if (open) {
+      document.addEventListener('keydown', handleEsc)
+      document.body.style.overflow = 'hidden'
+      document.documentElement.style.overflow = 'hidden'
+    }
+    
+    return () => {
+      document.removeEventListener('keydown', handleEsc)
+      document.body.style.overflow = 'unset'
+      document.documentElement.style.overflow = 'unset'
+    }
+  }, [open, onOpenChange])
 
-                {/* Content */}
-                <div className={cn(
-                  "p-6",
-                  !title && !showCloseButton && "pt-6"
-                )}>
-                  {children}
+  if (!open) return null
+
+  return (
+    <AnimatePresence>
+      <>
+        {/* Overlay cobrindo toda a página */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="fixed inset-0 z-[9998] bg-black/80 backdrop-blur-sm"
+          onClick={closeOnOverlayClick ? () => onOpenChange(false) : undefined}
+        />
+
+        {/* Wrapper para centralizar o conteúdo */}
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 pointer-events-none">
+          {/* Modal Content */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            transition={{ duration: 0.2 }}
+            className={cn(
+              "relative z-10 w-full max-h-[90vh] overflow-auto pointer-events-auto",
+              "bg-black border border-gray-700 rounded-2xl shadow-2xl",
+              "flex flex-col",
+              sizeClasses[size],
+              className
+            )}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            {(title || showCloseButton) && (
+              <div className="flex items-center justify-between p-6 border-b border-gray-800">
+                <div>
+                  {title && (
+                    <h2 className="text-xl font-bold text-white">
+                      {title}
+                    </h2>
+                  )}
+                  {description && (
+                    <p className="text-gray-400 mt-1 text-sm">
+                      {description}
+                    </p>
+                  )}
                 </div>
-              </motion.div>
-            </Dialog.Content>
-          </Dialog.Portal>
-        )}
-      </AnimatePresence>
-    </Dialog.Root>
+                
+                {showCloseButton && (
+                  <button
+                    onClick={() => onOpenChange(false)}
+                    className="rounded-lg p-2 text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+                    aria-label="Fechar modal"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Content */}
+            <div className={cn(
+              "p-6",
+              !title && !showCloseButton && "pt-6"
+            )}>
+              {children}
+            </div>
+          </motion.div>
+        </div>
+      </>
+    </AnimatePresence>
   )
 }
 

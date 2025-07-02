@@ -5,6 +5,7 @@ import { ThemeProvider } from './contexts/ThemeContext'
 import { ToastProvider } from './components/ui/toast'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { LayoutFixed } from './components/layout/LayoutFixed'
+import { PWAInstallPrompt } from './components/PWAInstallPrompt'
 import { Login } from './pages/auth/Login'
 import { Register } from './pages/auth/Register'
 import { DashboardFinal } from './pages/dashboard/DashboardFinal'
@@ -16,6 +17,8 @@ import { TransacoesList } from './pages/transacoes/TransacoesList'
 import { SaquesList } from './pages/saques/SaquesList'
 import { WireGuardManagement } from './pages/wireguard/WireGuardManagement'
 import UsersManagement from './pages/admin/UsersManagement'
+import { SystemSettings } from './pages/admin/SystemSettings'
+import { UserSettings } from './pages/settings/UserSettings'
 import { useEffect } from 'react'
 
 const queryClient = new QueryClient({
@@ -72,6 +75,7 @@ function App() {
           <AuthProvider>
             <Router {...routerProps}>
             <div className="min-h-screen bg-black">
+              <PWAInstallPrompt />
               <Routes>
                 {/* Public routes */}
                 <Route path="/login" element={<Login />} />
@@ -102,6 +106,10 @@ function App() {
                   
                   {/* Admin Routes */}
                   <Route path="users" element={<UsersManagement />} />
+                  <Route path="admin/settings" element={<SystemSettings />} />
+                  
+                  {/* User Settings */}
+                  <Route path="settings" element={<UserSettings />} />
                 </Route>
                 
                 {/* Redirect any unknown routes to dashboard */}

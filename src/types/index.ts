@@ -7,6 +7,9 @@ export interface User {
   telefone?: string
   cpf?: string
   pix_key?: string
+  whatsapp?: string
+  chave_pix?: string
+  avatar_url?: string
   created_at: string
   updated_at: string
 }

@@ -1,9 +1,10 @@
 // Configuração da API do backend
+import { supabase } from '../lib/supabase'
+
 export const API_CONFIG = {
-  // Em desenvolvimento usa URL relativa (proxy), em produção usa URL completa
-  BASE_URL: import.meta.env.MODE === 'development' 
-    ? '' // URL relativa para usar o proxy
-    : 'https://api.mikropix.online',
+  // Usar a variável de ambiente VITE_API_URL ou fallback para desenvolvimento
+  BASE_URL: import.meta.env.VITE_API_URL || 
+    (import.meta.env.MODE === 'development' ? 'http://localhost:3000' : 'https://api.mikropix.online'),
   ENDPOINTS: {
     // Autenticação
     AUTH: '/api/auth',
@@ -15,10 +16,19 @@ export const API_CONFIG = {
     // MikroTik
     MIKROTIK: '/api/mikrotik',
     
+    // Subscription
+    SUBSCRIPTION: '/api/subscription',
+    
     // Health check
     HEALTH: '/health'
   }
 }
+
+console.log('API Configuration:', {
+  BASE_URL: API_CONFIG.BASE_URL,
+  MODE: import.meta.env.MODE,
+  VITE_API_URL: import.meta.env.VITE_API_URL
+})
 
 // Função utilitária para fazer requisições autenticadas
 export const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
@@ -29,52 +39,36 @@ export const apiRequest = async (endpoint: string, options: RequestInit = {}) =>
     ...options.headers,
   }
 
-  // Adicionar token de autenticação se disponível (Supabase)
-  // Tentar múltiplas fontes para o token
+  // Obter token de autenticação diretamente do Supabase
   let token = null
   
-  // 1. Tentar de supabase-auth-token
-  const supabaseToken = localStorage.getItem('supabase-auth-token')
-  if (supabaseToken) {
-    try {
-      const parsed = JSON.parse(supabaseToken)
-      token = parsed.access_token
-    } catch (e) {
-      // Ignore parse error
+  try {
+    const { data: { session }, error } = await supabase.auth.getSession()
+    
+    if (!error && session?.access_token) {
+      token = session.access_token
     }
-  }
-  
-  // 2. Tentar de sb-api-auth-token
-  if (!token) {
-    const sbToken = localStorage.getItem('sb-api-auth-token')
-    if (sbToken) {
-      try {
-        const parsed = JSON.parse(sbToken)
-        token = parsed.access_token
-      } catch (e) {
-        // Ignore parse error
-      }
-    }
-  }
-  
-  // 3. Tentar método antigo
-  if (!token) {
-    const user = JSON.parse(localStorage.getItem('user') || '{}')
-    if (user?.session?.access_token) {
-      token = user.session.access_token
-    }
+  } catch (error) {
+    console.warn('Error getting Supabase session:', error)
   }
 
   if (token) {
     defaultHeaders['Authorization'] = `Bearer ${token}`
+    console.log('API Request with token to:', url)
+  } else {
+    console.warn('No auth token found for API request to:', url)
   }
 
+  console.log('Making API request to:', url)
+  
   const response = await fetch(url, {
     ...options,
     headers: defaultHeaders,
   })
 
   if (!response.ok) {
+    const errorText = await response.text()
+    console.error('API Error:', response.status, response.statusText, errorText)
     throw new Error(`API Error: ${response.status} ${response.statusText}`)
   }
 
@@ -116,6 +110,18 @@ export const api = {
     
     checkConnection: (mikrotikId: string) => 
       apiRequest(`${API_CONFIG.ENDPOINTS.MIKROTIK}/check-connection/${mikrotikId}`)
+  },
+
+  // Subscription APIs
+  subscription: {
+    createPayment: (planData: any) => 
+      apiRequest(`${API_CONFIG.ENDPOINTS.SUBSCRIPTION}/create-payment`, {
+        method: 'POST',
+        body: JSON.stringify(planData)
+      }),
+    
+    getPaymentStatus: (paymentId: string) => 
+      apiRequest(`${API_CONFIG.ENDPOINTS.SUBSCRIPTION}/payment-status/${paymentId}`)
   },
 
   // Health check

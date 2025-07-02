@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Button } from '../ui/button'
-import { SimpleModal } from '../SimpleModal'
+import { Modal, ModalContent, ModalFooter } from '../ui/modal'
 import { Printer, Eye, Users, FileText, X, ChevronLeft, ChevronRight, Wifi, MessageCircle, MapPin, Phone, Globe, Star, Trash2 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -786,7 +786,14 @@ const PrintPasswordsModal: React.FC<PrintPasswordsModalProps> = ({
   }
 
   return (
-    <SimpleModal isOpen={isOpen} onClose={onClose} title="Imprimir Senhas">
+    <Modal
+      open={isOpen}
+      onOpenChange={onClose}
+      title="Imprimir Senhas"
+      size="xl"
+      closeOnOverlayClick={false}
+    >
+      <ModalContent>
       <div className="space-y-6">
         {/* Step Indicator */}
         <div className="flex items-center justify-center space-x-4 mb-6">
@@ -891,25 +898,20 @@ const PrintPasswordsModal: React.FC<PrintPasswordsModalProps> = ({
             </div>
             
             {/* Templates Grid */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {currentTemplates.map((template) => {
                 const IconComponent = template.icon
                 return (
                   <div
                     key={template.id}
-                    className="p-4 bg-gray-900 border border-gray-700 rounded-lg hover:border-blue-500 transition-all cursor-pointer"
+                    className="p-4 bg-gray-900 border border-gray-700 rounded-lg hover:border-blue-500 hover:bg-gray-800 transition-all cursor-pointer group"
                     onClick={() => handleTemplateSelect(template.id)}
                   >
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center space-x-2">
-                        <div className={`p-2 rounded-lg bg-gradient-to-r ${template.color}`}>
-                          <IconComponent className="h-4 w-4 text-white" />
-                        </div>
-                        <h5 className="font-medium text-white">{template.name}</h5>
+                    <div className="flex items-center space-x-2 mb-3">
+                      <div className={`p-2 rounded-lg bg-gradient-to-r ${template.color} group-hover:scale-110 transition-transform`}>
+                        <IconComponent className="h-4 w-4 text-white" />
                       </div>
-                      <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-xs">
-                        Usar
-                      </Button>
+                      <h5 className="font-medium text-white group-hover:text-blue-400 transition-colors">{template.name}</h5>
                     </div>
                     <div className="flex justify-center items-center" style={{ minHeight: '100px' }}>
                       <div 
@@ -953,24 +955,27 @@ const PrintPasswordsModal: React.FC<PrintPasswordsModalProps> = ({
             )}
             
             {/* Template Personalizado */}
-            <div className="p-4 bg-gray-900 border border-gray-700 rounded-lg">
+            <div 
+              className="p-4 bg-gray-900 border border-gray-700 rounded-lg hover:border-purple-500 hover:bg-gray-800 transition-all cursor-pointer group"
+              onClick={() => {
+                if (customTemplate.trim() && !isSavingTemplate) {
+                  handleCustomTemplate()
+                }
+              }}
+            >
               <div className="flex items-start justify-between mb-3">
                 <div>
-                  <h5 className="font-medium text-white">Template Personalizado</h5>
+                  <h5 className="font-medium text-white group-hover:text-purple-400 transition-colors">Template Personalizado</h5>
                   <p className="text-sm text-gray-400">Crie seu próprio template HTML</p>
                 </div>
-                <Button 
-                  size="sm" 
-                  className="bg-purple-600 hover:bg-purple-700"
-                  onClick={handleCustomTemplate}
-                  disabled={!customTemplate.trim() || isSavingTemplate}
-                >
-                  {isSavingTemplate ? 'Salvando...' : 'Usar'}
-                </Button>
+                <div className="text-purple-400 group-hover:text-purple-300">
+                  {isSavingTemplate ? 'Salvando...' : 'Clique para usar'}
+                </div>
               </div>
               <textarea
                 value={customTemplate}
                 onChange={(e) => setCustomTemplate(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
                 className="w-full h-32 bg-black border border-gray-600 rounded px-3 py-2 text-white text-sm font-mono"
                 placeholder={isLoadingTemplate ? "Carregando template salvo..." : "Cole aqui seu HTML personalizado. Use {{USUARIO}} como variável."}
                 disabled={isLoadingTemplate}
@@ -1122,7 +1127,8 @@ const PrintPasswordsModal: React.FC<PrintPasswordsModalProps> = ({
           </motion.div>
         )}
       </div>
-    </SimpleModal>
+      </ModalContent>
+    </Modal>
   )
 }
 

@@ -368,7 +368,7 @@ export function SaquesList() {
                   </span>
                 </div>
               </div>
-              {saqueAutomatico && !user?.pix_key && (
+              {saqueAutomatico && !user?.chave_pix && (
                 <div className="mt-4 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
                   <div className="flex items-center space-x-2">
                     <AlertCircle className="h-4 w-4 text-yellow-400" />

@@ -8,9 +8,10 @@ interface AuthContextType {
   user: User | null
   loading: boolean
   signIn: (email: string, password: string) => Promise<any>
-  signUp: (email: string, password: string, nome: string) => Promise<any>
+  signUp: (email: string, password: string, nome: string, cpf: string) => Promise<any>
   signOut: () => Promise<any>
   updateProfile: (updates: Partial<User>) => Promise<any>
+  updateUser: () => Promise<any>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)

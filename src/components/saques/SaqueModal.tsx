@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Modal, ModalContent, ModalFooter, Button, Input, useToast } from '../ui'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
@@ -15,14 +15,26 @@ export function SaqueModal({ open, onOpenChange, onSuccess }: SaqueModalProps) {
   const { addToast } = useToast()
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
-    valor: '',
-    chave_pix: ''
+    valor: 0,
+    chave_pix: '',
+    tipo_chave: ''
   })
+  const saldoDisponivel = user?.saldo || 0
+
+  // Carregar chave PIX automaticamente quando modal abrir
+  useEffect(() => {
+    if (open && user?.chave_pix) {
+      setFormData(prev => ({
+        ...prev,
+        chave_pix: user.chave_pix || ''
+      }))
+    }
+  }, [open, user?.chave_pix])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    const valor = parseFloat(formData.valor)
+    const valor = formData.valor
     
     // Validações
     if (!user || valor > (user.saldo || 0)) {
@@ -58,7 +70,8 @@ export function SaqueModal({ open, onOpenChange, onSuccess }: SaqueModalProps) {
       const requestBody = {
         valor,
         metodo_pagamento: 'pix',
-        chave_pix: formData.chave_pix
+        chave_pix: formData.chave_pix,
+        tipo_chave: formData.tipo_chave
       }
 
       const response = await fetch(`${import.meta.env.VITE_API_URL}/api/saques`, {
@@ -83,7 +96,7 @@ export function SaqueModal({ open, onOpenChange, onSuccess }: SaqueModalProps) {
       })
 
       // Reset form
-      setFormData({ valor: '', chave_pix: '' })
+      setFormData({ valor: 0, chave_pix: '', tipo_chave: '' })
       onOpenChange(false)
       
       // Callback para atualizar lista
@@ -101,75 +114,86 @@ export function SaqueModal({ open, onOpenChange, onSuccess }: SaqueModalProps) {
     }
   }
 
-  const handleUseDefaultPix = () => {
-    if (user?.pix_key) {
-      setFormData(prev => ({ ...prev, chave_pix: user.pix_key || '' }))
-    }
-  }
-
   return (
     <Modal
       open={open}
       onOpenChange={onOpenChange}
       title="Solicitar Saque"
-      description="Preencha os dados para solicitar seu saque via PIX"
+      description="Preencha os dados para solicitar seu saque"
       size="md"
-      closeOnOverlayClick={!loading}
+      className="bg-black border border-gray-700"
     >
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} className="space-y-6">
         <ModalContent>
-          {/* Valor */}
+          {/* Valor do saque */}
           <div>
-            <label className="block text-sm font-medium text-white mb-2">
-              Valor (R$)
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Valor do Saque
             </label>
-            <Input
-              type="number"
-              step="0.01"
-              value={formData.valor}
-              onChange={(e) => setFormData(prev => ({ ...prev, valor: e.target.value }))}
-              placeholder="0.00"
-              max={user?.saldo || 0}
-              className="bg-gray-900 border-gray-800 text-white text-base"
-              required
-              disabled={loading}
-            />
-            <p className="text-xs text-gray-400 mt-1">
-              Saldo disponível: R$ {user?.saldo?.toFixed(2) || '0.00'} | Valor mínimo: R$ 50,00
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+                R$
+              </span>
+              <Input
+                type="number"
+                step="0.01"
+                min="1"
+                max={saldoDisponivel}
+                value={formData.valor}
+                onChange={(e) => setFormData(prev => ({ ...prev, valor: parseFloat(e.target.value) || 0 }))}
+                placeholder="0,00"
+                className="pl-10"
+                required
+              />
+            </div>
+            <p className="text-sm text-gray-500 mt-1">
+              Saldo disponível: R$ {saldoDisponivel.toFixed(2).replace('.', ',')}
             </p>
           </div>
 
           {/* Chave PIX */}
           <div>
-            <label className="block text-sm font-medium text-white mb-2">
+            <label className="block text-sm font-medium text-gray-300 mb-2">
               Chave PIX
             </label>
-            <div className="flex space-x-2">
-              <Input
-                value={formData.chave_pix}
-                onChange={(e) => setFormData(prev => ({ ...prev, chave_pix: e.target.value }))}
-                placeholder="email@exemplo.com, CPF, telefone ou chave aleatória"
-                className="bg-gray-900 border-gray-800 text-white text-base flex-1"
-                required
-                disabled={loading}
-              />
-              {user?.pix_key && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleUseDefaultPix}
-                  disabled={loading}
-                  className="border-gray-800 text-gray-300 hover:text-white whitespace-nowrap"
-                >
-                  Usar Padrão
-                </Button>
-              )}
+            <Input
+              type="text"
+              value={formData.chave_pix}
+              onChange={(e) => setFormData(prev => ({ ...prev, chave_pix: e.target.value }))}
+              placeholder="Digite sua chave PIX"
+              required
+            />
+          </div>
+
+          {/* Tipo da chave PIX */}
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Tipo da Chave PIX
+            </label>
+            <select
+              value={formData.tipo_chave}
+              onChange={(e) => setFormData(prev => ({ ...prev, tipo_chave: e.target.value }))}
+              className="w-full px-3 py-2 bg-black border border-gray-700 rounded-lg text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all"
+              required
+            >
+              <option value="">Selecione o tipo</option>
+              <option value="cpf">CPF</option>
+              <option value="cnpj">CNPJ</option>
+              <option value="email">E-mail</option>
+              <option value="telefone">Telefone</option>
+              <option value="aleatoria">Chave Aleatória</option>
+            </select>
+          </div>
+
+          {/* Status visual */}
+          <div className="bg-gray-900/50 border border-gray-800 rounded-lg p-4">
+            <div className="flex items-center gap-2 text-orange-400">
+              <ArrowDown className="h-4 w-4" />
+              <span className="text-sm font-medium">Status: Aguardando aprovação</span>
             </div>
-            {user?.pix_key && (
-              <p className="text-xs text-gray-400 mt-1">
-                Chave padrão: {user.pix_key}
-              </p>
-            )}
+            <p className="text-gray-400 text-xs mt-1">
+              O saque será processado em até 24 horas úteis
+            </p>
           </div>
         </ModalContent>
 
@@ -179,22 +203,16 @@ export function SaqueModal({ open, onOpenChange, onSuccess }: SaqueModalProps) {
             variant="outline"
             onClick={() => onOpenChange(false)}
             disabled={loading}
-            className="flex-1"
+            className="border-gray-700 text-gray-300 hover:text-white hover:border-gray-600 hover:bg-gray-800"
           >
             Cancelar
           </Button>
-          
           <Button
             type="submit"
-            disabled={loading}
-            className="flex-1 bg-orange-600 hover:bg-orange-700 text-white"
+            disabled={loading || formData.valor <= 0 || formData.valor > saldoDisponivel}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
           >
-            {loading ? (
-              <div className="w-4 h-4 mr-2 border-2 border-current border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <ArrowDown className="h-4 w-4 mr-2" />
-            )}
-            {loading ? 'Processando...' : 'Solicitar Saque'}
+            {loading ? 'Solicitando...' : 'Solicitar Saque'}
           </Button>
         </ModalFooter>
       </form>

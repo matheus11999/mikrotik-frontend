@@ -10,6 +10,7 @@ export interface PasswordGenerationConfig {
   profile: string
   prefix?: string
   suffix?: string
+  valor?: number
 }
 
 export interface GeneratedUser {
@@ -146,7 +147,7 @@ export const generatePasswordBatch = (
     codes.forEach((code, index) => {
       try {
         const username = `${config.prefix || ''}${code}${config.suffix || ''}`
-        const password = code // Usuário = senha
+        const password = username // Senha igual ao username completo
         
         // Verificar se já existe
         if (existingSet.has(username.toLowerCase())) {
@@ -160,7 +161,7 @@ export const generatePasswordBatch = (
           username,
           password,
           profile: config.profile,
-          comment: `Gerado automaticamente - Lote ${new Date().toLocaleDateString('pt-BR')} - ${index + 1}/${config.quantity}`
+          comment: `Plano: ${config.profile} - Valor: ${config.valor || 0} - Gerado ${new Date().toLocaleDateString('pt-BR')}`
         }
         
         result.users.push(user)
@@ -227,7 +228,7 @@ export const formatUsersForAPI = (
 }> => {
   return users.map(user => ({
     name: user.username,
-    password: user.password,
+    password: user.password || user.username,
     profile: user.profile,
     comment: user.comment,
     disabled: false,

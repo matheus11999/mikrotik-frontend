@@ -27,7 +27,9 @@ import {
   ChevronDown,
   ChevronUp,
   Activity,
-  Wifi
+  Wifi,
+  Settings,
+  Globe
 } from "lucide-react";
 import { Button } from "../ui/button";
 
@@ -54,6 +56,7 @@ export function SidebarFixed({ open, setOpen, collapsed, setCollapsed }: Sidebar
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     network: true,
     financial: true,
+    settings: true,
     admin: true
   });
 
@@ -147,12 +150,23 @@ export function SidebarFixed({ open, setOpen, collapsed, setCollapsed }: Sidebar
         icon: <TrendingUp className="h-5 w-5" />,
       },
     ],
+    settings: [
+      {
+        label: "Configurações",
+        href: "/settings",
+        icon: <Settings className="h-5 w-5" />,
+      }
+    ],
     admin: [
       ...(user?.role === 'admin' ? [{
         label: "Usuários",
         href: "/users",
         icon: <Users className="h-5 w-5" />,
-      }] : []),
+      }, {
+        label: "Sistema",
+        href: "/admin/settings",
+        icon: <Globe className="h-5 w-5" />,
+      }] : [])
     ]
   };
 
@@ -320,8 +334,40 @@ export function SidebarFixed({ open, setOpen, collapsed, setCollapsed }: Sidebar
               )}
             </AnimatePresence>
 
+            <div className="my-4 border-t border-gray-800/50" />
+
+            {/* Configurações */}
+            <SectionHeader 
+              title="Configurações" 
+              icon={<Settings className="h-4 w-4" />} 
+              collapsed={collapsed}
+              expanded={expandedSections.settings}
+              onToggle={() => toggleSection('settings')}
+            />
+            <AnimatePresence>
+              {expandedSections.settings && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="overflow-hidden"
+                >
+                  {navigationLinks.settings.map((link) => (
+                    <NavItem
+                      key={link.label}
+                      link={link}
+                      isActive={location.pathname.startsWith(link.href)}
+                      onClick={() => handleNavigation(link.href)}
+                      collapsed={collapsed}
+                    />
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             {/* Admin */}
-            {user?.role === 'admin' && (
+            {user?.role === 'admin' && navigationLinks.admin.length > 0 && (
               <>
                 <div className="my-4 border-t border-gray-800/50" />
                 <SectionHeader 
@@ -532,8 +578,40 @@ export function SidebarFixed({ open, setOpen, collapsed, setCollapsed }: Sidebar
                   )}
                 </AnimatePresence>
 
+                <div className="my-4 border-t border-gray-800/50" />
+
+                {/* Configurações */}
+                <SectionHeader 
+                  title="Configurações" 
+                  icon={<Settings className="h-4 w-4" />} 
+                  collapsed={false}
+                  expanded={expandedSections.settings}
+                  onToggle={() => toggleSection('settings')}
+                />
+                <AnimatePresence>
+                  {expandedSections.settings && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-hidden"
+                    >
+                      {navigationLinks.settings.map((link) => (
+                        <NavItem
+                          key={link.label}
+                          link={link}
+                          isActive={location.pathname.startsWith(link.href)}
+                          onClick={() => handleNavigation(link.href)}
+                          collapsed={false}
+                        />
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
                 {/* Admin */}
-                {user?.role === 'admin' && (
+                {user?.role === 'admin' && navigationLinks.admin.length > 0 && (
                   <>
                     <div className="my-4 border-t border-gray-800/50" />
                     <SectionHeader 

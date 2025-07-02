@@ -14,7 +14,6 @@ import {
   Wallet,
   ChartArea,
   Crown,
-  Star,
   ArrowUpRight,
   ArrowDownRight,
   RefreshCw,
@@ -37,11 +36,17 @@ import {
   Database,
   Cpu,
   HardDrive,
-  Gauge
+  Gauge,
+  Sparkles
 } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { DashboardLoading } from '../../components/ui'
+import { UserDashboardWidget, UserSubscriptionCard } from '../../components/dashboard/UserDashboardWidget'
 import { cn } from '../../lib/utils'
+import { motion } from 'framer-motion'
+import { Link } from 'react-router-dom'
+import { PlanoModal } from '../../components/PlanoModal'
+import { Button } from '../../components/ui/button'
 
 interface DashboardStats {
   // Estatísticas gerais
@@ -364,6 +369,191 @@ const RecentActivity = ({ activities, loading }: { activities?: DashboardStats['
     </div>
   </div>
 )
+
+// Componente do Card do Plano do Usuário  
+function UserPlanCard() {
+  const { user } = useAuthContext()
+  const [subscription, setSubscription] = useState<any | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false)
+
+  useEffect(() => {
+    if (user) {
+      fetchUserSubscription()
+    }
+  }, [user])
+
+  const fetchUserSubscription = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('user_subscriptions')
+        .select('*, subscription_plans (*)')
+        .eq('user_id', user?.id)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .limit(1)
+
+      if (error && error.code !== 'PGRST116') {
+        console.warn('Error fetching subscription:', error)
+        setSubscription(null)
+        setLoading(false)
+        return
+      }
+
+      setSubscription(data && data.length > 0 ? data[0] : null)
+    } catch (error) {
+      console.error('Error fetching subscription:', error)
+      setSubscription(null)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const getDaysRemaining = () => {
+    if (!subscription) return 0
+    const now = new Date()
+    const expires = new Date(subscription.expires_at)
+    const diffTime = expires.getTime() - now.getTime()
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    return Math.max(0, diffDays)
+  }
+
+  const isTrialPlan = () => {
+    return subscription?.subscription_plans?.name === 'Teste Grátis' || 
+           subscription?.subscription_plans?.name?.toLowerCase().includes('grátis') ||
+           subscription?.subscription_plans?.name?.toLowerCase().includes('teste')
+  }
+
+  const handleOpenModal = () => {
+    setShowUpgradeModal(true)
+  }
+
+  const handleCloseModal = () => {
+    setShowUpgradeModal(false)
+  }
+
+  if (loading) {
+    return (
+      <div className="relative bg-black/40 backdrop-blur-sm border border-gray-800/50 rounded-2xl p-6 animate-pulse">
+        <div className="flex items-center justify-between mb-4">
+          <div className="h-6 bg-gray-700/30 rounded w-24 animate-pulse" />
+          <div className="h-6 bg-gray-700/30 rounded w-16 animate-pulse" />
+        </div>
+        <div className="h-8 bg-gray-700/30 rounded mb-2 animate-pulse" />
+        <div className="h-3 bg-gray-700/20 rounded w-32 animate-pulse" />
+      </div>
+    )
+  }
+
+  if (!subscription) {
+    return (
+      <>
+        <div className="relative bg-black/40 backdrop-blur-sm border border-red-500/20 rounded-2xl p-6 transition-all duration-300 hover:scale-[1.02] cursor-pointer" onClick={handleOpenModal}>
+          <div className="flex items-center justify-between mb-4">
+            <div className="p-3 rounded-xl bg-gradient-to-br from-red-500/10 to-red-600/5 border border-red-500/20">
+              <Crown className="h-6 w-6 text-red-400" />
+            </div>
+            <Badge className="bg-red-500/20 text-red-400 border-red-500/30 hover:bg-red-500/30">
+              Inativo
+            </Badge>
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-sm font-medium text-gray-300">Plano Atual</h3>
+            <p className="text-2xl font-bold text-white tracking-tight">Sem Plano</p>
+            <p className="text-xs text-gray-400">Clique para ativar um plano</p>
+          </div>
+        </div>
+
+        {showUpgradeModal && (
+          <PlanoModal
+            isOpen={showUpgradeModal}
+            onClose={handleCloseModal}
+            currentPlan={null}
+          />
+        )}
+      </>
+    )
+  }
+
+  const daysRemaining = getDaysRemaining()
+  const plan = subscription.subscription_plans
+  const isExpired = daysRemaining <= 0
+  const isNearExpiration = daysRemaining <= 3 && daysRemaining > 0
+
+  return (
+    <>
+      <div className="relative bg-black/40 backdrop-blur-sm border border-gray-800/50 rounded-2xl p-6 transition-all duration-300 hover:scale-[1.02] cursor-pointer" onClick={handleOpenModal}>
+        <div className="flex items-center justify-between mb-4">
+          <div className={`p-3 rounded-xl border ${
+            isTrialPlan() 
+              ? 'bg-gradient-to-br from-yellow-500/10 to-yellow-600/5 border-yellow-500/20' 
+              : 'bg-gradient-to-br from-purple-500/10 to-purple-600/5 border-purple-500/20'
+          }`}>
+            {isTrialPlan() ? (
+              <Sparkles className="h-6 w-6 text-yellow-400" />
+            ) : (
+              <Crown className="h-6 w-6 text-purple-400" />
+            )}
+          </div>
+          
+          {isExpired ? (
+            <Badge className="bg-red-500/20 text-red-400 border-red-500/30 hover:bg-red-500/30">
+              <Clock4 className="h-3 w-3 mr-1" />
+              Expirado
+            </Badge>
+          ) : isNearExpiration ? (
+            <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 hover:bg-yellow-500/30">
+              <Clock4 className="h-3 w-3 mr-1" />
+              Expira em breve
+            </Badge>
+          ) : (
+            <Badge className="bg-green-500/20 text-green-400 border-green-500/30 hover:bg-green-500/30">
+              <CheckCircle className="h-3 w-3 mr-1" />
+              Ativo
+            </Badge>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <h3 className="text-sm font-medium text-gray-300">Plano Atual</h3>
+          <p className="text-2xl font-bold text-white tracking-tight">{plan.name}</p>
+          <div className="flex items-center gap-2">
+            <Calendar className="h-3 w-3 text-gray-400" />
+            <span className={`text-xs font-medium ${
+              isExpired ? 'text-red-400' : isNearExpiration ? 'text-yellow-400' : 'text-green-400'
+            }`}>
+              {isExpired ? 'Plano expirado' : `${daysRemaining} dias restantes`}
+            </span>
+          </div>
+        </div>
+
+        {/* Progress Bar */}
+        <div className="mt-4">
+          <div className="w-full bg-gray-700 rounded-full h-1.5">
+            <div 
+              className={`h-1.5 rounded-full transition-all duration-500 ${
+                isExpired ? 'bg-red-500' : isNearExpiration ? 'bg-yellow-500' : 'bg-green-500'
+              }`}
+              style={{ 
+                width: `${Math.min(100, ((plan.duration_days - daysRemaining) / plan.duration_days) * 100)}%` 
+              }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {showUpgradeModal && (
+        <PlanoModal
+          isOpen={showUpgradeModal}
+          onClose={handleCloseModal}
+          currentPlan={subscription}
+        />
+      )}
+    </>
+  )
+}
+
+
 
 export function DashboardFinal() {
   const { user } = useAuthContext()
@@ -693,8 +883,8 @@ export function DashboardFinal() {
       {/* Content */}
       <div className="p-4 sm:p-6">
         <div className="space-y-6">
-          {/* Stats Cards */}
-          {isAdmin ? (
+          {/* Stats Cards - Apenas para Admin */}
+          {isAdmin && (
             <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
               <StatsCard
                 title="Total de Vendas"
@@ -751,99 +941,63 @@ export function DashboardFinal() {
                 loading={loading}
               />
             </div>
-          ) : (
-            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-              <StatsCard
-                title="Meu Saldo"
-                value={user?.saldo.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) || 'R$ 0,00'}
-                icon={Wallet}
-                trend="up"
-                trendValue="+2.1%"
-                description="Disponível para saque"
-                color="emerald"
-                loading={loading}
-              />
-              
-              <StatsCard
-                title="Minhas Vendas"
-                value={stats?.minhasVendas?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) || 'R$ 0,00'}
-                icon={ShoppingCart}
-                trend="up"
-                trendValue="+5.2%"
-                description="Total de comissões"
-                color="blue"
-                loading={loading}
-              />
-              
-              <StatsCard
-                title="Vendas Hoje"
-                value={stats?.minhasVendasHoje?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) || 'R$ 0,00'}
-                icon={TrendingUp}
-                trend="up"
-                trendValue="+3.1%"
-                description="Faturamento de hoje"
-                color="cyan"
-                loading={loading}
-              />
-              
-              <StatsCard
-                title="Vendas deste Mês"
-                value={`R$ ${stats?.vendasMensais?.toFixed(2) || "0.00"}`}
-                icon={ShoppingCart}
-                trend="up"
-                trendValue={`${stats?.vendas30Dias || 0} vendas`}
-                description="Últimos 30 dias"
-                color="purple"
-                loading={loading}
-              />
-            </div>
           )}
 
           {/* Main Content */}
-          <div className="grid gap-6 lg:grid-cols-12">
-            {/* Left Column */}
-            <div className="lg:col-span-8">
-              <RecentActivity activities={stats?.recentActivity} loading={loading} />
-            </div>
-            
-            {/* Right Column */}
-            <div className="lg:col-span-4">
-              {isAdmin ? (
+          {isAdmin ? (
+            <div className="grid gap-6 lg:grid-cols-12">
+              {/* Left Column */}
+              <div className="lg:col-span-8">
+                <RecentActivity activities={stats?.recentActivity} loading={loading} />
+              </div>
+              
+              {/* Right Column */}
+              <div className="lg:col-span-4">
                 <MikrotikTable mikrotiks={stats?.mikrotikStats} loading={loading} />
-              ) : (
-                <div className="bg-black/40 backdrop-blur-sm border border-gray-800/50 rounded-2xl p-6">
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="p-3 rounded-xl bg-gradient-to-br from-blue-500/10 to-blue-600/5 border border-blue-500/20">
-                      <Star className="h-5 w-5 text-blue-400" />
-                    </div>
-                    <h3 className="text-xl font-bold text-white">Resumo Pessoal</h3>
-                  </div>
-                  
-                  <div className="space-y-4">
-                    <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/20">
-                      <div className="flex items-center gap-2 text-green-400 mb-2">
-                        <Wallet className="h-4 w-4" />
-                        <span className="text-sm font-medium">Saldo Atual</span>
-                      </div>
-                      <div className="text-2xl font-bold text-green-400">
-                        {user?.saldo.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                      </div>
-                    </div>
-                    
-                    <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/20">
-                      <div className="flex items-center gap-2 text-blue-400 mb-2">
-                        <ShoppingCart className="h-4 w-4" />
-                        <span className="text-sm font-medium">Total de Vendas</span>
-                      </div>
-                      <div className="text-2xl font-bold text-blue-400">
-                        {stats?.minhasVendas?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) || 'R$ 0,00'}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="space-y-8">
+              {/* Stats Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <StatsCard
+                  title="Saldo Atual"
+                  value={`R$ ${stats?.meuSaldo?.toFixed(2) || '0.00'}`}
+                  icon={Wallet}
+                  color="green"
+                  description="Disponível para saque"
+                />
+                
+                <StatsCard
+                  title="Vendas do Mês"
+                  value={stats?.minhasVendas || 0}
+                  icon={ShoppingCart}
+                  color="blue"
+                  description="Total de vendas realizadas"
+                />
+                
+                <StatsCard
+                  title="Vendas Hoje"
+                  value={stats?.minhasVendasHoje || 0}
+                  icon={TrendingUp}
+                  color="purple"
+                  description="Vendas realizadas hoje"
+                />
+                
+                <UserPlanCard />
+              </div>
+
+              {/* Main Dashboard Content */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-1">
+                  <UserSubscriptionCard />
+                </div>
+                <div className="lg:col-span-2">
+                  <UserDashboardWidget />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

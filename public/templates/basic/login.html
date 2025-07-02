@@ -888,8 +888,114 @@
                 return;
             }
             
-            showMessage('Conectando...', 'success');
-            updateDebugInfo('Login com senha: ' + password);
+            // Se não temos configuração da API, fazer login direto
+            if (!state.apiUrl || !state.mikrotikId) {
+                console.log('⚠️ Configuração da API não encontrada, fazendo login direto');
+                loginDirectly(password);
+                return;
+            }
+            
+            showLoadingScreen('Verificando Senha...');
+            updateDebugInfo('Verificando senha via API: ' + password);
+            
+            console.log('🔍 Iniciando verificação de voucher:', {
+                senha: password,
+                mikrotik_id: state.mikrotikId,
+                mac: state.mac,
+                ip: state.ip,
+                apiUrl: state.apiUrl
+            });
+            
+            // Verificar voucher via API
+            fetch(state.apiUrl + '/api/payment/captive/check-user', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({
+                    username: password,
+                    password: password,
+                    mikrotik_id: state.mikrotikId,
+                    mac_address: state.mac,
+                    ip_address: state.ip,
+                    user_agent: navigator.userAgent
+                })
+            })
+            .then(function(response) {
+                console.log('📥 Resposta da API:', {
+                    status: response.status,
+                    statusText: response.statusText,
+                    ok: response.ok
+                });
+                
+                return response.json();
+            })
+            .then(function(result) {
+                console.log('📋 Dados da resposta:', result);
+                
+                if (result.success) {
+                    // Usuário verificado com sucesso
+                    console.log('✅ Voucher verificado com sucesso:', result.data);
+                    
+                    // Criar mensagem baseada no tipo de voucher
+                    var successMessage = '✅ Voucher válido! ';
+                    if (result.data.plan_name) {
+                        successMessage += 'Plano: ' + result.data.plan_name;
+                    }
+                    
+                    // Se tem comentário (PIX voucher), mostrar valor
+                    if (result.data.has_comment !== false && result.data.plan_value && result.data.plan_value > 0) {
+                        successMessage += ' - R$ ' + result.data.plan_value.toFixed(2);
+                    } 
+                    // Se não tem comentário (voucher físico), indicar
+                    else if (result.data.has_comment === false) {
+                        successMessage += ' (Voucher Físico)';
+                    }
+                    // Fallback para outros casos
+                    else {
+                        successMessage += ' - R$ 0,00';
+                    }
+                    
+                    showMessage(successMessage, 'success');
+                    
+                    // Aguardar para mostrar a mensagem antes de fazer login
+                    setTimeout(function() {
+                        console.log('🚀 Conectando...');
+                        loginDirectly(password);
+                    }, 2000);
+                    
+                } else {
+                    // Erro na verificação
+                    console.error('❌ Erro na verificação:', result);
+                    var userMessage = result.message || 'Voucher não encontrado ou inválido';
+                    showMessage('❌ ' + userMessage, 'error');
+                    
+                    // Voltar para tela de senha após erro
+                    setTimeout(function() {
+                        showPasswordScreen();
+                        passwordInput.value = '';
+                        passwordInput.focus();
+                    }, 3000);
+                }
+            })
+            .catch(function(error) {
+                console.error('❌ Erro na comunicação com API:', error);
+                showMessage('⚠️ Erro de conexão. Tentando login direto...', 'warning');
+                
+                // Em caso de erro de conexão, fazer login direto após delay
+                setTimeout(function() {
+                    console.log('🔄 Fallback: fazendo login direto devido a erro de conexão');
+                    loginDirectly(password);
+                }, 2500);
+            });
+        }
+        
+        // Login direto no MikroTik
+        function loginDirectly(password) {
+            console.log('🔗 Fazendo login direto no MikroTik');
+            showMessage('Conectado !!!', 'success');
+            updateDebugInfo('Login direto com senha: ' + password);
             
             // Set credentials and submit form
             document.getElementById('hiddenUsername').value = password;
