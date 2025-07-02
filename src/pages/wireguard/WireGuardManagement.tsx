@@ -81,7 +81,7 @@ export function WireGuardManagement() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'connected' | 'disconnected' | 'enabled' | 'disabled'>('all')
   const [serverStats, setServerStats] = useState<WireGuardStats | null>(null)
 
-  const BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+  const BACKEND_URL = import.meta.env.VITE_API_URL || 'https://api.mikropix.online'
 
   useEffect(() => {
     if (user?.role === 'admin') {

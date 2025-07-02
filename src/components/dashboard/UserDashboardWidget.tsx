@@ -33,6 +33,7 @@ interface UserSalesHistory {
   mac_address: string
   status: string
   created_at: string
+  tipo?: string // 'pix' ou 'fisica'
   mikrotik: {
     nome: string
     id: string
@@ -40,10 +41,28 @@ interface UserSalesHistory {
 }
 
 interface UserStats {
+  // Totais gerais
   totalVendas: number
   vendasMes: number
   rendaTotal: number
   rendaMes: number
+  
+  // Vendas PIX (comissão do usuário)
+  vendasPix: {
+    total: number
+    totalMes: number
+    valorTotal: number
+    valorMes: number
+  }
+  
+  // Vendas físicas/vouchers (valor total sem comissão)
+  vendasFisicas: {
+    total: number
+    totalMes: number
+    valorTotal: number
+    valorMes: number
+  }
+  
   vendasRecentes: UserSalesHistory[]
   topMikroTik: {
     nome: string
@@ -79,6 +98,18 @@ export function UserDashboardWidget() {
     vendasMes: 0,
     rendaTotal: 0,
     rendaMes: 0,
+    vendasPix: {
+      total: 0,
+      totalMes: 0,
+      valorTotal: 0,
+      valorMes: 0
+    },
+    vendasFisicas: {
+      total: 0,
+      totalMes: 0,
+      valorTotal: 0,
+      valorMes: 0
+    },
     vendasRecentes: [],
     topMikroTik: null
   })
@@ -100,17 +131,25 @@ export function UserDashboardWidget() {
       const now = new Date()
       const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
 
-      // Buscar vendas do usuário via historico_vendas
+      // Buscar vendas do usuário via historico_vendas 
       console.log('Fetching user sales for user:', user.id)
       
       const { data: historicoVendas, error: vendasError } = await supabase
         .from('historico_vendas')
-        .select('id, valor, created_at, status, plano_nome, plano_valor, mac_address, mikrotik_id')
+        .select('id, valor, created_at, status, plano_nome, plano_valor, mac_address, mikrotik_id, tipo, descricao')
         .eq('user_id', user.id)
-        .eq('tipo', 'usuario')
         .order('created_at', { ascending: false })
 
       console.log('Sales query result:', { historicoVendas, vendasError })
+
+      // Buscar comissões do usuário (vendas PIX)
+      const { data: comissoes, error: comissoesError } = await supabase
+        .from('comissoes_resumo')
+        .select('*')
+        .eq('status', 'pago')
+        .order('created_at', { ascending: false })
+
+      console.log('Commissions query result:', { comissoes, comissoesError })
 
       if (vendasError) {
         console.warn('Error fetching sales history, using fallback data:', vendasError)
@@ -120,6 +159,8 @@ export function UserDashboardWidget() {
           vendasMes: 0,
           rendaTotal: 0,
           rendaMes: 0,
+          vendasPix: { total: 0, totalMes: 0, valorTotal: 0, valorMes: 0 },
+          vendasFisicas: { total: 0, totalMes: 0, valorTotal: 0, valorMes: 0 },
           vendasRecentes: [],
           topMikroTik: null
         })
@@ -146,16 +187,35 @@ export function UserDashboardWidget() {
         return acc
       }, {} as Record<string, { id: string; nome: string }>) || {}
 
-      // Calcular estatísticas
-      const totalVendas = historicoVendas?.length || 0
-      const vendasMes = historicoVendas?.filter(h => 
-        new Date(h.created_at) >= firstDayOfMonth
-      ).length || 0
+      // Separar vendas PIX (comissões) e físicas (vouchers)
+      const vendasPixData = comissoes?.filter(c => c.mikrotik_nome) || []
+      const vendasFisicasData = historicoVendas?.filter(h => 
+        h.tipo !== 'usuario' && (h.descricao?.includes('voucher') || h.descricao?.includes('fisica'))
+      ) || []
+      
+      // Calcular estatísticas PIX (comissões do usuário)
+      const vendasPix = {
+        total: vendasPixData.length,
+        totalMes: vendasPixData.filter(v => new Date(v.created_at) >= firstDayOfMonth).length,
+        valorTotal: vendasPixData.reduce((sum, v) => sum + (v.valor || 0), 0),
+        valorMes: vendasPixData.filter(v => new Date(v.created_at) >= firstDayOfMonth)
+          .reduce((sum, v) => sum + (v.valor || 0), 0)
+      }
+      
+      // Calcular estatísticas vendas físicas (valor total sem comissão)
+      const vendasFisicas = {
+        total: vendasFisicasData.length,
+        totalMes: vendasFisicasData.filter(v => new Date(v.created_at) >= firstDayOfMonth).length,
+        valorTotal: vendasFisicasData.reduce((sum, v) => sum + (v.plano_valor || v.valor || 0), 0),
+        valorMes: vendasFisicasData.filter(v => new Date(v.created_at) >= firstDayOfMonth)
+          .reduce((sum, v) => sum + (v.plano_valor || v.valor || 0), 0)
+      }
 
-      const rendaTotal = historicoVendas?.reduce((sum, h) => sum + (h.valor || 0), 0) || 0
-      const rendaMes = historicoVendas?.filter(h => 
-        new Date(h.created_at) >= firstDayOfMonth
-      ).reduce((sum, h) => sum + (h.valor || 0), 0) || 0
+      // Totais gerais (principalmente comissões para o usuário)
+      const totalVendas = vendasPix.total
+      const vendasMes = vendasPix.totalMes
+      const rendaTotal = vendasPix.valorTotal
+      const rendaMes = vendasPix.valorMes
 
       // Top MikroTik
       const mikrotikStats = historicoVendas?.reduce((acc, historico) => {
@@ -180,23 +240,43 @@ export function UserDashboardWidget() {
       const topMikroTik = Object.values(mikrotikStats || {})
         .sort((a, b) => b.vendas - a.vendas)[0] || null
 
-      // Processar vendas recentes
-      const vendasRecentes = historicoVendas?.slice(0, 5).map(h => ({
-        id: h.id,
-        valor_total: h.valor,
-        plano_nome: h.plano_nome || 'Plano',
-        plano_valor: h.plano_valor || 0,
-        mac_address: h.mac_address || '',
-        status: h.status || 'pago',
-        created_at: h.created_at,
-        mikrotik: mikrotikMap[h.mikrotik_id] || { nome: 'MikroTik', id: '' }
-      })) || []
+      // Processar vendas recentes (combinando PIX e físicas)
+      const vendasPixRecentes = vendasPixData.slice(0, 3).map(v => ({
+        id: v.id || v.payment_id,
+        valor_total: v.valor,
+        plano_nome: v.plano_nome || 'Plano PIX',
+        plano_valor: v.valor,
+        mac_address: v.mac_address || '',
+        status: 'pago',
+        created_at: v.created_at,
+        tipo: 'pix',
+        mikrotik: { nome: v.mikrotik_nome || 'MikroTik', id: '' }
+      }))
+      
+      const vendasFisicasRecentes = vendasFisicasData.slice(0, 3).map(v => ({
+        id: v.id,
+        valor_total: v.plano_valor || v.valor,
+        plano_nome: v.plano_nome || 'Voucher Físico',
+        plano_valor: v.plano_valor || v.valor,
+        mac_address: v.mac_address || '',
+        status: v.status || 'pago',
+        created_at: v.created_at,
+        tipo: 'fisica',
+        mikrotik: mikrotikMap[v.mikrotik_id] || { nome: 'MikroTik', id: '' }
+      }))
+
+      // Combinar e ordenar por data
+      const vendasRecentes = [...vendasPixRecentes, ...vendasFisicasRecentes]
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .slice(0, 5)
 
       setStats({
         totalVendas,
         vendasMes,
         rendaTotal,
         rendaMes,
+        vendasPix,
+        vendasFisicas,
         vendasRecentes,
         topMikroTik
       })
@@ -292,57 +372,66 @@ export function UserDashboardWidget() {
           </div>
         </motion.div>
 
-        {/* Renda Total */}
+        {/* Vendas PIX (Comissões) */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="bg-black/40 backdrop-blur-sm border border-gray-800/50 rounded-2xl p-6 hover:border-purple-500/30 transition-all duration-300"
+          className="bg-gradient-to-br from-blue-500/20 to-blue-600/20 backdrop-blur-sm border border-blue-500/30 rounded-2xl p-6 hover:border-blue-400/50 transition-all duration-300"
         >
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between mb-2">
             <div>
-              <p className="text-gray-400 text-sm font-medium">Renda Total</p>
-              <p className="text-2xl font-bold text-white">{formatCurrency(stats.rendaTotal)}</p>
+              <p className="text-blue-200/80 text-sm font-medium">Vendas PIX</p>
+              <p className="text-2xl font-bold text-blue-100">{formatCurrency(stats.vendasPix.valorTotal)}</p>
             </div>
-            <div className="p-3 rounded-xl bg-purple-500/20 border border-purple-500/30">
-              <TrendingUp className="h-6 w-6 text-purple-400" />
+            <div className="p-3 rounded-xl bg-blue-500/30 border border-blue-400/30">
+              <TrendingUp className="h-6 w-6 text-blue-300" />
             </div>
+          </div>
+          <div className="text-xs text-blue-300/70">
+            {stats.vendasPix.total} vendas • {formatCurrency(stats.vendasPix.valorMes)} este mês
           </div>
         </motion.div>
 
-        {/* Total de Vendas */}
+        {/* Vendas Físicas (Vouchers) */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="bg-black/40 backdrop-blur-sm border border-gray-800/50 rounded-2xl p-6 hover:border-blue-500/30 transition-all duration-300"
+          className="bg-gradient-to-br from-purple-500/20 to-purple-600/20 backdrop-blur-sm border border-purple-500/30 rounded-2xl p-6 hover:border-purple-400/50 transition-all duration-300"
         >
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between mb-2">
             <div>
-              <p className="text-gray-400 text-sm font-medium">Total de Vendas</p>
-              <p className="text-2xl font-bold text-white">{stats.totalVendas}</p>
+              <p className="text-purple-200/80 text-sm font-medium">Vendas Físicas</p>
+              <p className="text-2xl font-bold text-purple-100">{formatCurrency(stats.vendasFisicas.valorTotal)}</p>
             </div>
-            <div className="p-3 rounded-xl bg-blue-500/20 border border-blue-500/30">
-              <ShoppingCart className="h-6 w-6 text-blue-400" />
+            <div className="p-3 rounded-xl bg-purple-500/30 border border-purple-400/30">
+              <ShoppingCart className="h-6 w-6 text-purple-300" />
             </div>
+          </div>
+          <div className="text-xs text-purple-300/70">
+            {stats.vendasFisicas.total} vouchers • {formatCurrency(stats.vendasFisicas.valorMes)} este mês
           </div>
         </motion.div>
 
-        {/* Renda do Mês */}
+        {/* Comissões do Mês */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
           className="bg-black/40 backdrop-blur-sm border border-gray-800/50 rounded-2xl p-6 hover:border-orange-500/30 transition-all duration-300"
         >
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between mb-2">
             <div>
-              <p className="text-gray-400 text-sm font-medium">Renda do Mês</p>
-              <p className="text-2xl font-bold text-white">{formatCurrency(stats.rendaMes)}</p>
+              <p className="text-gray-400 text-sm font-medium">Comissões do Mês</p>
+              <p className="text-2xl font-bold text-white">{formatCurrency(stats.vendasPix.valorMes)}</p>
             </div>
             <div className="p-3 rounded-xl bg-orange-500/20 border border-orange-500/30">
               <Calendar className="h-6 w-6 text-orange-400" />
             </div>
+          </div>
+          <div className="text-xs text-gray-500">
+            {stats.vendasPix.totalMes} vendas PIX este mês
           </div>
         </motion.div>
       </div>
@@ -388,6 +477,17 @@ export function UserDashboardWidget() {
                         <p className="text-white font-medium text-sm truncate">
                           {venda.mikrotik?.nome || 'MikroTik'}
                         </p>
+                        {venda.tipo && (
+                          <div className={cn(
+                            "inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium",
+                            venda.tipo === 'pix' 
+                              ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                              : 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
+                          )}>
+                            {venda.tipo === 'pix' ? '💳' : '🎫'}
+                            <span className="capitalize">{venda.tipo === 'pix' ? 'PIX' : 'Voucher'}</span>
+                          </div>
+                        )}
                         <div className={cn(
                           "inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium",
                           getStatusColor(venda.status)

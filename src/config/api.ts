@@ -2,9 +2,8 @@
 import { supabase } from '../lib/supabase'
 
 export const API_CONFIG = {
-  // Usar a variável de ambiente VITE_API_URL ou fallback para desenvolvimento
-  BASE_URL: import.meta.env.VITE_API_URL || 
-    (import.meta.env.MODE === 'development' ? 'http://localhost:3000' : 'https://api.mikropix.online'),
+  // Sempre usar a API de produção
+  BASE_URL: import.meta.env.VITE_API_URL || 'https://api.mikropix.online',
   ENDPOINTS: {
     // Autenticação
     AUTH: '/api/auth',

@@ -489,7 +489,7 @@ export default function MikrotikDashboard() {
   const [planUsers, setPlanUsers] = useState<HotspotUser[]>([])
 
   // API functions
-  const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+  const baseUrl = import.meta.env.VITE_API_URL || 'https://api.mikropix.online'
   const headers = {
     'Authorization': `Bearer ${session?.access_token || ''}`
   }

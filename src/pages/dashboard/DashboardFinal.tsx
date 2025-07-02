@@ -41,7 +41,7 @@ import {
 } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { DashboardLoading } from '../../components/ui'
-import { UserDashboardWidget, UserSubscriptionCard } from '../../components/dashboard/UserDashboardWidget'
+import { UserDashboardWidget } from '../../components/dashboard/UserDashboardWidget'
 import { cn } from '../../lib/utils'
 import { motion } from 'framer-motion'
 import { Link } from 'react-router-dom'
@@ -448,7 +448,7 @@ function UserPlanCard() {
   if (!subscription) {
     return (
       <>
-        <div className="relative bg-black/40 backdrop-blur-sm border border-red-500/20 rounded-2xl p-6 transition-all duration-300 hover:scale-[1.02] cursor-pointer" onClick={handleOpenModal}>
+        <div className="relative bg-black/40 backdrop-blur-sm border border-red-500/20 rounded-2xl p-6 transition-all duration-300 hover:scale-[1.02]">
           <div className="flex items-center justify-between mb-4">
             <div className="p-3 rounded-xl bg-gradient-to-br from-red-500/10 to-red-600/5 border border-red-500/20">
               <Crown className="h-6 w-6 text-red-400" />
@@ -457,11 +457,20 @@ function UserPlanCard() {
               Inativo
             </Badge>
           </div>
-          <div className="space-y-2">
+          <div className="space-y-2 mb-4">
             <h3 className="text-sm font-medium text-gray-300">Plano Atual</h3>
             <p className="text-2xl font-bold text-white tracking-tight">Sem Plano</p>
-            <p className="text-xs text-gray-400">Clique para ativar um plano</p>
+            <p className="text-xs text-gray-400">Ative um plano para acessar recursos</p>
           </div>
+          
+          {/* Button to activate plans */}
+          <Button
+            onClick={handleOpenModal}
+            className="w-full flex items-center justify-center gap-2 text-sm py-2 bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700 text-white transition-all duration-300"
+          >
+            <Crown className="h-4 w-4" />
+            Ativar Plano
+          </Button>
         </div>
 
         {showUpgradeModal && (
@@ -482,7 +491,7 @@ function UserPlanCard() {
 
   return (
     <>
-      <div className="relative bg-black/40 backdrop-blur-sm border border-gray-800/50 rounded-2xl p-6 transition-all duration-300 hover:scale-[1.02] cursor-pointer" onClick={handleOpenModal}>
+      <div className="relative bg-black/40 backdrop-blur-sm border border-gray-800/50 rounded-2xl p-6 transition-all duration-300 hover:scale-[1.02]">
         <div className="flex items-center justify-between mb-4">
           <div className={`p-3 rounded-xl border ${
             isTrialPlan() 
@@ -514,7 +523,7 @@ function UserPlanCard() {
           )}
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-2 mb-4">
           <h3 className="text-sm font-medium text-gray-300">Plano Atual</h3>
           <p className="text-2xl font-bold text-white tracking-tight">{plan.name}</p>
           <div className="flex items-center gap-2">
@@ -528,7 +537,7 @@ function UserPlanCard() {
         </div>
 
         {/* Progress Bar */}
-        <div className="mt-4">
+        <div className="mb-4">
           <div className="w-full bg-gray-700 rounded-full h-1.5">
             <div 
               className={`h-1.5 rounded-full transition-all duration-500 ${
@@ -540,6 +549,42 @@ function UserPlanCard() {
             />
           </div>
         </div>
+
+        {/* Button to activate/upgrade plans */}
+        <Button
+          onClick={handleOpenModal}
+          className={`w-full flex items-center justify-center gap-2 text-sm py-2 transition-all duration-300 ${
+            isExpired 
+              ? 'bg-red-600 hover:bg-red-700 text-white'
+              : isTrialPlan()
+              ? 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white'
+              : isNearExpiration
+              ? 'bg-yellow-600 hover:bg-yellow-700 text-white'
+              : 'bg-blue-600 hover:bg-blue-700 text-white'
+          }`}
+        >
+          {isExpired ? (
+            <>
+              <Crown className="h-4 w-4" />
+              Renovar Plano
+            </>
+          ) : isTrialPlan() ? (
+            <>
+              <Sparkles className="h-4 w-4" />
+              Fazer Upgrade
+            </>
+          ) : isNearExpiration ? (
+            <>
+              <Clock4 className="h-4 w-4" />
+              Renovar Plano
+            </>
+          ) : (
+            <>
+              <Crown className="h-4 w-4" />
+              Gerenciar Planos
+            </>
+          )}
+        </Button>
       </div>
 
       {showUpgradeModal && (
@@ -988,11 +1033,8 @@ export function DashboardFinal() {
               </div>
 
               {/* Main Dashboard Content */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-1">
-                  <UserSubscriptionCard />
-                </div>
-                <div className="lg:col-span-2">
+              <div className="grid grid-cols-1 gap-6">
+                <div>
                   <UserDashboardWidget />
                 </div>
               </div>

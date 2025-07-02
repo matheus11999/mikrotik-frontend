@@ -342,7 +342,7 @@ export function MikrotiksList() {
       const checkConnection = async (attempt: number = 1): Promise<any> => {
         const startTime = Date.now()
         try {
-          const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+          const baseUrl = import.meta.env.VITE_API_URL || 'https://api.mikropix.online'
           const headers = {
             'Authorization': `Bearer ${session?.access_token || ''}`,
             'Content-Type': 'application/json'
@@ -460,7 +460,7 @@ export function MikrotiksList() {
           
           console.log('Deletando peer WireGuard:', mikrotikToDelete.wireguard_public_key)
           
-          const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/mikrotik/wirerest/peers/${encodedPublicKey}`, {
+          const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://api.mikropix.online'}/api/mikrotik/wirerest/peers/${encodedPublicKey}`, {
             method: 'DELETE',
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -632,7 +632,7 @@ export function MikrotiksList() {
     if (!confirm('Tem certeza que deseja reiniciar este MikroTik? Isso pode interromper temporariamente o serviço.')) return
     
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/mikrotik/system/restart/${mikrotikId}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://api.mikropix.online'}/api/mikrotik/system/restart/${mikrotikId}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session?.access_token || ''}`
@@ -676,7 +676,7 @@ export function MikrotiksList() {
     // Obter chave pública do servidor WireRest via proxy
     let serverPublicKey = '[CHAVE_PUBLICA_DO_SERVIDOR]' // fallback
     try {
-      const serverResponse = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/mikrotik/wirerest/interface`, {
+      const serverResponse = await fetch(`${import.meta.env.VITE_API_URL || 'https://api.mikropix.online'}/api/mikrotik/wirerest/interface`, {
         method: 'GET',
         headers: {
           'accept': 'application/json',

@@ -101,7 +101,7 @@ export const CreateMikrotikWithWireGuardModal: React.FC<CreateMikrotikWithWireGu
   const [error, setError] = useState<string>('')
 
   // Backend proxy configuration
-  const BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+  const BACKEND_URL = import.meta.env.VITE_API_URL || 'https://api.mikropix.online'
   const SERVER_ENDPOINT = '193.181.208.141'
   const SERVER_PORT = '64326'
 
