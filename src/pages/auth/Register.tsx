@@ -226,6 +226,19 @@ export function Register() {
           >
             Preencha os dados para começar
           </motion.p>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6, duration: 0.6 }}
+            className="mt-4 p-3 rounded-lg bg-gradient-to-r from-green-500/10 to-blue-500/10 border border-green-500/20"
+          >
+            <p className="text-green-400 text-sm font-medium flex items-center gap-2">
+              🎁 <span>Ganhe 7 dias grátis ao se registrar!</span>
+            </p>
+            <p className="text-green-300/70 text-xs mt-1">
+              Seu plano teste será ativado automaticamente após o registro
+            </p>
+          </motion.div>
         </motion.div>
 
         {/* Form */}

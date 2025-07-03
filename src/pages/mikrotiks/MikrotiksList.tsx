@@ -697,7 +697,7 @@ add name="${interfaceName}" private-key="${mikrotik.wireguard_private_key}" list
 /interface/wireguard/peers
 add interface="${interfaceName}" public-key="${serverPublicKey}" preshared-key="${mikrotik.wireguard_preshared_key || ''}" allowed-address="0.0.0.0/0,::/0" endpoint-address="${serverEndpoint}" endpoint-port="${serverPort}" persistent-keepalive="${mikrotik.wireguard_keepalive || 25}s" comment="MikroPix - Conexão"
 /ip/address
-add address="${mikrotik.ip}/24" interface="${interfaceName}" comment="MikroPix - Conexão"
+add address="${mikrotik.ip}/24" interface="${interfaceName}" network="10.66.66.0" comment="MikroPix - Conexão"
 /ip/dns
 set servers="1.1.1.1" allow-remote-requests=yes
 /ip/firewall/filter

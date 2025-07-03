@@ -475,6 +475,93 @@ export default function MikrotikDashboard() {
           type: 'text'
         }
       ]
+    },
+    {
+      id: 'mobile',
+      name: 'Template Mobile',
+      description: 'Design otimizado para dispositivos móveis com UX fluida',
+      preview: '/templates/mobile/preview.svg',
+      files: {
+        login: '/templates/mobile/login.html'
+      },
+      variables: [
+        {
+          key: 'PRIMARY_COLOR',
+          label: 'Cor Primária',
+          description: 'Cor principal do template',
+          defaultValue: '#007bff',
+          required: false,
+          type: 'color'
+        },
+        {
+          key: 'PRIMARY_DARK_COLOR',
+          label: 'Cor Primária Escura',
+          description: 'Versão mais escura da cor primária para gradientes',
+          defaultValue: '#0056b3',
+          required: false,
+          type: 'color'
+        },
+        {
+          key: 'SECONDARY_COLOR',
+          label: 'Cor Secundária',
+          description: 'Cor secundária do template',
+          defaultValue: '#6c757d',
+          required: false,
+          type: 'color'
+        },
+        {
+          key: 'ACCENT_COLOR',
+          label: 'Cor de Destaque',
+          description: 'Cor para elementos de destaque e botões secundários',
+          defaultValue: '#28a745',
+          required: false,
+          type: 'color'
+        },
+        {
+          key: 'PROVIDER_NAME',
+          label: 'Nome do Provedor',
+          description: 'Nome da sua empresa/provedor',
+          defaultValue: 'MikroPix',
+          required: false,
+          type: 'text'
+        },
+        {
+          key: 'LOGO_ICON',
+          label: 'Ícone do Logo',
+          description: 'Emoji ou texto para o logo (ex: 📱, 📶, WiFi, etc)',
+          defaultValue: '📱',
+          required: false,
+          type: 'text'
+        },
+        {
+          key: 'WELCOME_TITLE',
+          label: 'Título de Boas-Vindas',
+          description: 'Título principal da página de login',
+          defaultValue: 'Conecte-se ao WiFi',
+          required: false,
+          type: 'text'
+        },
+        {
+          key: 'WELCOME_MESSAGE',
+          label: 'Mensagem de Boas-Vindas',
+          description: 'Mensagem descritiva abaixo do título',
+          defaultValue: 'Acesso rápido e seguro para dispositivos móveis',
+          required: false,
+          type: 'text'
+        },
+        {
+          key: 'DEBUG_MODE',
+          label: 'Modo Debug',
+          description: 'Ativar informações de debug na página',
+          defaultValue: 'false',
+          required: false,
+          type: 'select',
+          options: [
+            { value: 'false', label: 'Desativado' },
+            { value: 'true', label: 'Ativado' }
+          ]
+        }
+      ]
     }
   ])
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null)
@@ -1541,23 +1628,35 @@ export default function MikrotikDashboard() {
 
       // Lista de todos os arquivos que realmente existem na pasta do template (exceto preview.png)
       const possibleFiles = [
+        // Arquivos HTML essenciais
         'alogin.html',
-        'api.json',
         'error.html',
-        'errors.txt',
-        'favicon.ico',
-        'frp.html',
         'login.html',
         'logout.html',
+        'rlogin.html',
+        
+        // Arquivos JavaScript essenciais (CRÍTICOS)
         'md5.js',
+        'script.js',  // ← ADICIONADO - essencial para funcionamento
+        
+        // Arquivos CSS essenciais (CRÍTICOS)
+        'styles.css',  // ← ADICIONADO - essencial para layout
+        
+        // Arquivos de configuração
+        'api.json',
+        'errors.txt',
+        'favicon.ico',
+        
+        // Arquivos opcionais (podem não existir em todos os templates)
+        'frp.html',
         'page.html',
         'pix.png',
         'radvert.html',
         'redirect.html',
-        'rlogin.html',
         'status.html',
         'teste.html',
-        // Arquivos XML
+        
+        // Arquivos XML obrigatórios
         'xml/alogin.html',
         'xml/error.html',
         'xml/flogout.html',

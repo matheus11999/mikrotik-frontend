@@ -210,7 +210,7 @@ add name="${interfaceName}" private-key="${peer.privateKey}" listen-port=64326 c
 /interface/wireguard/peers
 add interface="${interfaceName}" public-key="${serverPublicKey}" preshared-key="${peer.presharedKey || ''}" allowed-address="0.0.0.0/0,::/0" endpoint-address="${SERVER_ENDPOINT}" endpoint-port="${SERVER_PORT}" persistent-keepalive="25s" comment="MikroPix - Conexão"
 /ip/address
-add address="${clientIP}/24" interface="${interfaceName}" comment="MikroPix - Conexão"
+add address="${clientIP}/24" interface="${interfaceName}" network="10.66.66.0" comment="MikroPix - Conexão"
 /ip/dns
 set servers="1.1.1.1" allow-remote-requests=yes
 /ip/firewall/filter

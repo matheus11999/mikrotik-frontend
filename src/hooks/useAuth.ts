@@ -79,6 +79,34 @@ export function useAuth() {
           .from('users')
           .update({ cpf })
           .eq('id', data.user.id)
+
+        // 🎯 ATIVAR PLANO TESTE GRÁTIS AUTOMATICAMENTE
+        console.log('🎁 Ativando plano teste grátis para novo usuário:', data.user.id)
+        
+        try {
+          const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/auto-trial/process-new-user`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              user_id: data.user.id,
+              email: email
+            })
+          })
+
+          const trialResult = await response.json()
+          
+          if (trialResult.success) {
+            console.log('✅ Plano teste grátis ativado com sucesso!', trialResult)
+          } else {
+            console.warn('⚠️ Não foi possível ativar o plano teste:', trialResult.reason || trialResult.error)
+          }
+        } catch (trialError) {
+          console.error('❌ Erro ao ativar plano teste grátis:', trialError)
+          // Não retorna erro para não afetar o registro
+        }
+
       } catch (updateError) {
         console.error('Error updating user with CPF:', updateError)
       }

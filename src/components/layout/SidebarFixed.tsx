@@ -116,19 +116,19 @@ export function SidebarFixed({ open, setOpen, collapsed, setCollapsed }: Sidebar
     main: [
       {
         label: "Dashboard",
-        href: "/dashboard",
+        href: "/app/dashboard",
         icon: <LayoutDashboard className="h-5 w-5" />,
       },
     ],
     network: [
       {
         label: "MikroTiks",
-        href: "/mikrotiks",
+        href: "/app/mikrotiks",
         icon: <Router className="h-5 w-5" />,
       },
       ...(user?.role === 'admin' ? [{
         label: "WireGuard",
-        href: "/wireguard",
+        href: "/app/wireguard",
         icon: <Shield className="h-5 w-5" />,
         premium: true
       }] : []),
@@ -136,35 +136,35 @@ export function SidebarFixed({ open, setOpen, collapsed, setCollapsed }: Sidebar
     financial: [
       {
         label: "Vendas",
-        href: "/vendas",
+        href: "/app/vendas",
         icon: <ShoppingCart className="h-5 w-5" />,
       },
       {
         label: "Transações",
-        href: "/transacoes",
+        href: "/app/transacoes",
         icon: <CreditCard className="h-5 w-5" />,
       },
       {
         label: "Saques",
-        href: "/saques",
+        href: "/app/saques",
         icon: <TrendingUp className="h-5 w-5" />,
       },
     ],
     settings: [
       {
         label: "Configurações",
-        href: "/settings",
+        href: "/app/settings",
         icon: <Settings className="h-5 w-5" />,
       }
     ],
     admin: [
       ...(user?.role === 'admin' ? [{
         label: "Usuários",
-        href: "/users",
+        href: "/app/users",
         icon: <Users className="h-5 w-5" />,
       }, {
         label: "Sistema",
-        href: "/admin/settings",
+        href: "/app/admin/settings",
         icon: <Globe className="h-5 w-5" />,
       }] : [])
     ]

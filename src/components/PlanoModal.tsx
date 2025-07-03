@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
-import { X, Crown, Check, Star, Zap, TrendingUp, Shield, Globe, BarChart, Palette, ArrowRight } from 'lucide-react'
+import { X, Crown, Check, Star, Zap, TrendingUp, Shield, Globe, BarChart, Palette, ArrowRight, CheckCircle } from 'lucide-react'
 import { Button } from './ui/button'
 import { Badge } from './ui/badge'
 import { Modal } from './ui/modal'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../contexts/AuthContext'
 import { api } from '../config/api'
+import { usePaymentStatus } from '../hooks/usePaymentStatus'
 
 interface SubscriptionPlan {
   id: string
@@ -56,6 +57,15 @@ export function PlanoModal({ isOpen, onClose, currentPlan }: PlanoModalProps) {
   const [processingPayment, setProcessingPayment] = useState(false)
   const [paymentData, setPaymentData] = useState<PaymentData | null>(null)
   const [showPayment, setShowPayment] = useState(false)
+  const [paymentApproved, setPaymentApproved] = useState(false)
+  
+  // Hook para verificar status do pagamento
+  const { 
+    paymentData: paymentStatus, 
+    startPolling, 
+    stopPolling, 
+    isPolling 
+  } = usePaymentStatus()
 
   console.log('PlanoModal render - isOpen:', isOpen, 'user:', user?.id)
 
@@ -72,6 +82,33 @@ export function PlanoModal({ isOpen, onClose, currentPlan }: PlanoModalProps) {
       fetchPlans()
     }
   }, [isOpen])
+
+  // Monitorar status do pagamento
+  useEffect(() => {
+    if (paymentStatus?.status === 'approved' && !paymentApproved) {
+      setPaymentApproved(true)
+      stopPolling()
+      
+      // Mostrar sucesso por alguns segundos e fechar modal
+      setTimeout(() => {
+        setShowPayment(false)
+        setPaymentData(null)
+        setPaymentApproved(false)
+        onClose()
+      }, 3000)
+    }
+  }, [paymentStatus, paymentApproved, stopPolling, onClose])
+
+  // Iniciar polling quando pagamento for criado
+  useEffect(() => {
+    if (paymentData?.payment_id && showPayment) {
+      startPolling(paymentData.payment_id, 3000) // Verificar a cada 3 segundos
+    }
+    
+    return () => {
+      stopPolling()
+    }
+  }, [paymentData?.payment_id, showPayment, startPolling, stopPolling])
 
   const fetchPlans = async () => {
     try {
@@ -291,13 +328,37 @@ export function PlanoModal({ isOpen, onClose, currentPlan }: PlanoModalProps) {
         open={isOpen} 
         onOpenChange={onClose} 
         className="max-w-lg w-full mx-4 backdrop-blur-xl"
-        title="💳 Pagamento PIX"
+        title={paymentApproved ? "✅ Pagamento Aprovado!" : "💳 Pagamento PIX"}
       >
         <div className="relative overflow-hidden">
           {/* Background gradient animado */}
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-900/20 via-purple-900/20 to-green-900/20 opacity-50"></div>
+          <div className={`absolute inset-0 bg-gradient-to-br opacity-50 ${
+            paymentApproved 
+              ? 'from-green-900/30 via-emerald-900/30 to-green-900/30'
+              : 'from-blue-900/20 via-purple-900/20 to-green-900/20'
+          }`}></div>
           
           <div className="relative z-10 text-center">
+            {/* Mostrar sucesso quando aprovado */}
+            {paymentApproved && (
+              <div className="mb-6 animate-bounce">
+                <div className="mx-auto w-20 h-20 bg-green-500 rounded-full flex items-center justify-center mb-4 shadow-2xl shadow-green-500/50">
+                  <CheckCircle className="h-12 w-12 text-white" />
+                </div>
+                <div className="bg-green-500/20 border border-green-500/30 rounded-xl p-4">
+                  <h3 className="text-xl font-bold text-green-400 mb-2">
+                    🎉 Pagamento Confirmado!
+                  </h3>
+                  <p className="text-green-300 text-sm">
+                    Seu plano foi ativado com sucesso! Redirecionando...
+                  </p>
+                </div>
+              </div>
+            )}
+            
+            {/* QR Code e informações - só mostrar se não aprovado */}
+            {!paymentApproved && (
+              <>
             {/* QR Code com frame melhorado */}
             <div className="mb-6 flex justify-center">
               <div className="relative p-4 bg-white rounded-2xl shadow-2xl border-4 border-gradient-to-r from-blue-500 to-purple-500">
@@ -361,8 +422,15 @@ export function PlanoModal({ isOpen, onClose, currentPlan }: PlanoModalProps) {
             <div className="mt-6 bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
               <p className="text-xs text-blue-300">
                 ✨ Seu plano será ativado automaticamente após a confirmação do pagamento
+                {isPolling && (
+                  <span className="block mt-1 text-xs text-blue-400">
+                    🔄 Verificando pagamento...
+                  </span>
+                )}
               </p>
             </div>
+            </>
+            )}
           </div>
         </div>
       </Modal>

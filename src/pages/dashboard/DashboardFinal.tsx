@@ -42,6 +42,7 @@ import {
 import { Badge } from '../../components/ui/badge'
 import { DashboardLoading } from '../../components/ui'
 import { UserDashboardWidget } from '../../components/dashboard/UserDashboardWidget'
+import { PlanStatusBanner } from '../../components/PlanRestrictedRoute'
 import { cn } from '../../lib/utils'
 import { motion } from 'framer-motion'
 import { Link } from 'react-router-dom'
@@ -370,233 +371,7 @@ const RecentActivity = ({ activities, loading }: { activities?: DashboardStats['
   </div>
 )
 
-// Componente do Card do Plano do Usuário  
-function UserPlanCard() {
-  const { user } = useAuthContext()
-  const [subscription, setSubscription] = useState<any | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false)
 
-  useEffect(() => {
-    if (user) {
-      fetchUserSubscription()
-    }
-  }, [user])
-
-  const fetchUserSubscription = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('user_subscriptions')
-        .select('*, subscription_plans (*)')
-        .eq('user_id', user?.id)
-        .eq('status', 'active')
-        .order('created_at', { ascending: false })
-        .limit(1)
-
-      if (error && error.code !== 'PGRST116') {
-        console.warn('Error fetching subscription:', error)
-        setSubscription(null)
-        setLoading(false)
-        return
-      }
-
-      setSubscription(data && data.length > 0 ? data[0] : null)
-    } catch (error) {
-      console.error('Error fetching subscription:', error)
-      setSubscription(null)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const getDaysRemaining = () => {
-    if (!subscription) return 0
-    const now = new Date()
-    const expires = new Date(subscription.expires_at)
-    const diffTime = expires.getTime() - now.getTime()
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-    return Math.max(0, diffDays)
-  }
-
-  const isTrialPlan = () => {
-    return subscription?.subscription_plans?.name === 'Teste Grátis' || 
-           subscription?.subscription_plans?.name?.toLowerCase().includes('grátis') ||
-           subscription?.subscription_plans?.name?.toLowerCase().includes('teste')
-  }
-
-  const handleOpenModal = () => {
-    setShowUpgradeModal(true)
-  }
-
-  const handleCloseModal = () => {
-    setShowUpgradeModal(false)
-  }
-
-  if (loading) {
-    return (
-      <div className="relative bg-black/40 backdrop-blur-sm border border-gray-800/50 rounded-2xl p-6 animate-pulse">
-        <div className="flex items-center justify-between mb-4">
-          <div className="h-6 bg-gray-700/30 rounded w-24 animate-pulse" />
-          <div className="h-6 bg-gray-700/30 rounded w-16 animate-pulse" />
-        </div>
-        <div className="h-8 bg-gray-700/30 rounded mb-2 animate-pulse" />
-        <div className="h-3 bg-gray-700/20 rounded w-32 animate-pulse" />
-      </div>
-    )
-  }
-
-  if (!subscription) {
-    return (
-      <>
-        <div className="relative bg-black/40 backdrop-blur-sm border border-red-500/20 rounded-2xl p-6 transition-all duration-300 hover:scale-[1.02]">
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-3 rounded-xl bg-gradient-to-br from-red-500/10 to-red-600/5 border border-red-500/20">
-              <Crown className="h-6 w-6 text-red-400" />
-            </div>
-            <Badge className="bg-red-500/20 text-red-400 border-red-500/30 hover:bg-red-500/30">
-              Inativo
-            </Badge>
-          </div>
-          <div className="space-y-2 mb-4">
-            <h3 className="text-sm font-medium text-gray-300">Plano Atual</h3>
-            <p className="text-2xl font-bold text-white tracking-tight">Sem Plano</p>
-            <p className="text-xs text-gray-400">Ative um plano para acessar recursos</p>
-          </div>
-          
-          {/* Button to activate plans */}
-          <Button
-            onClick={handleOpenModal}
-            className="w-full flex items-center justify-center gap-2 text-sm py-2 bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700 text-white transition-all duration-300"
-          >
-            <Crown className="h-4 w-4" />
-            Ativar Plano
-          </Button>
-        </div>
-
-        {showUpgradeModal && (
-          <PlanoModal
-            isOpen={showUpgradeModal}
-            onClose={handleCloseModal}
-            currentPlan={null}
-          />
-        )}
-      </>
-    )
-  }
-
-  const daysRemaining = getDaysRemaining()
-  const plan = subscription.subscription_plans
-  const isExpired = daysRemaining <= 0
-  const isNearExpiration = daysRemaining <= 3 && daysRemaining > 0
-
-  return (
-    <>
-      <div className="relative bg-black/40 backdrop-blur-sm border border-gray-800/50 rounded-2xl p-6 transition-all duration-300 hover:scale-[1.02]">
-        <div className="flex items-center justify-between mb-4">
-          <div className={`p-3 rounded-xl border ${
-            isTrialPlan() 
-              ? 'bg-gradient-to-br from-yellow-500/10 to-yellow-600/5 border-yellow-500/20' 
-              : 'bg-gradient-to-br from-purple-500/10 to-purple-600/5 border-purple-500/20'
-          }`}>
-            {isTrialPlan() ? (
-              <Sparkles className="h-6 w-6 text-yellow-400" />
-            ) : (
-              <Crown className="h-6 w-6 text-purple-400" />
-            )}
-          </div>
-          
-          {isExpired ? (
-            <Badge className="bg-red-500/20 text-red-400 border-red-500/30 hover:bg-red-500/30">
-              <Clock4 className="h-3 w-3 mr-1" />
-              Expirado
-            </Badge>
-          ) : isNearExpiration ? (
-            <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 hover:bg-yellow-500/30">
-              <Clock4 className="h-3 w-3 mr-1" />
-              Expira em breve
-            </Badge>
-          ) : (
-            <Badge className="bg-green-500/20 text-green-400 border-green-500/30 hover:bg-green-500/30">
-              <CheckCircle className="h-3 w-3 mr-1" />
-              Ativo
-            </Badge>
-          )}
-        </div>
-
-        <div className="space-y-2 mb-4">
-          <h3 className="text-sm font-medium text-gray-300">Plano Atual</h3>
-          <p className="text-2xl font-bold text-white tracking-tight">{plan.name}</p>
-          <div className="flex items-center gap-2">
-            <Calendar className="h-3 w-3 text-gray-400" />
-            <span className={`text-xs font-medium ${
-              isExpired ? 'text-red-400' : isNearExpiration ? 'text-yellow-400' : 'text-green-400'
-            }`}>
-              {isExpired ? 'Plano expirado' : `${daysRemaining} dias restantes`}
-            </span>
-          </div>
-        </div>
-
-        {/* Progress Bar */}
-        <div className="mb-4">
-          <div className="w-full bg-gray-700 rounded-full h-1.5">
-            <div 
-              className={`h-1.5 rounded-full transition-all duration-500 ${
-                isExpired ? 'bg-red-500' : isNearExpiration ? 'bg-yellow-500' : 'bg-green-500'
-              }`}
-              style={{ 
-                width: `${Math.min(100, ((plan.duration_days - daysRemaining) / plan.duration_days) * 100)}%` 
-              }}
-            />
-          </div>
-        </div>
-
-        {/* Button to activate/upgrade plans */}
-        <Button
-          onClick={handleOpenModal}
-          className={`w-full flex items-center justify-center gap-2 text-sm py-2 transition-all duration-300 ${
-            isExpired 
-              ? 'bg-red-600 hover:bg-red-700 text-white'
-              : isTrialPlan()
-              ? 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white'
-              : isNearExpiration
-              ? 'bg-yellow-600 hover:bg-yellow-700 text-white'
-              : 'bg-blue-600 hover:bg-blue-700 text-white'
-          }`}
-        >
-          {isExpired ? (
-            <>
-              <Crown className="h-4 w-4" />
-              Renovar Plano
-            </>
-          ) : isTrialPlan() ? (
-            <>
-              <Sparkles className="h-4 w-4" />
-              Fazer Upgrade
-            </>
-          ) : isNearExpiration ? (
-            <>
-              <Clock4 className="h-4 w-4" />
-              Renovar Plano
-            </>
-          ) : (
-            <>
-              <Crown className="h-4 w-4" />
-              Gerenciar Planos
-            </>
-          )}
-        </Button>
-      </div>
-
-      {showUpgradeModal && (
-        <PlanoModal
-          isOpen={showUpgradeModal}
-          onClose={handleCloseModal}
-          currentPlan={subscription}
-        />
-      )}
-    </>
-  )
-}
 
 
 
@@ -928,6 +703,9 @@ export function DashboardFinal() {
       {/* Content */}
       <div className="p-4 sm:p-6">
         <div className="space-y-6">
+          {/* Plan Status Banner - Mostra status do plano para usuários comuns */}
+          {!isAdmin && <PlanStatusBanner />}
+          
           {/* Stats Cards - Apenas para Admin */}
           {isAdmin && (
             <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
@@ -1003,35 +781,6 @@ export function DashboardFinal() {
             </div>
           ) : (
             <div className="space-y-8">
-              {/* Stats Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <StatsCard
-                  title="Saldo Atual"
-                  value={`R$ ${stats?.meuSaldo?.toFixed(2) || '0.00'}`}
-                  icon={Wallet}
-                  color="green"
-                  description="Disponível para saque"
-                />
-                
-                <StatsCard
-                  title="Vendas do Mês"
-                  value={stats?.minhasVendas || 0}
-                  icon={ShoppingCart}
-                  color="blue"
-                  description="Total de vendas realizadas"
-                />
-                
-                <StatsCard
-                  title="Vendas Hoje"
-                  value={stats?.minhasVendasHoje || 0}
-                  icon={TrendingUp}
-                  color="purple"
-                  description="Vendas realizadas hoje"
-                />
-                
-                <UserPlanCard />
-              </div>
-
               {/* Main Dashboard Content */}
               <div className="grid grid-cols-1 gap-6">
                 <div>
@@ -1042,6 +791,34 @@ export function DashboardFinal() {
           )}
         </div>
       </div>
+
+      {/* WhatsApp Floating Button - Only for regular users */}
+      {!isAdmin && (
+        <motion.div
+          className="fixed bottom-6 right-6 z-50"
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ delay: 1, duration: 0.5, type: "spring" }}
+          whileHover={{ scale: 1.1, y: -2 }}
+          whileTap={{ scale: 0.9 }}
+        >
+          <a
+            href="https://wa.me/5511999999999"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center w-14 h-14 bg-gradient-to-br from-green-500 to-green-600 hover:from-green-400 hover:to-green-500 text-white rounded-full shadow-lg shadow-green-500/25 hover:shadow-green-500/40 transition-all duration-300"
+            title="Falar no WhatsApp"
+          >
+            <svg 
+              className="w-6 h-6" 
+              fill="currentColor" 
+              viewBox="0 0 24 24"
+            >
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.885 3.700"/>
+            </svg>
+          </a>
+        </motion.div>
+      )}
     </div>
   )
 }

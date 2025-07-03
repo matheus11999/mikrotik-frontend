@@ -1,282 +1,269 @@
-import { useEffect, useState } from 'react'
+import { useState, useEffect } from 'react'
+import { motion } from 'framer-motion'
+import { 
+  Search, 
+  Filter, 
+  Download, 
+  Calendar,
+  DollarSign,
+  TrendingUp,
+  ShoppingCart,
+  BarChart3,
+  RefreshCw,
+  ArrowUpDown,
+  Eye,
+  Router,
+  CreditCard,
+  Receipt,
+  FileText
+} from 'lucide-react'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
-import { Input } from '../../components/ui/input'
+import { Button } from '../../components/ui/button'
 import { Badge } from '../../components/ui/badge'
-import { 
-  ShoppingCart, Search, TrendingUp, DollarSign, Calendar, 
-  User, Router, Eye, Clock, CheckCircle, XCircle, 
-  Loader2, Filter, ArrowUpDown, BarChart3, Ticket, CreditCard,
-  CalendarDays, TrendingDown
-} from 'lucide-react'
-import React from 'react'
-import { ListLoading } from '../../components/ui/unified-loading'
+import { cn } from '../../lib/utils'
 
-interface Venda {
+interface VendaDetalhada {
   id: string
-  payment_id: string
-  mikrotik_id: string
-  plano_id: string
-  status: string
   valor_total: number
-  valor_admin: number
-  valor_usuario: number
-  mercadopago_status: string
-  mercadopago_payment_id?: string
+  plano_nome: string
+  plano_valor: number
   mac_address: string
-  usuario_criado: string
-  senha_usuario: string
-  paid_at: string
+  status: string
   created_at: string
-  updated_at: string
-  mikrotiks?: {
+  tipo: 'pix' | 'fisica' | 'captive'
+  senha?: string
+  mikrotik: {
     nome: string
-    porcentagem: number
-    users?: {
-      nome: string
-      email: string
-    }
+    id: string
   }
-  planos?: {
-    nome: string
+  payment_id?: string
+  ip_address?: string
+}
+
+interface ResumoVendas {
+  totalGeral: {
+    quantidade: number
     valor: number
-    session_timeout: number
+  }
+  vendasPix: {
+    quantidade: number
+    valor: number
+  }
+  vendasVoucher: {
+    quantidade: number
+    valor: number
+  }
+  periodoSelecionado: {
+    quantidade: number
+    valor: number
   }
 }
 
-interface Voucher {
-  id: number
-  senha: string
-  data_conexao: string
-  valor_venda: number
-  mikrotik_id: string
-  nome_plano: string
-  comentario_original: string
-  username: string
-  mac_address: string
-  created_at: string
-  mikrotiks?: {
-    nome: string
-    users?: {
-      nome: string
-      email: string
-    }
-  }
-}
+type TipoFiltro = 'todos' | 'pix' | 'voucher'
+type OrdenacaoFiltro = 'data_desc' | 'data_asc' | 'valor_desc' | 'valor_asc'
 
-type TipoVenda = 'all' | 'pix' | 'voucher'
-type PeriodoRelatorio = 'hoje' | 'semana' | 'mes' | 'custom'
-
-const motion = {
-  div: (props: any) => <div {...props} />,
-  h1: (props: any) => <h1 {...props} />,
-  h3: (props: any) => <h3 {...props} />,
-  p: (props: any) => <p {...props} />,
-  select: (props: any) => <select {...props} />,
-  span: (props: any) => <span {...props} />,
-  button: (props: any) => <button {...props} />,
-  input: (props: any) => <input {...props} />,
-}
-
-export function VendasList() {
+export default function VendasList() {
   const { user } = useAuthContext()
-  const [vendas, setVendas] = useState<Venda[]>([])
-  const [vouchers, setVouchers] = useState<Voucher[]>([])
+  const [vendas, setVendas] = useState<VendaDetalhada[]>([])
+  const [resumo, setResumo] = useState<ResumoVendas>({
+    totalGeral: { quantidade: 0, valor: 0 },
+    vendasPix: { quantidade: 0, valor: 0 },
+    vendasVoucher: { quantidade: 0, valor: 0 },
+    periodoSelecionado: { quantidade: 0, valor: 0 }
+  })
   const [loading, setLoading] = useState(true)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [statusFilter, setStatusFilter] = useState<string>('all')
-  const [tipoVenda, setTipoVenda] = useState<TipoVenda>('all')
-  const [periodoRelatorio, setPeriodoRelatorio] = useState<PeriodoRelatorio>('mes')
-  const [mesCustom, setMesCustom] = useState('')
+  const [filtroTipo, setFiltroTipo] = useState<TipoFiltro>('todos')
+  const [filtroMes, setFiltroMes] = useState<string>(() => {
+    const now = new Date()
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  })
+  const [ordenacao, setOrdenacao] = useState<OrdenacaoFiltro>('data_desc')
+  const [busca, setBusca] = useState('')
 
   useEffect(() => {
-    fetchData()
-  }, [user])
-
-  const fetchData = async () => {
-    if (!user) return
-
-    try {
-      setLoading(true)
-      await Promise.all([fetchVendas(), fetchVouchers()])
-    } catch (error) {
-      console.error('Error fetching data:', error)
-    } finally {
-      setLoading(false)
+    if (user) {
+      fetchVendas()
     }
-  }
+  }, [user, filtroTipo, filtroMes, ordenacao])
 
   const fetchVendas = async () => {
     if (!user) return
 
-    let query = supabase
-      .from('vendas')
-      .select(`
-        *,
-        mikrotiks (
-          nome,
-          porcentagem,
-          users (
-            nome,
-            email
-          )
-        ),
-        planos (
-          nome,
-          valor,
-          session_timeout
-        )
-      `)
+    try {
+      setLoading(true)
 
-    // Se não é admin, mostrar apenas vendas dos seus MikroTiks
-    if (user?.role !== 'admin') {
-      const { data: userMikrotiks } = await supabase
+      // Buscar MikroTiks do usuário
+      const { data: userMikrotiks, error: mikrotiksError } = await supabase
         .from('mikrotiks')
-        .select('id')
+        .select('id, nome')
         .eq('user_id', user.id)
-      
-      const mikrotikIds = userMikrotiks?.map(m => m.id) || []
-      if (mikrotikIds.length > 0) {
-        query = query.in('mikrotik_id', mikrotikIds)
-      } else {
+
+      if (mikrotiksError) {
+        console.error('Error fetching mikrotiks:', mikrotiksError)
+        return
+      }
+
+      const userMikrotikIds = userMikrotiks?.map(m => m.id) || []
+      if (userMikrotikIds.length === 0) {
         setVendas([])
         return
       }
-    }
 
-    const { data, error } = await query.order('created_at', { ascending: false })
+      // Determinar período baseado no filtro de mês
+      const [ano, mes] = filtroMes.split('-')
+      const inicioMes = new Date(parseInt(ano), parseInt(mes) - 1, 1)
+      const fimMes = new Date(parseInt(ano), parseInt(mes), 0, 23, 59, 59)
 
-    if (error) throw error
-    setVendas(data || [])
-  }
+      // Buscar vendas PIX
+      const { data: vendasPixData, error: pixError } = await supabase
+        .from('vendas_pix')
+        .select(`
+          id, payment_id, valor_total, valor_usuario, valor_admin,
+          mac_address, created_at, status, mikrotik_id,
+          plano_nome, plano_valor
+        `)
+        .in('mikrotik_id', userMikrotikIds)
+        .eq('status', 'completed')
+        .order('created_at', { ascending: false })
 
-  const fetchVouchers = async () => {
-    if (!user) return
+      console.log('PIX Data Query:', { vendasPixData, pixError, userMikrotikIds, inicioMes, fimMes })
 
-    let query = supabase
-      .from('voucher')
-      .select(`
-        *,
-        mikrotiks (
-          nome,
-          users (
-            nome,
-            email
-          )
-        )
-      `)
+      // Buscar vouchers físicos
+      const { data: vouchersData, error: vouchersError } = await supabase
+        .from('voucher')
+        .select('id, valor_venda, nome_plano, created_at, mac_address, mikrotik_id, tipo_voucher, senha')
+        .in('mikrotik_id', userMikrotikIds)
+        .eq('tipo_voucher', 'fisico')
+        .order('created_at', { ascending: false })
 
-    // Se não é admin, mostrar apenas vouchers dos seus MikroTiks
-    if (user?.role !== 'admin') {
-      const { data: userMikrotiks } = await supabase
-        .from('mikrotiks')
-        .select('id')
-        .eq('user_id', user.id)
-      
-      const mikrotikIds = userMikrotiks?.map(m => m.id) || []
-      if (mikrotikIds.length > 0) {
-        query = query.in('mikrotik_id', mikrotikIds)
-      } else {
-        setVouchers([])
+      console.log('Vouchers Data Query:', { vouchersData, vouchersError, userMikrotikIds })
+
+      if (pixError && vouchersError) {
+        console.error('Error fetching sales data:', { pixError, vouchersError })
         return
       }
-    }
 
-    const { data, error } = await query.order('data_conexao', { ascending: false })
+      // Criar mapa de MikroTiks
+      const mikrotikMap = userMikrotiks?.reduce((acc, m) => {
+        acc[m.id] = m
+        return acc
+      }, {} as Record<string, { id: string; nome: string }>) || {}
 
-    if (error) throw error
-    setVouchers(data || [])
-  }
+      // Processar vendas PIX - USAR valor_usuario para comissão do usuário
+      const vendasPixProcessadas: VendaDetalhada[] = (vendasPixData || [])
+        .filter(v => {
+          const dataVenda = new Date(v.created_at)
+          return dataVenda >= inicioMes && dataVenda <= fimMes
+        })
+        .map(v => ({
+          id: v.id,
+          valor_total: v.valor_usuario || 0, // USAR valor_usuario para vendas PIX
+          plano_nome: v.plano_nome || 'Venda PIX',
+          plano_valor: v.plano_valor || 0,
+          mac_address: v.mac_address || '',
+          status: v.status,
+          created_at: v.created_at,
+          tipo: 'pix' as const,
+          mikrotik: mikrotikMap[v.mikrotik_id] || { nome: 'MikroTik', id: v.mikrotik_id },
+          payment_id: v.payment_id
+        }))
 
-  // Função para verificar se uma venda é via PIX ou voucher físico
-  const isVendaPix = (venda: Venda): boolean => {
-    return !!(venda.mercadopago_payment_id && !venda.mercadopago_payment_id.startsWith('captive_'))
-  }
+      // Processar vouchers físicos
+      const vouchersProcessados: VendaDetalhada[] = (vouchersData || [])
+        .filter(v => {
+          const dataVenda = new Date(v.created_at)
+          return dataVenda >= inicioMes && dataVenda <= fimMes
+        })
+        .map(v => ({
+          id: v.id,
+          valor_total: v.valor_venda || 0,
+          plano_nome: v.nome_plano || 'Voucher Físico',
+          plano_valor: v.valor_venda || 0,
+          mac_address: v.mac_address || '',
+          status: 'completed',
+          created_at: v.created_at,
+          tipo: 'fisica' as const,
+          senha: v.senha,
+          mikrotik: mikrotikMap[v.mikrotik_id] || { nome: 'MikroTik', id: v.mikrotik_id }
+        }))
 
-  const isVendaVoucher = (venda: Venda): boolean => {
-    return !venda.mercadopago_payment_id || venda.mercadopago_payment_id.startsWith('captive_')
-  }
+      console.log('Dados processados:', { 
+        vendasPixProcessadas: vendasPixProcessadas.length, 
+        vouchersProcessados: vouchersProcessados.length,
+        filtroMes,
+        inicioMes,
+        fimMes
+      })
 
-  // Filtrar dados por período
-  const getDateRange = () => {
-    const now = new Date()
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay())
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+      // Combinar todas as vendas
+      let todasVendas = [...vendasPixProcessadas, ...vouchersProcessados]
 
-    switch (periodoRelatorio) {
-      case 'hoje':
-        return { start: startOfToday, end: new Date() }
-      case 'semana':
-        return { start: startOfWeek, end: new Date() }
-      case 'mes':
-        return { start: startOfMonth, end: new Date() }
-      case 'custom':
-        if (mesCustom) {
-          const [year, month] = mesCustom.split('-')
-          const start = new Date(parseInt(year), parseInt(month) - 1, 1)
-          const end = new Date(parseInt(year), parseInt(month), 0, 23, 59, 59)
-          return { start, end }
+      // Aplicar filtro de tipo
+      if (filtroTipo === 'pix') {
+        todasVendas = todasVendas.filter(v => v.tipo === 'pix')
+      } else if (filtroTipo === 'voucher') {
+        todasVendas = todasVendas.filter(v => v.tipo === 'fisica')
+      }
+
+      // Aplicar ordenação
+      todasVendas.sort((a, b) => {
+        switch (ordenacao) {
+          case 'data_asc':
+            return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+          case 'data_desc':
+            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          case 'valor_asc':
+            return a.valor_total - b.valor_total
+          case 'valor_desc':
+            return b.valor_total - a.valor_total
+          default:
+            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
         }
-        return { start: startOfMonth, end: new Date() }
-      default:
-        return { start: startOfMonth, end: new Date() }
-    }
-  }
+      })
 
-  const isInDateRange = (date: string) => {
-    const itemDate = new Date(date)
-    const { start, end } = getDateRange()
-    return itemDate >= start && itemDate <= end
-  }
+      setVendas(todasVendas)
 
-  // Filtrar vendas
-  const filteredVendas = vendas.filter(venda => {
-    const matchesSearch = 
-      (venda.mac_address || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (venda.payment_id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (venda.mikrotiks?.nome || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (venda.mikrotiks?.users?.nome || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (venda.planos?.nome || '').toLowerCase().includes(searchTerm.toLowerCase())
+      // Calcular totais gerais (todos os dados, sem filtro de período) - USAR valor_usuario para PIX
+      const totalGeralTodos = {
+        quantidade: (vendasPixData || []).length + (vouchersData || []).length,
+        valor: [
+          ...(vendasPixData || []).map(v => v.valor_usuario || 0), // USAR valor_usuario para PIX
+          ...(vouchersData || []).map(v => v.valor_venda || 0)
+        ].reduce((sum, v) => sum + v, 0)
+      }
 
-    const matchesStatus = statusFilter === 'all' || venda.status === statusFilter
-    const matchesDateRange = isInDateRange(venda.created_at)
+      const vendasPixTodos = {
+        quantidade: (vendasPixData || []).length,
+        valor: (vendasPixData || []).reduce((sum, v) => sum + (v.valor_usuario || 0), 0) // USAR valor_usuario para PIX
+      }
 
-    let matchesTipo = true
-    if (tipoVenda === 'pix') {
-      matchesTipo = isVendaPix(venda)
-    } else if (tipoVenda === 'voucher') {
-      matchesTipo = isVendaVoucher(venda)
-    }
+      const vendasVoucherTodos = {
+        quantidade: (vouchersData || []).length,
+        valor: (vouchersData || []).reduce((sum, v) => sum + (v.valor_venda || 0), 0)
+      }
 
-    return matchesSearch && matchesStatus && matchesDateRange && matchesTipo
-  })
+      // Calcular resumo do período filtrado
+      const totalGeral = totalGeralTodos
+      const vendasPix = vendasPixTodos
+      const vendasVoucher = vendasVoucherTodos
 
-  // Filtrar vouchers
-  const filteredVouchers = vouchers.filter(voucher => {
-    const matchesSearch = 
-      (voucher.mac_address || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (voucher.senha || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (voucher.mikrotiks?.nome || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (voucher.nome_plano || '').toLowerCase().includes(searchTerm.toLowerCase())
+      const periodoSelecionado = {
+        quantidade: todasVendas.length,
+        valor: todasVendas.reduce((sum, v) => sum + v.valor_total, 0)
+      }
 
-    const matchesDateRange = isInDateRange(voucher.data_conexao)
+      setResumo({
+        totalGeral,
+        vendasPix,
+        vendasVoucher,
+        periodoSelecionado
+      })
 
-    return matchesSearch && matchesDateRange && (tipoVenda === 'all' || tipoVenda === 'voucher')
-  })
-
-  const getStatusBadge = (status: string, mercadopagoStatus?: string) => {
-    switch (status) {
-      case 'completed':
-        return <Badge className="bg-green-500/20 text-green-400 border-green-500/30">✅ Completa</Badge>
-      case 'pending':
-        return <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30">⏳ Pendente</Badge>
-      case 'failed':
-        return <Badge className="bg-red-500/20 text-red-400 border-red-500/30">❌ Falhou</Badge>
-      case 'cancelled':
-        return <Badge className="bg-gray-500/20 text-gray-400 border-gray-500/30">⏹️ Cancelada</Badge>
-      default:
-        return <Badge className="bg-gray-500/20 text-gray-400 border-gray-500/30">{status}</Badge>
+    } catch (error) {
+      console.error('Error fetching sales:', error)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -287,489 +274,339 @@ export function VendasList() {
     }).format(value)
   }
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString('pt-BR')
+  const formatDateManaus = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'America/Manaus'
+    })
   }
 
-  // Calcular estatísticas
-  const vendasPix = filteredVendas.filter(isVendaPix)
-  const vendasVoucherTabela = filteredVendas.filter(isVendaVoucher)
-  
-  // Estatísticas PIX (usar valor_usuario para comissão)
-  const totalVendasPix = vendasPix.reduce((sum, venda) => sum + Number(venda.valor_total), 0)
-  const totalComissaoPix = vendasPix.reduce((sum, venda) => sum + Number(venda.valor_usuario), 0)
-  const quantidadeVendasPix = vendasPix.length
+  const exportarCSV = () => {
+    const headers = ['Data', 'Tipo', 'MikroTik', 'Plano', 'Valor', 'MAC', 'Senha', 'Status']
+    const csvData = vendas.map(venda => [
+      formatDateManaus(venda.created_at),
+      venda.tipo === 'pix' ? 'PIX' : 'Voucher',
+      venda.mikrotik.nome,
+      venda.plano_nome,
+      venda.valor_total.toFixed(2), // Já está usando o valor correto (valor_usuario para PIX)
+      venda.mac_address,
+      venda.senha || '',
+      venda.status
+    ])
 
-  // Estatísticas Vouchers físicos (valor total sem comissão)
-  const totalVouchersTabela = vendasVoucherTabela.reduce((sum, venda) => sum + Number(venda.valor_total), 0)
-  const totalVouchersUsados = filteredVouchers.reduce((sum, voucher) => sum + Number(voucher.valor_venda), 0)
-  const quantidadeVouchersTabela = vendasVoucherTabela.length
-  const quantidadeVouchersUsados = filteredVouchers.length
-
-  // Totais combinados de vouchers
-  const totalVouchers = totalVouchersTabela + totalVouchersUsados
-  const quantidadeVouchers = quantidadeVouchersTabela + quantidadeVouchersUsados
-
-  const getPeriodoTexto = () => {
-    switch (periodoRelatorio) {
-      case 'hoje': return 'Hoje'
-      case 'semana': return 'Esta Semana'
-      case 'mes': return 'Este Mês'
-      case 'custom': return mesCustom ? `${mesCustom}` : 'Período Personalizado'
-      default: return 'Este Mês'
-    }
+    const csvContent = [headers, ...csvData].map(row => row.join(',')).join('\n')
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = `vendas-${filtroMes}.csv`
+    link.click()
   }
+
+  const vendasFiltradas = vendas.filter(venda =>
+    busca === '' ||
+    venda.plano_nome.toLowerCase().includes(busca.toLowerCase()) ||
+    venda.mikrotik.nome.toLowerCase().includes(busca.toLowerCase()) ||
+    venda.mac_address.toLowerCase().includes(busca.toLowerCase()) ||
+    (venda.senha && venda.senha.toLowerCase().includes(busca.toLowerCase()))
+  )
 
   if (loading) {
-    return <ListLoading isLoading={loading} message="Carregando relatório de vendas..." />
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-800 p-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="animate-pulse space-y-6">
+            <div className="h-8 bg-gray-700 rounded w-48"></div>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="h-32 bg-gray-700 rounded-xl"></div>
+              ))}
+            </div>
+            <div className="h-96 bg-gray-700 rounded-xl"></div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className="min-h-screen bg-black pt-16 lg:pt-0">
-      {/* Header */}
-      <motion.div 
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="border-b border-gray-800/50 bg-black/20 backdrop-blur-sm sticky top-16 lg:top-0 z-10"
-      >
-        <div className="px-4 sm:px-6 py-6">
-          <div className="flex items-center space-x-4">
-            <motion.div 
-              initial={{ scale: 0.8 }}
-              animate={{ scale: 1 }}
-              className="p-4 rounded-2xl bg-gradient-to-br from-green-500/20 to-green-600/10 border border-green-500/20"
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-800 p-6">
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-col md:flex-row md:items-center md:justify-between gap-4"
+        >
+          <div>
+            <h1 className="text-3xl font-bold text-white flex items-center gap-3">
+              <BarChart3 className="h-8 w-8 text-blue-400" />
+              Relatório de Vendas
+            </h1>
+            <p className="text-gray-400 mt-1">Acompanhe suas vendas PIX e vouchers detalhadamente</p>
+          </div>
+          
+          <div className="flex items-center gap-3">
+            <Button
+              onClick={fetchVendas}
+              variant="outline"
+              className="border-gray-700 hover:bg-gray-800"
             >
-              <BarChart3 className="h-6 w-6 text-green-400" />
-            </motion.div>
-            <div>
-              <motion.h1 
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                className="text-2xl sm:text-4xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent"
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Atualizar
+            </Button>
+            <Button
+              onClick={exportarCSV}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Exportar CSV
+            </Button>
+          </div>
+        </motion.div>
+
+        {/* Resumo Cards */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"
+        >
+          {/* Total Geral */}
+          <div className="bg-gradient-to-br from-blue-500/20 to-blue-600/20 backdrop-blur-sm border border-blue-500/30 rounded-xl p-6">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="text-blue-200/80 text-sm font-medium">Total Geral</p>
+                <p className="text-2xl font-bold text-blue-100">{formatCurrency(resumo.totalGeral.valor)}</p>
+              </div>
+              <BarChart3 className="h-8 w-8 text-blue-300" />
+            </div>
+            <p className="text-blue-300/70 text-sm">{resumo.totalGeral.quantidade} vendas</p>
+          </div>
+
+          {/* Vendas PIX */}
+          <div className="bg-gradient-to-br from-green-500/20 to-green-600/20 backdrop-blur-sm border border-green-500/30 rounded-xl p-6">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="text-green-200/80 text-sm font-medium">Vendas PIX</p>
+                <p className="text-2xl font-bold text-green-100">{formatCurrency(resumo.vendasPix.valor)}</p>
+              </div>
+              <CreditCard className="h-8 w-8 text-green-300" />
+            </div>
+            <p className="text-green-300/70 text-sm">{resumo.vendasPix.quantidade} vendas PIX</p>
+          </div>
+
+          {/* Vouchers */}
+          <div className="bg-gradient-to-br from-purple-500/20 to-purple-600/20 backdrop-blur-sm border border-purple-500/30 rounded-xl p-6">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="text-purple-200/80 text-sm font-medium">Vouchers</p>
+                <p className="text-2xl font-bold text-purple-100">{formatCurrency(resumo.vendasVoucher.valor)}</p>
+              </div>
+              <Receipt className="h-8 w-8 text-purple-300" />
+            </div>
+            <p className="text-purple-300/70 text-sm">{resumo.vendasVoucher.quantidade} vouchers</p>
+          </div>
+
+          {/* Período Selecionado */}
+          <div className="bg-gradient-to-br from-orange-500/20 to-orange-600/20 backdrop-blur-sm border border-orange-500/30 rounded-xl p-6">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="text-orange-200/80 text-sm font-medium">Período Atual</p>
+                <p className="text-2xl font-bold text-orange-100">{formatCurrency(resumo.periodoSelecionado.valor)}</p>
+              </div>
+              <Calendar className="h-8 w-8 text-orange-300" />
+            </div>
+            <p className="text-orange-300/70 text-sm">{resumo.periodoSelecionado.quantidade} vendas no período</p>
+          </div>
+        </motion.div>
+
+        {/* Filtros */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="bg-black/40 backdrop-blur-sm border border-gray-800/50 rounded-xl p-6"
+        >
+          <div className="flex flex-col lg:flex-row gap-4">
+            {/* Busca */}
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                <input
+                  type="text"
+                  placeholder="Buscar por plano, MikroTik, MAC ou senha..."
+                  value={busca}
+                  onChange={(e) => setBusca(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+
+            {/* Filtro de Mês */}
+            <div className="flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-gray-400" />
+              <input
+                type="month"
+                value={filtroMes}
+                onChange={(e) => setFiltroMes(e.target.value)}
+                className="px-3 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            {/* Filtro de Tipo */}
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-gray-400" />
+              <select
+                value={filtroTipo}
+                onChange={(e) => setFiltroTipo(e.target.value as TipoFiltro)}
+                className="px-3 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                Relatório de Vendas
-              </motion.h1>
-              <motion.p 
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.1 }}
-                className="text-gray-400"
+                <option value="todos">Todos</option>
+                <option value="pix">PIX</option>
+                <option value="voucher">Vouchers</option>
+              </select>
+            </div>
+
+            {/* Ordenação */}
+            <div className="flex items-center gap-2">
+              <ArrowUpDown className="h-4 w-4 text-gray-400" />
+              <select
+                value={ordenacao}
+                onChange={(e) => setOrdenacao(e.target.value as OrdenacaoFiltro)}
+                className="px-3 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                {user?.role === 'admin' ? 'Todas as vendas do sistema' : 'Vendas dos seus MikroTiks'} - {getPeriodoTexto()}
-              </motion.p>
+                <option value="data_desc">Data ↓</option>
+                <option value="data_asc">Data ↑</option>
+                <option value="valor_desc">Valor ↓</option>
+                <option value="valor_asc">Valor ↑</option>
+              </select>
             </div>
           </div>
-        </div>
-      </motion.div>
+        </motion.div>
 
-      <div className="p-4 sm:p-6">
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.1 }}
-          className="space-y-6 sm:space-y-8"
+        {/* Tabela de Vendas */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="bg-black/40 backdrop-blur-sm border border-gray-800/50 rounded-xl overflow-hidden"
         >
-          {/* Filtros */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="space-y-4"
-          >
-            {/* Linha 1: Busca e Status */}
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                <Input
-                  placeholder="Buscar por MAC, ID, MikroTik, plano..."
-                  value={searchTerm}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
-                  className="pl-12 pr-4 py-3 bg-black/40 backdrop-blur-sm border-gray-800/50 text-white placeholder:text-gray-500 focus:border-green-500 focus:ring-2 focus:ring-green-500/20 rounded-xl transition-all duration-200"
-                />
-              </div>
-              <motion.select
-                whileHover={{ scale: 1.02 }}
-                value={statusFilter}
-                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setStatusFilter(e.target.value)}
-                className="px-4 py-3 bg-black/40 backdrop-blur-sm border border-gray-800/50 text-white rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-500/20 transition-all duration-200 min-w-[180px]"
-              >
-                <option value="all">Todos os Status</option>
-                <option value="completed">✅ Completas</option>
-                <option value="pending">⏳ Pendentes</option>
-                <option value="failed">❌ Falharam</option>
-                <option value="cancelled">⏹️ Canceladas</option>
-              </motion.select>
+          <div className="p-6 border-b border-gray-800/50">
+            <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+              <FileText className="h-5 w-5 text-blue-400" />
+              Detalhes das Vendas ({vendasFiltradas.length})
+            </h3>
+          </div>
+
+          {vendasFiltradas.length === 0 ? (
+            <div className="p-12 text-center">
+              <ShoppingCart className="h-16 w-16 text-gray-600 mx-auto mb-4" />
+              <p className="text-gray-400 text-lg">Nenhuma venda encontrada</p>
+              <p className="text-gray-500 text-sm mt-2">
+                Ajuste os filtros ou tente outro período
+              </p>
             </div>
-
-            {/* Linha 2: Filtros de Tipo e Período */}
-            <div className="flex flex-col sm:flex-row gap-4">
-              <motion.select
-                whileHover={{ scale: 1.02 }}
-                value={tipoVenda}
-                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setTipoVenda(e.target.value as TipoVenda)}
-                className="px-4 py-3 bg-black/40 backdrop-blur-sm border border-gray-800/50 text-white rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all duration-200"
-              >
-                <option value="all">📊 Todos os Tipos</option>
-                <option value="pix">💳 Vendas PIX</option>
-                <option value="voucher">🎫 Vouchers Físicos</option>
-              </motion.select>
-
-              <motion.select
-                whileHover={{ scale: 1.02 }}
-                value={periodoRelatorio}
-                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setPeriodoRelatorio(e.target.value as PeriodoRelatorio)}
-                className="px-4 py-3 bg-black/40 backdrop-blur-sm border border-gray-800/50 text-white rounded-xl focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all duration-200"
-              >
-                <option value="hoje">📅 Hoje</option>
-                <option value="semana">📅 Esta Semana</option>
-                <option value="mes">📅 Este Mês</option>
-                <option value="custom">📅 Mês Específico</option>
-              </motion.select>
-
-              {periodoRelatorio === 'custom' && (
-                <motion.input
-                  initial={{ opacity: 0, width: 0 }}
-                  animate={{ opacity: 1, width: 'auto' }}
-                  type="month"
-                  value={mesCustom}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMesCustom(e.target.value)}
-                  className="px-4 py-3 bg-black/40 backdrop-blur-sm border border-gray-800/50 text-white rounded-xl focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all duration-200"
-                />
-              )}
-            </div>
-          </motion.div>
-
-          {/* Cards de Estatísticas */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
-          >
-            {/* PIX - Vendas */}
-            <motion.div 
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="relative bg-black/40 backdrop-blur-sm border border-gray-800/50 rounded-2xl p-6 transition-all duration-300 shadow-lg hover:shadow-xl bg-gradient-to-br from-blue-500/10 to-blue-600/5 hover:border-blue-500/30"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-3 rounded-xl bg-gradient-to-br from-blue-500/10 to-blue-600/5 border border-blue-500/20">
-                  <CreditCard className="h-6 w-6 text-blue-400" />
-                </div>
-                <span className="text-xs bg-blue-500/20 text-blue-300 px-2 py-1 rounded-full">
-                  {quantidadeVendasPix}
-                </span>
-              </div>
-              <div>
-                <p className="text-blue-400 text-sm font-medium mb-2">Vendas PIX</p>
-                <p className="text-2xl font-bold text-white">{formatCurrency(totalVendasPix)}</p>
-                <p className="text-xs text-blue-300 mt-1">
-                  Sua comissão: {formatCurrency(totalComissaoPix)}
-                </p>
-              </div>
-            </motion.div>
-
-            {/* Vouchers Físicos */}
-            <motion.div 
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="relative bg-black/40 backdrop-blur-sm border border-gray-800/50 rounded-2xl p-6 transition-all duration-300 shadow-lg hover:shadow-xl bg-gradient-to-br from-orange-500/10 to-orange-600/5 hover:border-orange-500/30"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-3 rounded-xl bg-gradient-to-br from-orange-500/10 to-orange-600/5 border border-orange-500/20">
-                  <Ticket className="h-6 w-6 text-orange-400" />
-                </div>
-                <span className="text-xs bg-orange-500/20 text-orange-300 px-2 py-1 rounded-full">
-                  {quantidadeVouchers}
-                </span>
-              </div>
-              <div>
-                <p className="text-orange-400 text-sm font-medium mb-2">Vouchers Físicos</p>
-                <p className="text-2xl font-bold text-white">{formatCurrency(totalVouchers)}</p>
-                <p className="text-xs text-orange-300 mt-1">
-                  Apenas relatório (sem comissão)
-                </p>
-              </div>
-            </motion.div>
-
-            {/* Total Geral */}
-            <motion.div 
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="relative bg-black/40 backdrop-blur-sm border border-gray-800/50 rounded-2xl p-6 transition-all duration-300 shadow-lg hover:shadow-xl bg-gradient-to-br from-green-500/10 to-green-600/5 hover:border-green-500/30"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-3 rounded-xl bg-gradient-to-br from-green-500/10 to-green-600/5 border border-green-500/20">
-                  <DollarSign className="h-6 w-6 text-green-400" />
-                </div>
-                <span className="text-xs bg-green-500/20 text-green-300 px-2 py-1 rounded-full">
-                  Total
-                </span>
-              </div>
-              <div>
-                <p className="text-green-400 text-sm font-medium mb-2">Faturamento Total</p>
-                <p className="text-2xl font-bold text-white">{formatCurrency(totalVendasPix + totalVouchers)}</p>
-                <p className="text-xs text-green-300 mt-1">
-                  PIX + Vouchers
-                </p>
-              </div>
-            </motion.div>
-
-            {/* Sua Receita */}
-            <motion.div 
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="relative bg-black/40 backdrop-blur-sm border border-gray-800/50 rounded-2xl p-6 transition-all duration-300 shadow-lg hover:shadow-xl bg-gradient-to-br from-purple-500/10 to-purple-600/5 hover:border-purple-500/30"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-3 rounded-xl bg-gradient-to-br from-purple-500/10 to-purple-600/5 border border-purple-500/20">
-                  <TrendingUp className="h-6 w-6 text-purple-400" />
-                </div>
-                <span className="text-xs bg-purple-500/20 text-purple-300 px-2 py-1 rounded-full">
-                  Sua parte
-                </span>
-              </div>
-              <div>
-                <p className="text-purple-400 text-sm font-medium mb-2">
-                  {user?.role === 'admin' ? 'Comissão Admin' : 'Sua Receita'}
-                </p>
-                <p className="text-2xl font-bold text-white">{formatCurrency(totalComissaoPix)}</p>
-                <p className="text-xs text-purple-300 mt-1">
-                  Apenas PIX (vouchers sem comissão)
-                </p>
-              </div>
-            </motion.div>
-          </motion.div>
-
-          {/* Lista de Vendas e Vouchers */}
-          {filteredVendas.length === 0 && filteredVouchers.length === 0 ? (
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
-              className="flex justify-center py-16"
-            >
-              <div className="text-center max-w-md">
-                <motion.div 
-                  initial={{ scale: 0.8 }}
-                  animate={{ scale: 1 }}
-                  transition={{ delay: 0.5, type: "spring", stiffness: 200 }}
-                  className="w-24 h-24 mx-auto mb-8 rounded-2xl bg-gradient-to-br from-green-500/20 to-green-600/10 border border-green-500/20 flex items-center justify-center backdrop-blur-sm"
-                >
-                  <BarChart3 className="h-12 w-12 text-green-400" />
-                </motion.div>
-                <motion.h3 
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.6 }}
-                  className="text-2xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent mb-4"
-                >
-                  Nenhuma venda encontrada
-                </motion.h3>
-                <motion.p 
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.7 }}
-                  className="text-gray-400 text-lg"
-                >
-                  Tente ajustar os filtros de período ou tipo de venda
-                </motion.p>
-              </div>
-            </motion.div>
           ) : (
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.4 }}
-              className="space-y-4"
-            >
-              {/* Vouchers Usados */}
-              {(tipoVenda === 'all' || tipoVenda === 'voucher') && filteredVouchers.map((voucher, index) => (
-                <motion.div
-                  key={`voucher-${voucher.id}`}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  whileHover={{ scale: 1.01 }}
-                  className="bg-black/40 backdrop-blur-sm border border-orange-500/30 rounded-2xl p-6 hover:border-orange-500/50 transition-all duration-300 hover:shadow-2xl"
-                >
-                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                    {/* Informações Principais */}
-                    <div className="flex-1 space-y-3">
-                      <div className="flex flex-wrap items-center gap-3">
-                        <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/30">
-                          🎫 Voucher Físico
-                        </Badge>
-                        <span className="text-xs text-gray-500 bg-gray-800 px-2 py-1 rounded">
-                          #{voucher.id}
-                        </span>
-                      </div>
-                      
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
-                        <div className="flex items-center gap-2">
-                          <Router className="h-4 w-4 text-blue-400" />
-                          <span className="text-gray-400">MikroTik:</span>
-                          <span className="text-white font-medium">{voucher.mikrotiks?.nome || 'N/A'}</span>
-                        </div>
-                        
-                        <div className="flex items-center gap-2">
-                          <User className="h-4 w-4 text-green-400" />
-                          <span className="text-gray-400">Dono:</span>
-                          <span className="text-white font-medium">{voucher.mikrotiks?.users?.nome || 'N/A'}</span>
-                        </div>
-                        
-                        <div className="flex items-center gap-2">
-                          <Ticket className="h-4 w-4 text-purple-400" />
-                          <span className="text-gray-400">Plano:</span>
-                          <span className="text-white font-medium">{voucher.nome_plano || 'N/A'}</span>
-                        </div>
-                        
-                        <div className="flex items-center gap-2">
-                          <span className="text-gray-400">Senha:</span>
-                          <span className="text-white font-mono text-xs">{voucher.senha}</span>
-                        </div>
-                        
-                        <div className="flex items-center gap-2">
-                          <span className="text-gray-400">MAC:</span>
-                          <span className="text-white font-mono text-xs">{voucher.mac_address}</span>
-                        </div>
-                        
-                        <div className="flex items-center gap-2">
-                          <span className="text-gray-400">Usado em:</span>
-                          <span className="text-white text-xs">{formatDate(voucher.data_conexao)}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Valor */}
-                    <div className="flex flex-col gap-3 lg:min-w-[200px]">
-                      <div className="text-center lg:text-right">
-                        <p className="text-xs text-gray-400 mb-1">Valor do Voucher</p>
-                        <p className="text-xl font-bold text-orange-400">{formatCurrency(Number(voucher.valor_venda))}</p>
-                      </div>
-                      
-                      <div className="text-center lg:text-right">
-                        <p className="text-xs text-orange-300">Sem comissão (relatório)</p>
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-
-              {/* Vendas PIX e Vouchers da tabela vendas */}
-              {filteredVendas.map((venda, index) => {
-                const isPix = isVendaPix(venda)
-                const borderColor = isPix ? 'border-blue-500/30' : 'border-orange-500/30'
-                const hoverBorderColor = isPix ? 'hover:border-blue-500/50' : 'hover:border-orange-500/50'
-                
-                return (
-                  <motion.div
-                    key={venda.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: (index + filteredVouchers.length) * 0.05 }}
-                    whileHover={{ scale: 1.01 }}
-                    className={`bg-black/40 backdrop-blur-sm border ${borderColor} rounded-2xl p-6 ${hoverBorderColor} transition-all duration-300 hover:shadow-2xl`}
-                  >
-                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                      {/* Informações Principais */}
-                      <div className="flex-1 space-y-3">
-                        <div className="flex flex-wrap items-center gap-3">
-                          {isPix ? (
-                            <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30">
-                              💳 Venda PIX
-                            </Badge>
-                          ) : (
-                            <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/30">
-                              🎫 Voucher (Captive)
-                            </Badge>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-900/50">
+                  <tr>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                      Data
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                      Tipo
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                      MikroTik
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                      Plano
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                      Valor
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                      Detalhes
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-800/50">
+                  {vendasFiltradas.map((venda, index) => (
+                    <motion.tr
+                      key={venda.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.1 * (index % 10) }}
+                      className="hover:bg-gray-900/30 transition-colors"
+                    >
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                        {formatDateManaus(venda.created_at)}
+                        <div className="text-xs text-gray-500">Horário de Manaus</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <Badge
+                          className={cn(
+                            "text-xs font-medium",
+                            venda.tipo === 'pix'
+                              ? 'bg-blue-500/20 text-blue-400 border-blue-500/30'
+                              : 'bg-purple-500/20 text-purple-400 border-purple-500/30'
                           )}
-                          {getStatusBadge(venda.status, venda.mercadopago_status)}
-                          <span className="text-xs text-gray-500 bg-gray-800 px-2 py-1 rounded">
-                            ID: {venda.payment_id.substring(0, 8)}...
+                        >
+                          {venda.tipo === 'pix' ? '💳 PIX' : '🎫 Voucher'}
+                        </Badge>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <Router className="h-4 w-4 text-gray-400" />
+                          <span className="text-sm text-white font-medium">
+                            {venda.mikrotik.nome}
                           </span>
                         </div>
-                        
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
-                          <div className="flex items-center gap-2">
-                            <Router className="h-4 w-4 text-blue-400" />
-                            <span className="text-gray-400">MikroTik:</span>
-                            <span className="text-white font-medium">{venda.mikrotiks?.nome || 'N/A'}</span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-white font-medium">
+                          {venda.plano_nome}
+                        </div>
+                        {venda.senha && (
+                          <div className="text-xs text-blue-400 font-mono">
+                            Senha: {venda.senha}
                           </div>
-                          
-                          <div className="flex items-center gap-2">
-                            <User className="h-4 w-4 text-green-400" />
-                            <span className="text-gray-400">Usuário:</span>
-                            <span className="text-white font-medium">{venda.mikrotiks?.users?.nome || 'N/A'}</span>
-                          </div>
-                          
-                          <div className="flex items-center gap-2">
-                            <ShoppingCart className="h-4 w-4 text-purple-400" />
-                            <span className="text-gray-400">Plano:</span>
-                            <span className="text-white font-medium">{venda.planos?.nome || 'N/A'}</span>
-                          </div>
-                          
-                          <div className="flex items-center gap-2">
-                            <span className="text-gray-400">MAC:</span>
-                            <span className="text-white font-mono text-xs">{venda.mac_address}</span>
-                          </div>
-                          
-                          <div className="flex items-center gap-2">
-                            <Calendar className="h-4 w-4 text-yellow-400" />
-                            <span className="text-gray-400">Criada:</span>
-                            <span className="text-white text-xs">{formatDate(venda.created_at)}</span>
-                          </div>
-                          
-                          {venda.paid_at && (
-                            <div className="flex items-center gap-2">
-                              <CheckCircle className="h-4 w-4 text-green-400" />
-                              <span className="text-gray-400">Paga:</span>
-                              <span className="text-white text-xs">{formatDate(venda.paid_at)}</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-lg font-bold text-green-400">
+                          {formatCurrency(venda.valor_total)}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">
+                        <div className="space-y-1">
+                          {venda.mac_address && (
+                            <div className="font-mono text-xs">
+                              MAC: {venda.mac_address}
+                            </div>
+                          )}
+                          {venda.payment_id && (
+                            <div className="font-mono text-xs">
+                              ID: {venda.payment_id.substring(0, 8)}...
+                            </div>
+                          )}
+                          {venda.ip_address && (
+                            <div className="font-mono text-xs">
+                              IP: {venda.ip_address}
                             </div>
                           )}
                         </div>
-                      </div>
-
-                      {/* Valores */}
-                      <div className="flex flex-col sm:flex-row lg:flex-col gap-3 lg:min-w-[200px]">
-                        <div className="text-center lg:text-right">
-                          <p className="text-xs text-gray-400 mb-1">Valor Total</p>
-                          <p className={`text-xl font-bold ${isPix ? 'text-blue-400' : 'text-orange-400'}`}>
-                            {formatCurrency(Number(venda.valor_total))}
-                          </p>
-                        </div>
-                        
-                        {isPix ? (
-                          <div className="grid grid-cols-2 gap-2 text-center lg:text-right">
-                            <div>
-                              <p className="text-xs text-gray-400 mb-1">
-                                {user?.role === 'admin' ? 'Admin' : 'Sua parte'}
-                              </p>
-                              <p className="text-sm font-semibold text-blue-400">
-                                {formatCurrency(Number(user?.role === 'admin' ? venda.valor_admin : venda.valor_usuario))}
-                              </p>
-                            </div>
-                            
-                            {user?.role === 'admin' && (
-                              <div>
-                                <p className="text-xs text-gray-400 mb-1">Usuário</p>
-                                <p className="text-sm font-semibold text-purple-400">
-                                  {formatCurrency(Number(venda.valor_usuario))}
-                                </p>
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="text-center lg:text-right">
-                            <p className="text-xs text-orange-300">Sem comissão (relatório)</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </motion.div>
-                )
-              })}
-            </motion.div>
+                      </td>
+                    </motion.tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </motion.div>
       </div>

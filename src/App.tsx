@@ -4,15 +4,17 @@ import { AuthProvider } from './contexts/AuthContext'
 import { ThemeProvider } from './contexts/ThemeContext'
 import { ToastProvider } from './components/ui/toast'
 import { ProtectedRoute } from './components/ProtectedRoute'
+import { PlanRestrictedRoute } from './components/PlanRestrictedRoute'
 import { LayoutFixed } from './components/layout/LayoutFixed'
 import { PWAInstallPrompt } from './components/PWAInstallPrompt'
 import { Login } from './pages/auth/Login'
 import { Register } from './pages/auth/Register'
 import { DashboardFinal } from './pages/dashboard/DashboardFinal'
+import LandingPage from './pages/LandingPage'
 import { MikrotiksList } from './pages/mikrotiks/MikrotiksList'
 import { MikrotikFormPage } from './pages/mikrotiks/MikrotikForm'
 import MikrotikDashboard from './pages/mikrotiks/MikrotikDashboardNew'
-import { VendasList } from './pages/vendas/VendasList'
+import VendasList from './pages/vendas/VendasList'
 import { TransacoesList } from './pages/transacoes/TransacoesList'
 import { SaquesList } from './pages/saques/SaquesList'
 import { WireGuardManagement } from './pages/wireguard/WireGuardManagement'
@@ -77,43 +79,48 @@ function App() {
             <div className="min-h-screen bg-black">
               <PWAInstallPrompt />
               <Routes>
+                {/* Landing Page */}
+                <Route path="/" element={<LandingPage />} />
+                
                 {/* Public routes */}
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
                 
                 {/* Protected routes */}
-                <Route path="/" element={<ProtectedRoute><LayoutFixed /></ProtectedRoute>}>
-                  <Route index element={<Navigate to="/dashboard" replace />} />
+                <Route path="/app" element={<ProtectedRoute><LayoutFixed /></ProtectedRoute>}>
+                  <Route index element={<Navigate to="/app/dashboard" replace />} />
+                  
+                  {/* Dashboard - Sempre acessível para usuários logados */}
                   <Route path="dashboard" element={<DashboardFinal />} />
                   
-                  {/* MikroTiks */}
-                  <Route path="mikrotiks" element={<MikrotiksList />} />
-                  <Route path="mikrotiks/new" element={<MikrotikFormPage />} />
-                  <Route path="mikrotiks/edit/:id" element={<MikrotikFormPage />} />
-                  <Route path="mikrotiks/:mikrotikId/dashboard" element={<MikrotikDashboard />} />
-                  
-                  {/* Vendas */}
-                  <Route path="vendas" element={<VendasList />} />
-                  
-                  {/* Transações */}
-                  <Route path="transacoes" element={<TransacoesList />} />
-                  
-                  {/* Saques */}
-                  <Route path="saques" element={<SaquesList />} />
-                  
-                  {/* WireGuard */}
-                  <Route path="wireguard" element={<WireGuardManagement />} />
-                  
-                  {/* Admin Routes */}
-                  <Route path="users" element={<UsersManagement />} />
-                  <Route path="admin/settings" element={<SystemSettings />} />
-                  
-                  {/* User Settings */}
+                  {/* User Settings - Sempre acessível */}
                   <Route path="settings" element={<UserSettings />} />
+                  
+                  {/* MikroTiks - Requer plano ativo */}
+                  <Route path="mikrotiks" element={<PlanRestrictedRoute><MikrotiksList /></PlanRestrictedRoute>} />
+                  <Route path="mikrotiks/new" element={<PlanRestrictedRoute><MikrotikFormPage /></PlanRestrictedRoute>} />
+                  <Route path="mikrotiks/edit/:id" element={<PlanRestrictedRoute><MikrotikFormPage /></PlanRestrictedRoute>} />
+                  <Route path="mikrotiks/:mikrotikId/dashboard" element={<PlanRestrictedRoute><MikrotikDashboard /></PlanRestrictedRoute>} />
+                  
+                  {/* Vendas - Requer plano ativo */}
+                  <Route path="vendas" element={<PlanRestrictedRoute><VendasList /></PlanRestrictedRoute>} />
+                  
+                  {/* Transações - Requer plano ativo */}
+                  <Route path="transacoes" element={<PlanRestrictedRoute><TransacoesList /></PlanRestrictedRoute>} />
+                  
+                  {/* Saques - Requer plano ativo */}
+                  <Route path="saques" element={<PlanRestrictedRoute><SaquesList /></PlanRestrictedRoute>} />
+                  
+                  {/* WireGuard - Requer plano ativo */}
+                  <Route path="wireguard" element={<PlanRestrictedRoute><WireGuardManagement /></PlanRestrictedRoute>} />
+                  
+                  {/* Admin Routes - Admin sempre tem acesso */}
+                  <Route path="users" element={<PlanRestrictedRoute requiredRole="admin"><UsersManagement /></PlanRestrictedRoute>} />
+                  <Route path="admin/settings" element={<PlanRestrictedRoute requiredRole="admin"><SystemSettings /></PlanRestrictedRoute>} />
                 </Route>
                 
                 {/* Redirect any unknown routes to dashboard */}
-                <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                <Route path="*" element={<Navigate to="/app/dashboard" replace />} />
               </Routes>
             </div>
             </Router>
