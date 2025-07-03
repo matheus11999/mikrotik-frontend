@@ -124,7 +124,7 @@ export const CreateMikrotikWithWireGuardModal: React.FC<CreateMikrotikWithWireGu
     const { nome, porcentagem, username, password } = formData
     const userId = user?.role === 'admin' ? formData.user_id : user?.id
     
-    if (!nome || !porcentagem || !username || !password || !userId) {
+    if (!nome || !porcentagem || !username || !password || !userId || (user?.role === 'admin' && !porcentagem)) {
       addToast({
         type: 'error',
         title: 'Erro!',
@@ -286,7 +286,7 @@ set [find name="${interfaceName}"] disabled=no
       const { error: supabaseError } = await supabase.from('mikrotiks').insert({
         id: mikrotikId,
         nome: formData.nome,
-        porcentagem: parseFloat(formData.porcentagem),
+        porcentagem: user?.role === 'admin' ? parseFloat(formData.porcentagem) : 10,
         user_id: userId,
         token: uuidv4(),
         ip: clientIP,
@@ -471,22 +471,24 @@ set [find name="${interfaceName}"] disabled=no
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-white mb-1">
-                      Porcentagem *
-                    </label>
-                    <input
-                      type="number"
-                      name="porcentagem"
-                      value={formData.porcentagem}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 bg-gray-900 border border-gray-800 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="10"
-                      min="0"
-                      max="100"
-                      required
-                    />
-                  </div>
+                  {user?.role === 'admin' && (
+                    <div>
+                      <label className="block text-sm font-medium text-white mb-1">
+                        Porcentagem *
+                      </label>
+                      <input
+                        type="number"
+                        name="porcentagem"
+                        value={formData.porcentagem}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 bg-gray-900 border border-gray-800 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="10"
+                        min="0"
+                        max="100"
+                        required
+                      />
+                    </div>
+                  )}
 
                   <div>
                     <label className="block text-sm font-medium text-white mb-1">
