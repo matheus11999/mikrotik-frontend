@@ -1088,7 +1088,7 @@ remove [find name="${interfaceName}"]
 
                       {/* Actions */}
                       <div className="flex gap-2 pt-2 border-t border-gray-800">
-                        <Link to={`/mikrotiks/${mikrotik.id}/dashboard`} className="flex-1">
+                        <Link to={`/app/mikrotiks/${mikrotik.id}/dashboard`} className="flex-1">
                           <Button variant="outline" className="w-full border-blue-600/50 text-blue-400 hover:text-blue-300 hover:border-blue-500 hover:bg-blue-500/10">
                             <Eye className="h-4 w-4 mr-2" />
                             Acessar

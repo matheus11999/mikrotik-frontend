@@ -25,6 +25,20 @@ export function PlanRestrictedRoute({
     subscription 
   } = useUserSubscription()
 
+  // Debug logs
+  useEffect(() => {
+    console.log('🔒 [PlanRestrictedRoute] Status:', {
+      user: user?.email,
+      hasActivePlan,
+      isTrialUser,
+      allowTrialUsers,
+      requiredRole,
+      userRole: user?.role,
+      daysRemaining,
+      planName: subscription?.subscription_plans?.name
+    })
+  }, [user, hasActivePlan, isTrialUser, allowTrialUsers, requiredRole, daysRemaining, subscription])
+
   // Loading state
   if (authLoading || subscriptionLoading) {
     return (
@@ -39,29 +53,49 @@ export function PlanRestrictedRoute({
 
   // Check if user is logged in
   if (!user) {
+    console.log('🔒 [PlanRestrictedRoute] User not logged in, redirecting to login')
     return <Navigate to="/login" replace />
   }
 
   // Check role permissions
   if (requiredRole && user.role !== requiredRole) {
+    console.log('🔒 [PlanRestrictedRoute] Invalid role, redirecting to dashboard')
+    addToast({
+      type: 'error',
+      title: 'Acesso Negado',
+      description: 'Você não tem permissão para acessar esta área.',
+    })
     return <Navigate to="/app/dashboard" replace />
   }
 
   // Admin users always have access
   if (user.role === 'admin') {
+    console.log('🔒 [PlanRestrictedRoute] Admin access granted')
     return <>{children}</>
   }
 
-  // Check if user has active plan
-  const canAccess = hasActivePlan && (allowTrialUsers || !isTrialUser)
+  // Check if user has active plan and trial status
+  const canAccess = hasActivePlan && (!isTrialUser || allowTrialUsers)
 
   if (!canAccess) {
-    // Show notification about expired plan
+    console.log('🔒 [PlanRestrictedRoute] Access denied:', {
+      hasActivePlan,
+      isTrialUser,
+      allowTrialUsers
+    })
+
+    // Show appropriate notification
     if (!hasActivePlan) {
       addToast({
         type: 'error',
         title: '⚠️ Plano Expirado',
         description: 'Seu plano expirou. Renove para continuar acessando todas as funcionalidades.',
+      })
+    } else if (isTrialUser && !allowTrialUsers) {
+      addToast({
+        type: 'error',
+        title: '⚠️ Acesso Restrito',
+        description: 'Esta funcionalidade está disponível apenas para usuários com plano pago.',
       })
     }
 
@@ -78,6 +112,7 @@ export function PlanRestrictedRoute({
     })
   }
 
+  console.log('🔒 [PlanRestrictedRoute] Access granted')
   return <>{children}</>
 }
 

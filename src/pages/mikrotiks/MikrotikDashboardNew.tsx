@@ -1841,7 +1841,7 @@ export default function MikrotikDashboard() {
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <button
-              onClick={() => navigate('/mikrotiks')}
+              onClick={() => navigate('/app/mikrotiks')}
               className="flex items-center gap-2 px-3 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg transition-colors"
             >
               <ArrowLeft className="h-4 w-4" />

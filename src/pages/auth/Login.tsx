@@ -57,7 +57,7 @@ export function Login() {
   })
 
   if (user) {
-    return <Navigate to="/dashboard" replace />
+    return <Navigate to="/app/dashboard" replace />
   }
 
   const onSubmit = async (data: LoginForm) => {

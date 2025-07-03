@@ -145,7 +145,7 @@ export function MikrotikFormPage() {
 
       }
 
-      navigate('/mikrotiks')
+      navigate('/app/mikrotiks')
     } catch (error: any) {
       console.error('Error saving mikrotik:', error)
       setError(error.message || 'Erro ao salvar MikroTik')
@@ -184,7 +184,7 @@ export function MikrotikFormPage() {
           <div className="max-w-7xl mx-auto">
             <div className="flex items-center space-x-4">
               <button
-                onClick={() => navigate('/mikrotiks')}
+                onClick={() => navigate('/app/mikrotiks')}
                 className="p-2 sm:p-3 rounded-xl bg-gray-800 border border-gray-700 text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
               >
                 <ArrowLeft className="h-5 w-5 sm:h-6 sm:w-6" />
@@ -426,7 +426,7 @@ export function MikrotikFormPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => navigate('/mikrotiks')}
+                  onClick={() => navigate('/app/mikrotiks')}
                   className="flex-1 border-gray-800 text-gray-300 hover:text-white hover:border-gray-700 hover:bg-gray-900 transition-all duration-300"
                 >
                   <ArrowLeft className="h-4 w-4 mr-2" />

@@ -422,7 +422,7 @@ export function AdminDashboardWidget() {
             <div className="mt-4">
               <Button 
                 className="w-full bg-yellow-600 hover:bg-yellow-700"
-                onClick={() => window.location.href = '/saques'}
+                onClick={() => window.location.href = '/app/saques'}
               >
                 <ArrowUpRight className="h-4 w-4 mr-2" />
                 Processar Saques

@@ -81,10 +81,11 @@ export function useUserSubscription() {
         .eq('status', 'active')
         .order('created_at', { ascending: false })
         .limit(1)
+        .single() // Garantir que retorne apenas um resultado ou null
 
       console.log('🔍 [useUserSubscription] Query result:', { subscriptionData, error })
 
-      if (error) {
+      if (error && error.code !== 'PGRST116') { // Ignora erro de "não encontrado"
         console.error('❌ [useUserSubscription] Error fetching subscription:', error)
         setStatus(prev => ({
           ...prev,
@@ -94,7 +95,7 @@ export function useUserSubscription() {
         return
       }
 
-      const subscription = subscriptionData?.[0] || null
+      const subscription = subscriptionData || null
       
       console.log('🔍 [useUserSubscription] Subscription found:', subscription)
       
@@ -123,9 +124,11 @@ export function useUserSubscription() {
       const daysRemaining = Math.max(0, Math.ceil(timeDiff / (1000 * 60 * 60 * 24)))
       
       // Verificar se é trial (plano gratuito)
-      const isTrialUser = subscription.subscription_plans?.name?.toLowerCase().includes('teste') ||
-                         subscription.subscription_plans?.name?.toLowerCase().includes('trial') ||
-                         subscription.subscription_plans?.name?.toLowerCase().includes('grátis') ||
+      const planName = subscription.subscription_plans?.name?.toLowerCase() || ''
+      const isTrialUser = planName.includes('teste') ||
+                         planName.includes('trial') ||
+                         planName.includes('grátis') ||
+                         planName.includes('gratis') ||
                          subscription.subscription_plans?.price === 0
 
       console.log('🔍 [useUserSubscription] Final status calculation:', {
@@ -134,7 +137,8 @@ export function useUserSubscription() {
         isTrialUser,
         hasActivePlan: !isExpired,
         planName: subscription.subscription_plans?.name,
-        expiresAt: subscription.expires_at
+        expiresAt: subscription.expires_at,
+        price: subscription.subscription_plans?.price
       })
 
       setStatus({
@@ -149,6 +153,7 @@ export function useUserSubscription() {
 
       // Se o plano expirou, atualizar status no banco
       if (isExpired && subscription.status === 'active') {
+        console.log('🔍 [useUserSubscription] Updating expired subscription status')
         await supabase
           .from('user_subscriptions')
           .update({ status: 'expired' })

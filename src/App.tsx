@@ -100,7 +100,7 @@ function App() {
                   <Route path="mikrotiks" element={<PlanRestrictedRoute><MikrotiksList /></PlanRestrictedRoute>} />
                   <Route path="mikrotiks/new" element={<PlanRestrictedRoute><MikrotikFormPage /></PlanRestrictedRoute>} />
                   <Route path="mikrotiks/edit/:id" element={<PlanRestrictedRoute><MikrotikFormPage /></PlanRestrictedRoute>} />
-                  <Route path="mikrotiks/:mikrotikId/dashboard" element={<PlanRestrictedRoute><MikrotikDashboard /></PlanRestrictedRoute>} />
+                  <Route path="mikrotiks/:mikrotikId/dashboard" element={<PlanRestrictedRoute allowTrialUsers={false}><MikrotikDashboard /></PlanRestrictedRoute>} />
                   
                   {/* Vendas - Requer plano ativo */}
                   <Route path="vendas" element={<PlanRestrictedRoute><VendasList /></PlanRestrictedRoute>} />
