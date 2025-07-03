@@ -260,7 +260,7 @@ export function MikrotiksList() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
-  const [form, setForm] = useState({ nome: '', porcentagem: '', user_id: '', token: '', ip: '', username: '', password: '', port: '8728' })
+  const [form, setForm] = useState({ nome: '', porcentagem: '10', user_id: '', token: '', ip: '', username: '', password: '', port: '8728' })
   const [userList, setUserList] = useState<any[]>([])
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [editMikrotik, setEditMikrotik] = useState<Mikrotik | null>(null)
@@ -516,7 +516,7 @@ export function MikrotiksList() {
 
   const handleOpenModal = () => {
     if (user?.role === 'admin') fetchUsers();
-    setForm({ nome: '', porcentagem: '', user_id: '', token: uuidv4(), ip: '', username: '', password: '', port: '8728' });
+    setForm({ nome: '', porcentagem: '10', user_id: '', token: uuidv4(), ip: '', username: '', password: '', port: '8728' });
     setModalOpen(true);
   }
 
@@ -531,8 +531,8 @@ export function MikrotiksList() {
     // Corrigir user_id
     const userId = user?.role === 'admin' ? form.user_id : user?.id;
 
-    // Validação básica
-    if (!form.nome || !form.porcentagem || !userId || !form.ip || !form.username || !form.password) {
+    // Validação básica (porcentagem só obrigatória para admins, demais usuários fixam 10%)
+    if (!form.nome || !userId || !form.ip || !form.username || !form.password || (user?.role === 'admin' && !form.porcentagem)) {
       alert('Preencha todos os campos obrigatórios.');
       setLoading(false);
       return;
@@ -542,7 +542,7 @@ export function MikrotiksList() {
 
     const { data: newMikrotik, error } = await supabase.from('mikrotiks').insert({
       nome: form.nome,
-      porcentagem: parseFloat(form.porcentagem),
+      porcentagem: user?.role === 'admin' ? parseFloat(form.porcentagem) : 10,
       user_id: userId,
       token: form.token,
       ip: form.ip,
@@ -601,7 +601,7 @@ export function MikrotiksList() {
     e.preventDefault();
     setLoading(true);
     const userId = user?.role === 'admin' ? form.user_id : user?.id;
-    if (!form.nome || !form.porcentagem || !userId || !form.ip || !form.username || !form.password) {
+    if (!form.nome || !userId || !form.ip || !form.username || !form.password || (user?.role === 'admin' && !form.porcentagem)) {
       alert('Preencha todos os campos obrigatórios.');
       setLoading(false);
       return;
@@ -609,7 +609,7 @@ export function MikrotiksList() {
     const now = new Date().toISOString();
     const { error } = await supabase.from('mikrotiks').update({
       nome: form.nome,
-      porcentagem: parseFloat(form.porcentagem),
+      porcentagem: user?.role === 'admin' ? parseFloat(form.porcentagem) : editMikrotik?.porcentagem || 10,
       user_id: userId,
       ip: form.ip,
       username: form.username,
@@ -1171,20 +1171,22 @@ remove [find name="${interfaceName}"]
                   name="nome"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-white mb-2">Porcentagem de Comissão (%)</label>
-                <input
-                  type="number"
-                  name="porcentagem"
-                  value={form.porcentagem}
-                  onChange={handleFormChange}
-                  min="0"
-                  max="100"
-                  step="0.01"
-                  className="w-full p-3 rounded-lg bg-black border border-gray-800 text-white text-base"
-                  required
-                />
-              </div>
+              {user?.role === 'admin' && (
+                <div>
+                  <label className="block text-sm font-medium text-white mb-2">Porcentagem de Comissão (%)</label>
+                  <input
+                    type="number"
+                    name="porcentagem"
+                    value={form.porcentagem}
+                    onChange={handleFormChange}
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    className="w-full p-3 rounded-lg bg-black border border-gray-800 text-white text-base"
+                    required
+                  />
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-white mb-2">Endereço IP</label>
                 <input
