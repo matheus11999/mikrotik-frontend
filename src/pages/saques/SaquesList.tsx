@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { motion } from 'framer-motion'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { 
@@ -12,7 +13,7 @@ import {
   ListLoading
 } from '../../components/ui'
 import { SaqueModal } from '../../components/saques/SaqueModal'
-import { TrendingUp, Search, Clock, CheckCircle, XCircle, Calendar, User, DollarSign, Plus, AlertCircle, RefreshCw, Zap } from 'lucide-react'
+import { TrendingUp, Search, Clock, CheckCircle, XCircle, Calendar, User, DollarSign, Plus, AlertCircle, RefreshCw, Zap, Shield } from 'lucide-react'
 
 interface Saque {
   id: string
@@ -53,6 +54,7 @@ export function SaquesList() {
   const [saqueAutomatico, setSaqueAutomatico] = useState(false)
   const [updatingSaqueAutomatico, setUpdatingSaqueAutomatico] = useState(false)
   const [processingAction, setProcessingAction] = useState<string | null>(null)
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pendente' | 'aprovado' | 'rejeitado'>('all')
 
   useEffect(() => {
     fetchSaques()
@@ -272,11 +274,25 @@ export function SaquesList() {
     }
   }
 
-  const filteredSaques = saques.filter(saque => 
-          (saque.dados_bancarios || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (saque.metodo_pagamento || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (saque.user?.nome || '').toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const filteredSaques = saques
+    .filter(saque => {
+      // Filtro por status
+      if (statusFilter !== 'all' && saque.status !== statusFilter) return false;
+      
+      // Filtro por busca
+      return (
+        (saque.dados_bancarios || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (saque.metodo_pagamento || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (saque.user?.nome || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (saque.chave_pix || '').toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    })
+    .sort((a, b) => {
+      // Priorizar pendentes primeiro, depois por data
+      if (a.status === 'pendente' && b.status !== 'pendente') return -1;
+      if (b.status === 'pendente' && a.status !== 'pendente') return 1;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    })
 
   const totalSaques = saques.reduce((sum, saque) => sum + saque.valor, 0)
   const saquesPendentes = saques.filter(s => s.status === 'pendente').length
@@ -303,16 +319,25 @@ export function SaquesList() {
   }
 
   return (
-    <div className="min-h-screen bg-black pt-16 lg:pt-0">
+    <div className="min-h-screen bg-black">
       {/* Header */}
-      <div className="border-b border-gray-800 bg-black">
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="border-b border-gray-800 bg-black"
+      >
         <div className="px-4 sm:px-6 py-6 sm:py-8">
           <div className="max-w-7xl mx-auto">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="flex items-center space-x-4">
-                <div className="p-3 rounded-xl bg-gray-900 border border-gray-800">
+                <motion.div 
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ delay: 0.2 }}
+                  className="p-3 rounded-xl bg-gray-900 border border-gray-700"
+                >
                   <TrendingUp className="h-6 w-6 sm:h-8 sm:w-8 text-orange-400" />
-                </div>
+                </motion.div>
                 <div>
                   <h1 className="text-2xl sm:text-4xl font-bold text-white">
                     Saques
@@ -322,34 +347,67 @@ export function SaquesList() {
               </div>
 
               {user?.role !== 'admin' && (
-                <Button
-                  onClick={saqueModal.open}
-                  className="bg-orange-600 hover:bg-orange-700 text-white transition-all duration-300 w-full sm:w-auto"
+                <motion.div
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.3 }}
                 >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Solicitar Saque
-                </Button>
+                  <Button
+                    onClick={saqueModal.open}
+                    className="bg-orange-600 hover:bg-orange-700 text-white transition-all duration-300 w-full sm:w-auto hover:scale-105"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Solicitar Saque
+                  </Button>
+                </motion.div>
+              )}
+              
+              {user?.role === 'admin' && (
+                <motion.div
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="flex items-center space-x-3"
+                >
+                  <Button
+                    onClick={fetchSaques}
+                    variant="outline"
+                    className="border-gray-700 text-gray-300 hover:bg-gray-800 transition-all duration-300"
+                  >
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Atualizar
+                  </Button>
+                  <div className="text-right">
+                    <p className="text-xs text-gray-400">Painel de Aprovação</p>
+                    <p className="text-sm font-medium text-orange-400">Admin</p>
+                  </div>
+                </motion.div>
               )}
             </div>
           </div>
         </div>
-      </div>
+      </motion.div>
 
       <div className="p-4 sm:p-6">
         <div className="max-w-7xl mx-auto space-y-6 sm:space-y-8">
 
           {/* Saque Automático Switch - Apenas para usuários não-admin */}
           {user?.role !== 'admin' && (
-            <div className="bg-black border border-gray-800 rounded-xl p-4 sm:p-6">
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="bg-gray-900 border border-gray-700 rounded-xl p-4 sm:p-6"
+            >
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
-                  <div className="p-3 rounded-xl bg-gray-900 border border-gray-800">
+                  <div className="p-3 rounded-xl bg-black border border-gray-700">
                     <Zap className="h-6 w-6 text-orange-400" />
                   </div>
                   <div>
                     <h3 className="text-lg font-bold text-white">Saque Automático</h3>
                     <p className="text-gray-400 text-sm">
-                      Solicitar saque automaticamente ao atingir R$ 50,00
+                      Solicitar saque de R$ 50,00 automaticamente
                     </p>
                   </div>
                 </div>
@@ -369,63 +427,114 @@ export function SaquesList() {
                 </div>
               </div>
               {saqueAutomatico && !user?.chave_pix && (
-                <div className="mt-4 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="mt-4 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30"
+                >
                   <div className="flex items-center space-x-2">
                     <AlertCircle className="h-4 w-4 text-yellow-400" />
                     <span className="text-yellow-400 text-sm font-medium">
                       Configure sua chave PIX padrão no perfil para ativar o saque automático
                     </span>
                   </div>
-                </div>
+                </motion.div>
               )}
-            </div>
+            </motion.div>
+          )}
+
+          {/* Admin Info Panel */}
+          {user?.role === 'admin' && (
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="bg-gray-900 border border-gray-700 rounded-xl p-4 sm:p-6"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <div className="p-3 rounded-xl bg-black border border-gray-700">
+                    <Shield className="h-6 w-6 text-blue-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-white">Painel Administrativo</h3>
+                    <p className="text-gray-400 text-sm">
+                      Gerencie solicitações de saque dos usuários
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-blue-400 text-sm font-medium">Aprovação/Rejeição</p>
+                  <p className="text-xs text-gray-400">Somente visualização e ações admin</p>
+                </div>
+              </div>
+            </motion.div>
           )}
 
           {/* Search */}
-          <div className="relative">
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="relative"
+          >
             <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
             <Input
               placeholder="Buscar por dados bancários, método ou usuário..."
               value={searchTerm}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
-              className="pl-12 pr-4 py-3 sm:py-4 bg-gray-900 border-gray-800 text-white placeholder:text-gray-500 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 rounded-xl text-base sm:text-lg"
+              className="pl-12 pr-4 py-3 sm:py-4 bg-gray-900 border-gray-700 text-white placeholder:text-gray-500 focus:border-orange-500 focus:ring-1 focus:ring-orange-500 rounded-xl text-base sm:text-lg"
             />
-          </div>
+          </motion.div>
 
-          {/* Stats */}
-          <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-3">
-            <div className="bg-black border border-gray-800 rounded-xl p-4 sm:p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-orange-400 text-xs sm:text-sm font-medium mb-1">Total Sacado</p>
-                  <p className="text-2xl sm:text-3xl font-bold text-white">R$ {totalSaques.toFixed(2)}</p>
+          {/* Stats - Layout Horizontal Compacto */}
+          <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+            <div className="bg-gray-900 border border-gray-700 rounded-xl p-4">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 rounded-lg bg-orange-600">
+                  <DollarSign className="h-5 w-5 text-white" />
                 </div>
-                <div className="p-2 sm:p-3 rounded-xl bg-gray-900 border border-gray-800">
-                  <DollarSign className="h-5 w-5 sm:h-6 sm:w-6 text-orange-400" />
+                <div>
+                  <p className="text-xs text-gray-400 mb-1">
+                    {user?.role === 'admin' ? 'Total' : 'Sacado'}
+                  </p>
+                  <p className="text-lg font-bold text-white">R$ {totalSaques.toFixed(2)}</p>
                 </div>
               </div>
             </div>
 
-            <div className="bg-black border border-gray-800 rounded-xl p-4 sm:p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-yellow-400 text-xs sm:text-sm font-medium mb-1">Pendentes</p>
-                  <p className="text-2xl sm:text-3xl font-bold text-white">{saquesPendentes}</p>
+            <div className="bg-gray-900 border border-gray-700 rounded-xl p-4">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 rounded-lg bg-yellow-600">
+                  <Clock className="h-5 w-5 text-white" />
                 </div>
-                <div className="p-2 sm:p-3 rounded-xl bg-gray-900 border border-gray-800">
-                  <Clock className="h-5 w-5 sm:h-6 sm:w-6 text-yellow-400" />
+                <div>
+                  <p className="text-xs text-gray-400 mb-1">Pendentes</p>
+                  <p className="text-lg font-bold text-white">{saquesPendentes}</p>
                 </div>
               </div>
             </div>
 
-            <div className="bg-black border border-gray-800 rounded-xl p-4 sm:p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-green-400 text-xs sm:text-sm font-medium mb-1">Aprovados</p>
-                  <p className="text-2xl sm:text-3xl font-bold text-white">{saquesAprovados}</p>
+            <div className="bg-gray-900 border border-gray-700 rounded-xl p-4">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 rounded-lg bg-green-600">
+                  <CheckCircle className="h-5 w-5 text-white" />
                 </div>
-                <div className="p-2 sm:p-3 rounded-xl bg-gray-900 border border-gray-800">
-                  <CheckCircle className="h-5 w-5 sm:h-6 sm:w-6 text-green-400" />
+                <div>
+                  <p className="text-xs text-gray-400 mb-1">Aprovados</p>
+                  <p className="text-lg font-bold text-white">{saquesAprovados}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gray-900 border border-gray-700 rounded-xl p-4">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 rounded-lg bg-red-600">
+                  <XCircle className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400 mb-1">Rejeitados</p>
+                  <p className="text-lg font-bold text-white">{saques.filter(s => s.status === 'rejeitado').length}</p>
                 </div>
               </div>
             </div>
@@ -433,197 +542,199 @@ export function SaquesList() {
 
           {/* Saques List */}
           {filteredSaques.length === 0 ? (
-            <div className="flex justify-center py-16">
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.6 }}
+              className="flex justify-center py-16"
+            >
               <div className="text-center max-w-md">
-                <div className="w-24 h-24 mx-auto mb-8 rounded-2xl bg-gray-900 border border-gray-800 flex items-center justify-center">
+                <motion.div 
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ delay: 0.7, type: "spring" }}
+                  className="w-24 h-24 mx-auto mb-8 rounded-xl bg-gray-900 border border-gray-700 flex items-center justify-center"
+                >
                   <TrendingUp className="h-12 w-12 text-gray-400" />
-                </div>
+                </motion.div>
                 <h3 className="text-2xl font-bold text-white mb-4">
                   {saques.length === 0 ? 'Nenhum saque encontrado' : 'Nenhum resultado encontrado'}
                 </h3>
                 <p className="text-gray-400 text-lg">
-                  {saques.length === 0 
-                    ? 'Faça sua primeira solicitação de saque'
-                    : 'Tente ajustar os termos de busca'
+                  {user?.role === 'admin' 
+                    ? saques.length === 0 
+                      ? 'Não há solicitações de saque para aprovar'
+                      : 'Tente ajustar os termos de busca'
+                    : saques.length === 0 
+                      ? 'Faça sua primeira solicitação de saque'
+                      : 'Tente ajustar os termos de busca'
                   }
                 </p>
               </div>
-            </div>
+            </motion.div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
+              {/* Cabeçalho da Tabela */}
+              <div className="bg-gray-800 border border-gray-700 rounded-xl px-6 py-4">
+                <div className="grid grid-cols-12 gap-4 items-center text-sm font-medium text-gray-300">
+                  <div className="col-span-3">Solicitação</div>
+                  <div className="col-span-2">Valor</div>
+                  <div className="col-span-2">Status</div>
+                  <div className="col-span-2">Método</div>
+                  {user?.role === 'admin' && <div className="col-span-2">Usuário</div>}
+                  <div className={user?.role === 'admin' ? "col-span-1" : "col-span-3"}>Ações</div>
+                </div>
+              </div>
+
+              {/* Lista de Saques */}
               {filteredSaques.map((saque, index) => (
-                <div
+                <motion.div
                   key={saque.id}
-                  className="group bg-black border border-gray-800 hover:border-gray-700 hover:bg-gray-900 rounded-xl transition-all duration-300 hover:scale-[1.01] cursor-pointer"
-                  style={{
-                    animationDelay: `${index * 50}ms`
-                  }}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 * index }}
+                  className={`${
+                    saque.status === 'pendente' 
+                      ? 'bg-gray-900 border border-yellow-600/50 hover:border-yellow-500 shadow-lg shadow-yellow-600/10' 
+                      : 'bg-gray-900 border border-gray-700 hover:border-gray-600'
+                  } rounded-xl px-6 py-4 transition-all duration-200`}
                 >
-                  <div className="p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center space-x-4">
-                        <div className="p-3 rounded-xl bg-gray-900 border border-gray-800">
-                          <TrendingUp className="h-6 w-6 text-orange-400" />
+                  <div className="grid grid-cols-12 gap-4 items-center">
+                    {/* Solicitação */}
+                    <div className="col-span-3">
+                      <div className="flex items-center space-x-3">
+                        <div className="p-2 rounded-lg bg-gray-800 border border-gray-700">
+                          <TrendingUp className="h-4 w-4 text-orange-400" />
                         </div>
                         <div>
-                          <h3 className="text-xl font-bold text-white group-hover:text-orange-400 transition-colors">
-                            Saque #{saque.id.slice(0, 8)}
-                          </h3>
-                          <p className="text-gray-400">
-                            {new Date(saque.created_at).toLocaleDateString('pt-BR', {
-                              year: 'numeric',
-                              month: 'long',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
+                          <p className="text-white font-medium">#{saque.id.slice(0, 8)}</p>
+                          <p className="text-xs text-gray-400">
+                            {new Date(saque.created_at).toLocaleDateString('pt-BR')}
                           </p>
-                        </div>
-                      </div>
-                      
-                      <div className="text-right">
-                        <p className="text-2xl font-bold text-orange-400">R$ {saque.valor.toFixed(2)}</p>
-                        <div className="flex flex-col space-y-1 items-end">
-                          <div className={`inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(saque.status)}`}>
-                            {getStatusIcon(saque.status)}
-                            <span className="capitalize">{saque.status}</span>
-                          </div>
                           {saque.automatico && (
-                            <div className="inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium border border-orange-500/30 bg-orange-500/10 text-orange-400">
-                              <Zap className="h-3 w-3" />
-                              <span>Automático</span>
+                            <div className="inline-flex items-center space-x-1 mt-1">
+                              <Zap className="h-3 w-3 text-orange-400" />
+                              <span className="text-xs text-orange-400">Auto</span>
                             </div>
                           )}
                         </div>
                       </div>
                     </div>
 
-                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                      {/* Método de Pagamento */}
-                      <div className="p-4 rounded-lg bg-gray-900 border border-gray-800">
-                        <div className="flex items-center space-x-2 mb-2">
-                          <div className="w-2 h-2 rounded-full bg-blue-400"></div>
-                          <span className="text-blue-400 text-sm font-medium">Método</span>
-                        </div>
-                        <p className="text-white font-medium uppercase">{saque.metodo_pagamento}</p>
-                      </div>
+                    {/* Valor */}
+                    <div className="col-span-2">
+                      <p className="text-lg font-bold text-white">R$ {saque.valor.toFixed(2)}</p>
+                    </div>
 
-                      {/* Dados Bancários */}
-                      <div className="p-4 rounded-lg bg-gray-900 border border-gray-800">
-                        <div className="flex items-center space-x-2 mb-2">
-                          <div className="w-2 h-2 rounded-full bg-green-400"></div>
-                          <span className="text-green-400 text-sm font-medium">Dados Bancários</span>
-                        </div>
-                        {saque.metodo_pagamento === 'pix' ? (
-                          <p className="text-white break-all">{saque.chave_pix}</p>
-                        ) : (
-                          <div className="text-white space-y-1">
-                            <p><span className="text-gray-400">Banco:</span> {saque.dados_bancarios?.banco}</p>
-                            <p><span className="text-gray-400">Agência:</span> {saque.dados_bancarios?.agencia}</p>
-                            <p><span className="text-gray-400">Conta:</span> {saque.dados_bancarios?.conta}</p>
-                            <p><span className="text-gray-400">Titular:</span> {saque.dados_bancarios?.titular}</p>
-                          </div>
-                        )}
+                    {/* Status */}
+                    <div className="col-span-2">
+                      <div className={`inline-flex items-center space-x-2 px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(saque.status)}`}>
+                        {getStatusIcon(saque.status)}
+                        <span className="capitalize">{saque.status}</span>
                       </div>
-
-                      {/* User Info - Only for admin */}
-                      {user?.role === 'admin' && saque.user && (
-                        <div className="p-4 rounded-lg bg-gray-900 border border-gray-800">
-                          <div className="flex items-center space-x-2 mb-2">
-                            <User className="h-4 w-4 text-purple-400" />
-                            <span className="text-purple-400 text-sm font-medium">Usuário</span>
-                          </div>
-                          <p className="text-white font-medium">{saque.user.nome}</p>
-                          <p className="text-xs text-gray-400">{saque.user.email}</p>
-                        </div>
+                      {saque.processed_at && (
+                        <p className="text-xs text-gray-400 mt-1">
+                          {new Date(saque.processed_at).toLocaleDateString('pt-BR')}
+                        </p>
                       )}
                     </div>
 
-                    {/* Observações */}
-                    {saque.observacoes && (
-                      <div className="mt-4 p-4 rounded-lg bg-gray-900 border border-gray-800">
-                        <div className="flex items-center space-x-2 mb-2">
-                          <AlertCircle className="h-4 w-4 text-orange-400" />
-                          <span className="text-orange-400 text-sm font-medium">Observações</span>
-                        </div>
-                        <p className="text-white">{saque.observacoes}</p>
+                    {/* Método */}
+                    <div className="col-span-2">
+                      <p className="text-white font-medium uppercase">{saque.metodo_pagamento}</p>
+                      {saque.metodo_pagamento === 'pix' ? (
+                        <p className="text-xs text-gray-400 truncate">{saque.chave_pix}</p>
+                      ) : (
+                        <p className="text-xs text-gray-400">{saque.dados_bancarios?.banco}</p>
+                      )}
+                    </div>
+
+                    {/* Usuário (apenas admin) */}
+                    {user?.role === 'admin' && (
+                      <div className="col-span-2">
+                        <p className="text-white font-medium">{saque.user?.nome}</p>
+                        <p className="text-xs text-gray-400">{saque.user?.email}</p>
                       </div>
                     )}
 
-                    {/* Data de Processamento */}
-                    {saque.processed_at && (
-                      <div className="mt-4 p-4 rounded-lg bg-gray-900 border border-gray-800">
-                        <div className="flex items-center space-x-2 mb-2">
-                          <Calendar className="h-4 w-4 text-gray-400" />
-                          <span className="text-gray-400 text-sm font-medium">Processado em</span>
+                    {/* Ações */}
+                    <div className={user?.role === 'admin' ? "col-span-1" : "col-span-3"}>
+                      {user?.role === 'admin' && saque.status === 'pendente' ? (
+                        <div className="flex space-x-2">
+                          <Button
+                            onClick={() => handleApproveSaque(saque.id)}
+                            disabled={processingAction === saque.id}
+                            size="sm"
+                            className="bg-green-600 hover:bg-green-700 text-white px-3 py-1"
+                          >
+                            {processingAction === saque.id ? (
+                              <InlineLoader size="sm" />
+                            ) : (
+                              <CheckCircle className="h-3 w-3" />
+                            )}
+                          </Button>
+                          <Button
+                            onClick={() => handleRejectSaque(saque.id)}
+                            disabled={processingAction === saque.id}
+                            variant="destructive"
+                            size="sm"
+                            className="px-3 py-1"
+                          >
+                            {processingAction === saque.id ? (
+                              <InlineLoader size="sm" />
+                            ) : (
+                              <XCircle className="h-3 w-3" />
+                            )}
+                          </Button>
                         </div>
-                        <p className="text-white">
-                          {new Date(saque.processed_at).toLocaleDateString('pt-BR', {
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Admin Controls - Only for admin and pending saques */}
-                    {user?.role === 'admin' && saque.status === 'pendente' && (
-                      <div className="mt-4 flex space-x-3">
-                        <Button
-                          onClick={() => handleApproveSaque(saque.id)}
-                          disabled={processingAction === saque.id}
-                          className="flex-1 bg-green-600 hover:bg-green-700 text-white"
-                        >
-                          {processingAction === saque.id ? (
-                            <InlineLoader size="sm" />
-                          ) : (
-                            <CheckCircle className="h-4 w-4 mr-2" />
+                      ) : (
+                        <div className="text-center">
+                          {saque.status === 'pendente' && (
+                            <span className="text-xs text-yellow-400">Aguardando</span>
                           )}
-                          Aprovar
-                        </Button>
-                        <Button
-                          onClick={() => handleRejectSaque(saque.id)}
-                          disabled={processingAction === saque.id}
-                          variant="destructive"
-                          className="flex-1"
-                        >
-                          {processingAction === saque.id ? (
-                            <InlineLoader size="sm" />
-                          ) : (
-                            <XCircle className="h-4 w-4 mr-2" />
+                          {saque.status === 'aprovado' && (
+                            <span className="text-xs text-green-400">Processado</span>
                           )}
-                          Rejeitar
-                        </Button>
-                      </div>
-                    )}
-
-                    {/* Admin Observations */}
-                    {saque.observacoes_admin && (
-                      <div className="mt-4 p-4 rounded-lg bg-red-900/20 border border-red-500/30">
-                        <div className="flex items-center space-x-2 mb-2">
-                          <AlertCircle className="h-4 w-4 text-red-400" />
-                          <span className="text-red-400 text-sm font-medium">Observações do Admin</span>
+                          {saque.status === 'rejeitado' && (
+                            <span className="text-xs text-red-400">Rejeitado</span>
+                          )}
                         </div>
-                        <p className="text-white">{saque.observacoes_admin}</p>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
-                </div>
+
+                  {/* Observações (expandido) */}
+                  {(saque.observacoes || saque.observacoes_admin) && (
+                    <div className="mt-4 pt-4 border-t border-gray-700">
+                      {saque.observacoes && (
+                        <div className="mb-2">
+                          <p className="text-xs text-orange-400 mb-1">Observações:</p>
+                          <p className="text-sm text-gray-300">{saque.observacoes}</p>
+                        </div>
+                      )}
+                      {saque.observacoes_admin && (
+                        <div>
+                          <p className="text-xs text-red-400 mb-1">Admin:</p>
+                          <p className="text-sm text-gray-300">{saque.observacoes_admin}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </motion.div>
               ))}
             </div>
           )}
         </div>
       </div>
 
-      {/* Modal de Saque */}
-      <SaqueModal
-        open={saqueModal.isOpen}
-        onOpenChange={saqueModal.setOpen}
-        onSuccess={fetchSaques}
-      />
+      {/* Modal de Saque - Apenas para usuários não-admin */}
+      {user?.role !== 'admin' && (
+        <SaqueModal
+          open={saqueModal.isOpen}
+          onOpenChange={saqueModal.setOpen}
+          onSuccess={fetchSaques}
+        />
+      )}
 
       {/* Diálogo de Confirmação */}
       <ConfirmComponent />

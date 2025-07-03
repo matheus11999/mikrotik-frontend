@@ -42,6 +42,7 @@ import {
 import { Badge } from '../../components/ui/badge'
 import { DashboardLoading } from '../../components/ui'
 import { UserDashboardWidget } from '../../components/dashboard/UserDashboardWidget'
+import { AdminDashboardWidget } from '../../components/dashboard/AdminDashboardWidget'
 import { PlanStatusBanner } from '../../components/PlanRestrictedRoute'
 import { cn } from '../../lib/utils'
 import { motion } from 'framer-motion'
@@ -666,39 +667,41 @@ export function DashboardFinal() {
 
   return (
     <div className="min-h-screen bg-black pt-16 lg:pt-0">
-      {/* Header */}
-      <div className="border-b border-gray-800/50 bg-black/20 backdrop-blur-sm sticky top-16 lg:top-0 z-10">
-        <div className="px-4 sm:px-6 py-6">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center space-x-4">
-              <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-500/20 to-blue-600/10 border border-blue-500/20">
-                <BarChart3 className="h-6 w-6 text-blue-400" />
+      {/* Header - Apenas para usuários normais */}
+      {!isAdmin && (
+        <div className="border-b border-gray-800/50 bg-black/20 backdrop-blur-sm sticky top-16 lg:top-0 z-10">
+          <div className="px-4 sm:px-6 py-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-center space-x-4">
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-500/20 to-blue-600/10 border border-blue-500/20">
+                  <BarChart3 className="h-6 w-6 text-blue-400" />
+                </div>
+                <div>
+                  <h1 className="text-2xl sm:text-4xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
+                    Meu Dashboard
+                  </h1>
+                  <p className="text-gray-400">
+                    Suas estatísticas pessoais
+                  </p>
+                </div>
               </div>
-              <div>
-                <h1 className="text-2xl sm:text-4xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
-                  {isAdmin ? 'Dashboard Administrativo' : 'Meu Dashboard'}
-                </h1>
-                <p className="text-gray-400">
-                  {isAdmin ? 'Visão completa do sistema' : 'Suas estatísticas pessoais'}
-                </p>
-              </div>
+              
+              <button 
+                onClick={fetchDashboardStats}
+                disabled={refreshing}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors disabled:opacity-50 hover:scale-105"
+              >
+                {refreshing ? (
+                  <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                {refreshing ? 'Atualizando...' : 'Atualizar'}
+              </button>
             </div>
-            
-            <button 
-              onClick={fetchDashboardStats}
-              disabled={refreshing}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors disabled:opacity-50 hover:scale-105"
-            >
-              {refreshing ? (
-                <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4" />
-              )}
-              {refreshing ? 'Atualizando...' : 'Atualizar'}
-            </button>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Content */}
       <div className="p-4 sm:p-6">
@@ -706,77 +709,16 @@ export function DashboardFinal() {
           {/* Plan Status Banner - Mostra status do plano para usuários comuns */}
           {!isAdmin && <PlanStatusBanner />}
           
-          {/* Stats Cards - Apenas para Admin */}
-          {isAdmin && (
-            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
-              <StatsCard
-                title="Total de Vendas"
-                value={stats?.totalVendas.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) || 'R$ 0,00'}
-                icon={DollarSign}
-                trend="up"
-                trendValue="+12.5%"
-                description="Receita total acumulada"
-                color="emerald"
-                loading={loading}
-              />
-              
-              <StatsCard
-                title="Vendas Hoje"
-                value={stats?.totalVendasHoje.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) || 'R$ 0,00'}
-                icon={TrendingUp}
-                trend="up"
-                trendValue="+8.2%"
-                description="Faturamento do dia"
-                color="blue"
-                loading={loading}
-              />
-              
-              <StatsCard
-                title="Taxa de Sucesso"
-                value={`${stats?.paymentStats?.successRate.toFixed(1) || 0}%`}
-                icon={Target}
-                trend="up"
-                trendValue="+2.1%"
-                description="Aprovação de pagamentos"
-                color="green"
-                loading={loading}
-              />
-              
-              <StatsCard
-                title="Usuários Ativos"
-                value={stats?.totalUsuarios || 0}
-                icon={Users}
-                trend="up"
-                trendValue="+5.4%"
-                description="Total de usuários"
-                color="purple"
-                loading={loading}
-              />
 
-              <StatsCard
-                title="Saques Automáticos"
-                value={stats?.usuariosSaqueAutomatico?.length || 0}
-                icon={Zap}
-                trend="neutral"
-                trendValue={`R$ ${stats?.usuariosSaqueAutomatico?.reduce((sum, u) => sum + u.saldo, 0)?.toFixed(2) || '0,00'}`}
-                description="Usuários com saldo ≥ R$ 50"
-                color="orange"
-                loading={loading}
-              />
-            </div>
-          )}
 
           {/* Main Content */}
           {isAdmin ? (
-            <div className="grid gap-6 lg:grid-cols-12">
-              {/* Left Column */}
-              <div className="lg:col-span-8">
-                <RecentActivity activities={stats?.recentActivity} loading={loading} />
-              </div>
-              
-              {/* Right Column */}
-              <div className="lg:col-span-4">
-                <MikrotikTable mikrotiks={stats?.mikrotikStats} loading={loading} />
+            <div className="space-y-8">
+              {/* Admin Dashboard Widget */}
+              <div className="grid grid-cols-1 gap-6">
+                <div>
+                  <AdminDashboardWidget />
+                </div>
               </div>
             </div>
           ) : (

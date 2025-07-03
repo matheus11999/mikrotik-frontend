@@ -45,7 +45,6 @@ export function useUserSubscription() {
 
   const checkSubscriptionStatus = useCallback(async () => {
     if (!user?.id) {
-      console.log('🔍 [useUserSubscription] No user ID found')
       setStatus(prev => ({
         ...prev,
         isLoading: false,
@@ -57,12 +56,6 @@ export function useUserSubscription() {
 
     try {
       setStatus(prev => ({ ...prev, isLoading: true, error: null }))
-      
-      console.log('🔍 [useUserSubscription] Checking subscription for user:', user.id, user.email)
-      
-      // Verificar se o usuário atual tem uma sessão ativa
-      const { data: sessionData } = await supabase.auth.getSession()
-      console.log('🔍 [useUserSubscription] Current session:', sessionData?.session?.user?.id)
 
       // Buscar assinatura ativa do usuário
       const { data: subscriptionData, error } = await supabase
@@ -81,12 +74,9 @@ export function useUserSubscription() {
         .eq('status', 'active')
         .order('created_at', { ascending: false })
         .limit(1)
-        .single() // Garantir que retorne apenas um resultado ou null
 
-      console.log('🔍 [useUserSubscription] Query result:', { subscriptionData, error })
-
-      if (error && error.code !== 'PGRST116') { // Ignora erro de "não encontrado"
-        console.error('❌ [useUserSubscription] Error fetching subscription:', error)
+      if (error) {
+        console.error('Error fetching subscription:', error)
         setStatus(prev => ({
           ...prev,
           isLoading: false,
@@ -95,12 +85,9 @@ export function useUserSubscription() {
         return
       }
 
-      const subscription = subscriptionData || null
-      
-      console.log('🔍 [useUserSubscription] Subscription found:', subscription)
+      const subscription = subscriptionData?.[0] || null
       
       if (!subscription) {
-        console.log('❌ [useUserSubscription] No active subscription found')
         // Usuário não tem plano ativo
         setStatus(prev => ({
           ...prev,
@@ -124,22 +111,10 @@ export function useUserSubscription() {
       const daysRemaining = Math.max(0, Math.ceil(timeDiff / (1000 * 60 * 60 * 24)))
       
       // Verificar se é trial (plano gratuito)
-      const planName = subscription.subscription_plans?.name?.toLowerCase() || ''
-      const isTrialUser = planName.includes('teste') ||
-                         planName.includes('trial') ||
-                         planName.includes('grátis') ||
-                         planName.includes('gratis') ||
+      const isTrialUser = subscription.subscription_plans?.name?.toLowerCase().includes('teste') ||
+                         subscription.subscription_plans?.name?.toLowerCase().includes('trial') ||
+                         subscription.subscription_plans?.name?.toLowerCase().includes('grátis') ||
                          subscription.subscription_plans?.price === 0
-
-      console.log('🔍 [useUserSubscription] Final status calculation:', {
-        isExpired,
-        daysRemaining,
-        isTrialUser,
-        hasActivePlan: !isExpired,
-        planName: subscription.subscription_plans?.name,
-        expiresAt: subscription.expires_at,
-        price: subscription.subscription_plans?.price
-      })
 
       setStatus({
         hasActivePlan: !isExpired,
@@ -153,7 +128,6 @@ export function useUserSubscription() {
 
       // Se o plano expirou, atualizar status no banco
       if (isExpired && subscription.status === 'active') {
-        console.log('🔍 [useUserSubscription] Updating expired subscription status')
         await supabase
           .from('user_subscriptions')
           .update({ status: 'expired' })

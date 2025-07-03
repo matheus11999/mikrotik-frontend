@@ -427,8 +427,14 @@ export function SidebarFixed({ open, setOpen, collapsed, setCollapsed }: Sidebar
             "flex items-center gap-3",
             collapsed && "flex-col gap-2"
           )}>
-            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center shrink-0">
-              {user?.nome ? (
+            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center shrink-0 overflow-hidden">
+              {user?.avatar_url ? (
+                <img
+                  src={user.avatar_url}
+                  alt="Avatar"
+                  className="w-full h-full object-cover"
+                />
+              ) : user?.nome ? (
                 <span className="text-white font-bold text-sm">
                   {getInitials(user.nome)}
                 </span>
@@ -662,8 +668,14 @@ export function SidebarFixed({ open, setOpen, collapsed, setCollapsed }: Sidebar
 
               {/* User */}
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center">
-                  {user?.nome ? (
+                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center overflow-hidden">
+                  {user?.avatar_url ? (
+                    <img
+                      src={user.avatar_url}
+                      alt="Avatar"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : user?.nome ? (
                     <span className="text-white font-bold text-sm">
                       {getInitials(user.nome)}
                     </span>

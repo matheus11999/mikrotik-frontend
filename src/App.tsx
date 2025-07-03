@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from './contexts/AuthContext'
 import { ThemeProvider } from './contexts/ThemeContext'
+import { SystemSettingsProvider } from './contexts/SystemSettingsContext'
 import { ToastProvider } from './components/ui/toast'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { PlanRestrictedRoute } from './components/PlanRestrictedRoute'
@@ -73,8 +74,9 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <ToastProvider>
-          <AuthProvider>
+        <SystemSettingsProvider>
+          <ToastProvider>
+            <AuthProvider>
             <Router {...routerProps}>
             <div className="min-h-screen bg-black">
               <PWAInstallPrompt />
@@ -124,8 +126,9 @@ function App() {
               </Routes>
             </div>
             </Router>
-          </AuthProvider>
-        </ToastProvider>
+            </AuthProvider>
+          </ToastProvider>
+        </SystemSettingsProvider>
       </ThemeProvider>
     </QueryClientProvider>
   )

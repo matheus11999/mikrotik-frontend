@@ -18,6 +18,7 @@ import { Label } from '../../components/ui/label'
 import { Textarea } from '../../components/ui/textarea'
 import { useToast } from '../../components/ui/toast'
 import { useAuthContext } from '../../contexts/AuthContext'
+import { useSystemSettings } from '../../contexts/SystemSettingsContext'
 import { supabase } from '../../lib/supabase'
 
 interface SystemSettings {
@@ -38,6 +39,7 @@ interface SystemSettings {
 export function SystemSettings() {
   const { user } = useAuthContext()
   const { addToast } = useToast()
+  const { refreshSettings } = useSystemSettings()
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [settings, setSettings] = useState<SystemSettings>({
@@ -111,6 +113,9 @@ export function SystemSettings() {
 
       // Update document head
       updateDocumentHead()
+      
+      // Refresh global system settings context
+      await refreshSettings()
 
     } catch (error) {
       console.error('Error saving settings:', error)

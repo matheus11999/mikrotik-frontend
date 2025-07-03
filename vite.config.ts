@@ -32,7 +32,7 @@ export default defineConfig(({ mode }) => {
           name: 'MikroPix',
           short_name: 'MikroPix',
           description: 'Sistema de gestão MikroTik',
-          theme_color: '#000000',
+          theme_color: '#3b82f6',
           background_color: '#000000',
           display: 'standalone',
           scope: '/',
@@ -40,14 +40,14 @@ export default defineConfig(({ mode }) => {
           lang: 'pt-BR',
           icons: [
             {
-              src: '/vite.svg',
+              src: '/img/logo-white.png',
               sizes: '192x192',
-              type: 'image/svg+xml'
+              type: 'image/png'
             },
             {
-              src: '/vite.svg',
+              src: '/img/logo-white.png',
               sizes: '512x512',
-              type: 'image/svg+xml'
+              type: 'image/png'
             }
           ]
         },
