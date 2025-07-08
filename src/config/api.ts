@@ -108,7 +108,20 @@ export const api = {
       }),
     
     checkConnection: (mikrotikId: string) => 
-      apiRequest(`${API_CONFIG.ENDPOINTS.MIKROTIK}/check-connection/${mikrotikId}`)
+      apiRequest(`${API_CONFIG.ENDPOINTS.MIKROTIK}/check-connection/${mikrotikId}`),
+    
+    // Templates APIs
+    getTemplates: () => 
+      apiRequest(`${API_CONFIG.ENDPOINTS.MIKROTIK}/templates`),
+    
+    getTemplateHtml: (templateId: string) => 
+      apiRequest(`${API_CONFIG.ENDPOINTS.MIKROTIK}/templates/${templateId}`),
+    
+    applyTemplate: (templateData: any) => 
+      apiRequest(`${API_CONFIG.ENDPOINTS.MIKROTIK}/templates/apply`, {
+        method: 'POST',
+        body: JSON.stringify(templateData)
+      })
   },
 
   // Subscription APIs

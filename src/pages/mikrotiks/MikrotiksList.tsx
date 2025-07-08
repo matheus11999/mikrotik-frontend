@@ -259,11 +259,7 @@ export function MikrotiksList() {
   const [mikrotiks, setMikrotiks] = useState<Mikrotik[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
-  const [modalOpen, setModalOpen] = useState(false)
-  const [form, setForm] = useState({ nome: '', porcentagem: '10', user_id: '', token: '', ip: '', username: '', password: '', port: '8728' })
   const [userList, setUserList] = useState<any[]>([])
-  const [editModalOpen, setEditModalOpen] = useState(false)
-  const [editMikrotik, setEditMikrotik] = useState<Mikrotik | null>(null)
   const [mikrotikStats, setMikrotikStats] = useState<Record<string, MikrotikStats>>({})
   const [newCreateModalOpen, setNewCreateModalOpen] = useState(false)
   const [copiedConfig, setCopiedConfig] = useState<string | null>(null)
@@ -514,73 +510,7 @@ export function MikrotiksList() {
     }
   }
 
-  const handleOpenModal = () => {
-    if (user?.role === 'admin') fetchUsers();
-    setForm({ nome: '', porcentagem: '10', user_id: '', token: uuidv4(), ip: '', username: '', password: '', port: '8728' });
-    setModalOpen(true);
-  }
 
-  const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setForm({ ...form, [e.target.name]: e.target.value })
-  }
-
-  const handleFormSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setLoading(true);
-
-    // Corrigir user_id
-    const userId = user?.role === 'admin' ? form.user_id : user?.id;
-
-    // Validação básica (porcentagem só obrigatória para admins, demais usuários fixam 10%)
-    if (!form.nome || !userId || !form.ip || !form.username || !form.password || (user?.role === 'admin' && !form.porcentagem)) {
-      alert('Preencha todos os campos obrigatórios.');
-      setLoading(false);
-      return;
-    }
-
-    const now = new Date().toISOString();
-
-    const { data: newMikrotik, error } = await supabase.from('mikrotiks').insert({
-      nome: form.nome,
-      porcentagem: user?.role === 'admin' ? parseFloat(form.porcentagem) : 10,
-      user_id: userId,
-      token: form.token,
-      ip: form.ip,
-      username: form.username,
-      password: form.password,
-      port: parseInt(form.port) || 8728,
-      ativo: true,
-      created_at: now,
-      updated_at: now,
-    }).select('id').single();
-
-    if (error) {
-      alert('Erro ao criar MikroTik: ' + error.message);
-      setLoading(false);
-      return;
-    }
-
-
-    setLoading(false);
-    setModalOpen(false);
-    fetchMikrotiks();
-  }
-
-  const handleOpenEditModal = (mikrotik: Mikrotik) => {
-    if (user?.role === 'admin') fetchUsers();
-    setEditMikrotik(mikrotik);
-    setForm({
-      nome: mikrotik.nome,
-      porcentagem: mikrotik.porcentagem.toString(),
-      user_id: mikrotik.user_id,
-      token: mikrotik.token || '',
-      ip: mikrotik.ip || '',
-      username: mikrotik.username || '',
-      password: mikrotik.password || '',
-      port: mikrotik.port?.toString() || '8728',
-    });
-    setEditModalOpen(true);
-  };
 
   const handleGenerateToken = async (mikrotik: Mikrotik) => {
     const newToken = uuidv4();
@@ -597,36 +527,6 @@ export function MikrotiksList() {
     }
   };
 
-  const handleEditFormSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setLoading(true);
-    const userId = user?.role === 'admin' ? form.user_id : user?.id;
-    if (!form.nome || !userId || !form.ip || !form.username || !form.password || (user?.role === 'admin' && !form.porcentagem)) {
-      alert('Preencha todos os campos obrigatórios.');
-      setLoading(false);
-      return;
-    }
-    const now = new Date().toISOString();
-    const { error } = await supabase.from('mikrotiks').update({
-      nome: form.nome,
-      porcentagem: user?.role === 'admin' ? parseFloat(form.porcentagem) : editMikrotik?.porcentagem || 10,
-      user_id: userId,
-      ip: form.ip,
-      username: form.username,
-      password: form.password,
-      port: parseInt(form.port) || 8728,
-      ativo: true,
-      updated_at: now,
-    }).eq('id', editMikrotik?.id);
-    setLoading(false);
-    if (error) {
-      alert('Erro ao editar MikroTik: ' + error.message);
-      return;
-    }
-    setEditModalOpen(false);
-    setEditMikrotik(null);
-    fetchMikrotiks();
-  };
 
   const handleRestartMikrotik = async (mikrotikId: string) => {
     if (!confirm('Tem certeza que deseja reiniciar este MikroTik? Isso pode interromper temporariamente o serviço.')) return
@@ -933,7 +833,7 @@ remove [find name="${interfaceName}"]
                   }
                 </p>
                 {mikrotiks.length === 0 && (
-                  <Button onClick={handleOpenModal} className="bg-orange-600 hover:bg-orange-700 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-xl font-medium shadow-lg transition-all duration-300 w-full sm:w-auto hover:scale-105">
+                  <Button onClick={() => setNewCreateModalOpen(true)} className="bg-orange-600 hover:bg-orange-700 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-xl font-medium shadow-lg transition-all duration-300 w-full sm:w-auto hover:scale-105">
                     <Plus className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
                     Criar Primeiro MikroTik
                   </Button>
@@ -1097,15 +997,6 @@ remove [find name="${interfaceName}"]
                         <Button 
                           size="sm" 
                           variant="outline" 
-                          className="border-gray-800 text-gray-300 hover:text-white hover:border-blue-500 hover:bg-blue-500/10 p-2"
-                          onClick={() => handleOpenEditModal(mikrotik)}
-                          title="Editar MikroTik"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
                           className="border-red-600/50 text-red-400 hover:text-red-300 hover:border-red-500 hover:bg-red-500/10 p-2"
                           onClick={() => handleDelete(mikrotik.id)}
                           disabled={deletingMikrotiks.has(mikrotik.id)}
@@ -1156,221 +1047,7 @@ remove [find name="${interfaceName}"]
         </div>
       </div>
 
-      <Dialog.Root open={modalOpen} onOpenChange={setModalOpen}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 bg-black/75 z-50" />
-          <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[calc(100vw-2rem)] max-w-lg h-[calc(100vh-2rem)] max-h-[700px] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-black border border-gray-800 p-6 sm:p-8 shadow-2xl overflow-y-auto">
-            <Dialog.Title className="text-lg sm:text-xl font-bold text-white mb-4 sm:mb-6">Adicionar MikroTik</Dialog.Title>
-            <form onSubmit={handleFormSubmit} className="space-y-4 sm:space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-white mb-2">Nome do MikroTik</label>
-                <PlaceholdersAndVanishInput
-                  placeholders={["MikroTik Principal", "MikroTik Secundário", "MikroTik Loja", "MikroTik Casa"]}
-                  value={form.nome}
-                  onChange={e => setForm({ ...form, nome: e.target.value })}
-                  name="nome"
-                />
-              </div>
-              {user?.role === 'admin' && (
-                <div>
-                  <label className="block text-sm font-medium text-white mb-2">Porcentagem de Comissão (%)</label>
-                  <input
-                    type="number"
-                    name="porcentagem"
-                    value={form.porcentagem}
-                    onChange={handleFormChange}
-                    min="0"
-                    max="100"
-                    step="0.01"
-                    className="w-full p-3 rounded-lg bg-black border border-gray-800 text-white text-base"
-                    required
-                  />
-                </div>
-              )}
-              <div>
-                <label className="block text-sm font-medium text-white mb-2">Endereço IP</label>
-                <input
-                  type="text"
-                  name="ip"
-                  value={form.ip}
-                  onChange={handleFormChange}
-                  placeholder="192.168.1.1"
-                  className="w-full p-3 rounded-lg bg-black border border-gray-800 text-white text-base"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-white mb-2">Usuário</label>
-                <input
-                  type="text"
-                  name="username"
-                  value={form.username}
-                  onChange={handleFormChange}
-                  placeholder="admin"
-                  className="w-full p-3 rounded-lg bg-black border border-gray-800 text-white text-base"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-white mb-2">Senha</label>
-                <input
-                  type="password"
-                  name="password"
-                  value={form.password}
-                  onChange={handleFormChange}
-                  placeholder="••••••••"
-                  className="w-full p-3 rounded-lg bg-black border border-gray-800 text-white text-base"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-white mb-2">Porta (Opcional)</label>
-                <input
-                  type="number"
-                  name="port"
-                  value={form.port}
-                  onChange={handleFormChange}
-                  placeholder="8728"
-                  min="1"
-                  max="65535"
-                  className="w-full p-3 rounded-lg bg-black border border-gray-800 text-white text-base"
-                />
-              </div>
-              {user?.role === 'admin' && (
-                <div>
-                  <label className="block text-sm font-medium text-white mb-2">Usuário Responsável</label>
-                  <select
-                    name="user_id"
-                    value={form.user_id}
-                    onChange={handleFormChange}
-                    className="w-full p-3 bg-black border border-gray-800 text-white rounded-lg text-base"
-                    required
-                    disabled={userList.length === 0}
-                  >
-                    <option value="">{userList.length === 0 ? 'Carregando usuários...' : 'Selecione um usuário'}</option>
-                    {userList.map((u: any) => (
-                      <option key={u.id} value={u.id}>{u.nome} ({u.email})</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              <div>
-                <label className="block text-sm font-medium text-white mb-2">Token de Acesso</label>
-                <input
-                  type="text"
-                  name="token"
-                  value={form.token}
-                  readOnly
-                  className="w-full p-3 rounded-lg bg-black border border-gray-800 text-white opacity-70 cursor-not-allowed text-base"
-                />
-              </div>
-              <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4 pt-4">
-                <Button type="button" variant="outline" onClick={() => setModalOpen(false)} className="flex-1 border-gray-800 text-gray-300 hover:text-white py-3">Cancelar</Button>
-                <Button type="submit" disabled={loading} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3">
-                  {loading ? 'Salvando...' : 'Salvar MikroTik'}
-                </Button>
-              </div>
-            </form>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
 
-      <Dialog.Root open={editModalOpen} onOpenChange={setEditModalOpen}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 bg-black/75 z-50" />
-          <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[calc(100vw-2rem)] max-w-lg h-[calc(100vh-2rem)] max-h-[700px] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-black border border-gray-800 p-6 sm:p-8 shadow-2xl overflow-y-auto">
-            <Dialog.Title className="text-lg sm:text-xl font-bold text-white mb-4 sm:mb-6">Editar MikroTik</Dialog.Title>
-            <form onSubmit={handleEditFormSubmit} className="space-y-4 sm:space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-white mb-2">Nome do MikroTik</label>
-                <PlaceholdersAndVanishInput
-                  placeholders={["MikroTik Principal", "MikroTik Secundário", "MikroTik Loja", "MikroTik Casa"]}
-                  value={form.nome}
-                  onChange={e => setForm({ ...form, nome: e.target.value })}
-                  name="nome"
-                />
-              </div>
-              {user?.role === 'admin' && (
-                <div>
-                  <label className="block text-sm font-medium text-white mb-2">Porcentagem de Comissão (%)</label>
-                  <input
-                    type="number"
-                    name="porcentagem"
-                    value={form.porcentagem}
-                    onChange={handleFormChange}
-                    min="0"
-                    max="100"
-                    step="0.01"
-                    className="w-full p-3 rounded-lg bg-black border border-gray-800 text-white text-base"
-                    required
-                  />
-                </div>
-              )}
-              <div>
-                <label className="block text-sm font-medium text-white mb-2">Usuário</label>
-                <input
-                  type="text"
-                  name="username"
-                  value={form.username}
-                  onChange={handleFormChange}
-                  placeholder="admin"
-                  className="w-full p-3 rounded-lg bg-black border border-gray-800 text-white text-base"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-white mb-2">Senha</label>
-                <input
-                  type="password"
-                  name="password"
-                  value={form.password}
-                  onChange={handleFormChange}
-                  placeholder="••••••••"
-                  className="w-full p-3 rounded-lg bg-black border border-gray-800 text-white text-base"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-white mb-2">Porta (Opcional)</label>
-                <input
-                  type="number"
-                  name="port"
-                  value={form.port}
-                  onChange={handleFormChange}
-                  placeholder="8728"
-                  min="1"
-                  max="65535"
-                  className="w-full p-3 rounded-lg bg-black border border-gray-800 text-white text-base"
-                />
-              </div>
-              {user?.role === 'admin' && (
-                <div>
-                  <label className="block text-sm font-medium text-white mb-2">Usuário Responsável</label>
-                  <select
-                    name="user_id"
-                    value={form.user_id}
-                    onChange={handleFormChange}
-                    className="w-full p-3 bg-black border border-gray-800 text-white rounded-lg text-base"
-                    required
-                    disabled={userList.length === 0}
-                  >
-                    <option value="">{userList.length === 0 ? 'Carregando usuários...' : 'Selecione um usuário'}</option>
-                    {userList.map((u: any) => (
-                      <option key={u.id} value={u.id}>{u.nome} ({u.email})</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4 pt-4">
-                <Button type="button" variant="outline" onClick={() => setEditModalOpen(false)} className="flex-1 border-gray-800 text-gray-300 hover:text-white py-3">Cancelar</Button>
-                <Button type="submit" disabled={loading} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3">
-                  Salvar Alterações
-                </Button>
-              </div>
-            </form>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
 
       {/* New Create MikroTik with WireGuard Modal */}
       <CreateMikrotikWithWireGuardModal

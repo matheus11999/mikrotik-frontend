@@ -26,6 +26,7 @@ interface HotspotProfile {
   name: string
   'rate-limit'?: string
   valor?: number
+  'session-timeout'?: string
 }
 
 interface GeneratePasswordsModalProps {
@@ -76,11 +77,12 @@ export default function GeneratePasswordsModal({
       setStep('generating')
       setProgress(0)
 
-      // Encontrar o perfil selecionado para obter o valor
+      // Encontrar o perfil selecionado para obter o valor e session_timeout
       const selectedProfile = profiles.find(p => p.name === config.profile)
       const configWithValue = {
         ...config,
-        valor: selectedProfile?.valor || 0
+        valor: selectedProfile?.valor || 0,
+        session_timeout: selectedProfile?.['session-timeout']
       }
 
       // Gerar usuários localmente

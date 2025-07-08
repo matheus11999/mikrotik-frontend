@@ -11,6 +11,7 @@ export interface PasswordGenerationConfig {
   prefix?: string
   suffix?: string
   valor?: number
+  session_timeout?: string
 }
 
 export interface GeneratedUser {
@@ -29,6 +30,52 @@ export interface GenerationResult {
     failed: number
     duplicates: number
   }
+}
+
+/**
+ * Converte session_timeout para texto legível
+ * @param sessionTimeout Session timeout em formato MikroTik (ex: "1h", "30m", "3600")
+ * @returns Texto legível (ex: "1 hora", "30 minutos")
+ */
+export const formatSessionTimeout = (sessionTimeout?: string): string => {
+  if (!sessionTimeout) return 'Sem limite'
+  
+  const timeout = sessionTimeout.toString().toLowerCase()
+  
+  if (timeout.endsWith('h')) {
+    const hours = parseInt(timeout.replace('h', ''))
+    return hours === 1 ? '1 hora' : `${hours} horas`
+  } else if (timeout.endsWith('m')) {
+    const minutes = parseInt(timeout.replace('m', ''))
+    return minutes === 1 ? '1 minuto' : `${minutes} minutos`
+  } else if (timeout.includes(':')) {
+    // Formato HH:MM:SS
+    const parts = timeout.split(':')
+    const hours = parseInt(parts[0])
+    const minutes = parseInt(parts[1])
+    
+    if (hours > 0 && minutes > 0) {
+      return `${hours}h${minutes}m`
+    } else if (hours > 0) {
+      return hours === 1 ? '1 hora' : `${hours} horas`
+    } else if (minutes > 0) {
+      return minutes === 1 ? '1 minuto' : `${minutes} minutos`
+    }
+  } else {
+    // Formato em segundos
+    const seconds = parseInt(timeout)
+    if (seconds >= 3600) {
+      const hours = Math.floor(seconds / 3600)
+      return hours === 1 ? '1 hora' : `${hours} horas`
+    } else if (seconds >= 60) {
+      const minutes = Math.floor(seconds / 60)
+      return minutes === 1 ? '1 minuto' : `${minutes} minutos`
+    } else {
+      return `${seconds} segundos`
+    }
+  }
+  
+  return 'Sem limite'
 }
 
 /**
@@ -95,10 +142,7 @@ export const validateGenerationConfig = (config: PasswordGenerationConfig): stri
     errors.push('Perfil é obrigatório')
   }
   
-  // Validar formato do perfil
-  if (config.profile && config.profile.includes(' ')) {
-    errors.push('Nome do perfil não pode conter espaços')
-  }
+  // Permitir perfis com espaços (nomes como "1 Hora - 10MB")
   
   return errors
 }
@@ -157,11 +201,12 @@ export const generatePasswordBatch = (
         }
         
         // Criar usuário
+        const durationText = formatSessionTimeout(config.session_timeout)
         const user: GeneratedUser = {
           username,
           password,
           profile: config.profile,
-          comment: `Plano: ${config.profile} - Valor: ${config.valor || 0} - Gerado ${new Date().toLocaleDateString('pt-BR')}`
+          comment: `Plano: ${config.profile} - Valor: R$ ${(config.valor || 0).toFixed(2)} - Duração: ${durationText} - Gerado ${new Date().toLocaleDateString('pt-BR')}`
         }
         
         result.users.push(user)

@@ -136,20 +136,17 @@ interface Template {
   id: string
   name: string
   description: string
-  preview: string
-  files: {
-    login: string
-  }
+  preview?: string
   variables: TemplateVariable[]
 }
 
 interface TemplateVariable {
   key: string
   label: string
-  description: string
-  defaultValue: string
-  required: boolean
   type: 'text' | 'color' | 'url' | 'number' | 'select'
+  required: boolean
+  placeholder?: string
+  description?: string // Descrição opcional para cada variável
   options?: { value: string; label: string }[] // Para tipo select
 }
 
@@ -307,6 +304,18 @@ export default function MikrotikDashboard() {
   const [activeTab, setActiveTab] = useState('overview')
   const [error, setError] = useState<string | null>(null)
   const [cpuMemoryData, setCpuMemoryData] = useState<any>(null)
+  
+  // Templates state
+  const [templates, setTemplates] = useState<Template[]>([])
+  const [templatesLoading, setTemplatesLoading] = useState(false)
+  const [templatesCached, setTemplatesCached] = useState(false)
+  const [dataLoaded, setDataLoaded] = useState(false)
+  
+  // Reset dataLoaded flag when mikrotikId changes
+  useEffect(() => {
+    setDataLoaded(false)
+    setTemplatesCached(false)
+  }, [mikrotikId])
 
   // Modal states
   const [modals, setModals] = useState({
@@ -328,61 +337,7 @@ export default function MikrotikDashboard() {
     serverProfile: null as HotspotServerProfile | null
   })
 
-  // Template states
-  const [templates] = useState<Template[]>([
-    {
-      id: 'basic',
-      name: 'Tema 1',
-      description: 'Design simples e limpo para hotspot',
-      preview: '/templates/basic/preview.png',
-      files: {
-        login: '/templates/basic/login.html'
-      },
-      variables: [
-        {
-          key: 'PRIMARY_COLOR',
-          label: 'Cor Primária',
-          description: 'Cor principal do template (hexadecimal)',
-          defaultValue: '#007bff',
-          required: false,
-          type: 'color'
-        },
-        {
-          key: 'LOGO_ICON',
-          label: 'Icone do Logo',
-          description: 'Emoji ou texto para o logo (ex: 📶, WiFi, etc)',
-          defaultValue: '📶',
-          required: false,
-          type: 'text'
-        },
-        {
-          key: 'WELCOME_TITLE',
-          label: 'Título de Boas-Vindas',
-          description: 'Título principal da página de login',
-          defaultValue: 'Bem-vindo ao WiFi',
-          required: false,
-          type: 'text'
-        },
-        {
-          key: 'WELCOME_MESSAGE',
-          label: 'Mensagem de Boas-Vindas',
-          description: 'Mensagem descritiva abaixo do título',
-          defaultValue: 'Conecte-se à internet de forma rápida e segura',
-          required: false,
-          type: 'text'
-        },
-        {
-          key: 'DEBUG_MODE',
-          label: 'Modo Debug',
-          description: 'Ativar informações de debug na página',
-          defaultValue: 'false',
-          required: false,
-          type: 'select',
-          options: [{ value: 'false', label: 'Desativado' }, { value: 'true', label: 'Ativado' }]
-        }
-      ]
-    }
-  ])
+  // Template states (now loaded from backend)
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null)
   const [templateVariables, setTemplateVariables] = useState<Record<string, string>>({})
   const [selectedServerProfile, setSelectedServerProfile] = useState<string>('')
@@ -610,6 +565,72 @@ export default function MikrotikDashboard() {
     }
   }, [mikrotikId, session?.access_token, baseUrl])
 
+  const fetchTemplates = useCallback(async () => {
+    if (!session?.access_token) {
+      console.log('[FETCH-TEMPLATES] Token não disponível')
+      setTemplatesLoading(false)
+      return
+    }
+
+    // If already cached, don't fetch again
+    if (templatesCached && templates.length > 0) {
+      console.log('[FETCH-TEMPLATES] Templates já em cache')
+      return
+    }
+
+    try {
+      setTemplatesLoading(true)
+      
+      // Retry mechanism with exponential backoff
+      let attempts = 0
+      const maxAttempts = 3
+      
+      while (attempts < maxAttempts) {
+        try {
+          const response = await fetch(`${baseUrl}/api/mikrotik/templates`, { 
+            headers,
+            method: 'GET'
+          })
+          
+          if (response.ok) {
+            const data = await response.json()
+            setTemplates(data.data || [])
+            setTemplatesCached(true)
+            console.log('[FETCH-TEMPLATES] Templates carregados:', data.data?.length || 0)
+            return // Success, exit retry loop
+          } else {
+            const errorText = await response.text()
+            console.warn('[FETCH-TEMPLATES] Erro ao carregar templates:', response.status, errorText)
+            
+            if (response.status === 429) {
+              // Rate limit, wait longer
+              await new Promise(resolve => setTimeout(resolve, 2000 * Math.pow(2, attempts)))
+            } else {
+              break // Not a rate limit error, don't retry
+            }
+          }
+        } catch (fetchError) {
+          console.error('[FETCH-TEMPLATES] Erro na requisição (tentativa ' + (attempts + 1) + '):', fetchError)
+          if (attempts < maxAttempts - 1) {
+            await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempts)))
+          }
+        }
+        
+        attempts++
+      }
+      
+      if (attempts >= maxAttempts) {
+        console.error('[FETCH-TEMPLATES] Máximo de tentativas excedido')
+        setTemplates([])
+      }
+    } catch (error) {
+      console.error('[FETCH-TEMPLATES] Erro geral:', error)
+      setTemplates([])
+    } finally {
+      setTemplatesLoading(false)
+    }
+  }, [session?.access_token, baseUrl, headers, templatesCached, templates.length])
+
   const fetchData = useCallback(async () => {
     if (!mikrotikId || !session?.access_token) return
 
@@ -617,15 +638,25 @@ export default function MikrotikDashboard() {
       setLoading(true)
       setError(null)
 
-      // Fetch all data in parallel
-      await Promise.all([
-        fetchStats(),
-        fetchUsers(),
-        fetchActiveUsers(),
-        fetchProfiles(),
-        fetchServers(),
-        fetchServerProfiles()
-      ])
+      // Fetch data sequentially with delays to avoid rate limiting
+      await fetchStats()
+      await new Promise(resolve => setTimeout(resolve, 300))
+      
+      await fetchUsers()
+      await new Promise(resolve => setTimeout(resolve, 300))
+      
+      await fetchActiveUsers()
+      await new Promise(resolve => setTimeout(resolve, 300))
+      
+      await fetchProfiles()
+      await new Promise(resolve => setTimeout(resolve, 300))
+      
+      await fetchServers()
+      await new Promise(resolve => setTimeout(resolve, 300))
+      
+      await fetchServerProfiles()
+      
+      // Templates são carregados apenas quando necessário (quando o usuário acessa a aba)
 
 
     } catch (error) {
@@ -666,32 +697,93 @@ export default function MikrotikDashboard() {
 
   // Load all data on component mount
   useEffect(() => {
-    if (!mikrotikId || !session?.access_token) return
+    if (!mikrotikId || !session?.access_token || dataLoaded) return
 
     const loadInitialData = async () => {
       setLoading(true)
       setError(null)
 
       try {
-        // Fetch all data in parallel
-        await Promise.all([
-          fetchStats(),
-          fetchUsers(),
-          fetchActiveUsers(),
-          fetchProfiles(),
-          fetchServers(),
-          fetchServerProfiles()
-        ])
+        // Fetch data sequentially with delays to avoid rate limiting
+        // Criar funções inline para evitar dependencies loops
+        
+        // Stats
+        try {
+          const statsResponse = await fetch(`${baseUrl}/api/mikrotik/essential-info/${mikrotikId}`, { headers })
+          if (statsResponse.ok) {
+            const statsData = await statsResponse.json()
+            setStats(statsData.data)
+          }
+        } catch (e) { console.error('Error fetching stats:', e) }
+        
+        await new Promise(resolve => setTimeout(resolve, 500))
+        
+        // Users
+        try {
+          const usersResponse = await fetch(`${baseUrl}/api/mikrotik/hotspot/users/${mikrotikId}`, { headers })
+          if (usersResponse.ok) {
+            const usersData = await usersResponse.json()
+            setUsers(usersData.data || [])
+          }
+        } catch (e) { console.error('Error fetching users:', e) }
+        
+        await new Promise(resolve => setTimeout(resolve, 500))
+        
+        // Active Users
+        try {
+          const activeUsersResponse = await fetch(`${baseUrl}/api/mikrotik/hotspot/active-users/${mikrotikId}`, { headers })
+          if (activeUsersResponse.ok) {
+            const activeUsersData = await activeUsersResponse.json()
+            setActiveUsers(activeUsersData.data || [])
+          }
+        } catch (e) { console.error('Error fetching active users:', e) }
+        
+        await new Promise(resolve => setTimeout(resolve, 500))
+        
+        // Profiles
+        try {
+          const profilesResponse = await fetch(`${baseUrl}/api/mikrotik/hotspot/profiles/${mikrotikId}`, { headers })
+          if (profilesResponse.ok) {
+            const profilesData = await profilesResponse.json()
+            setProfiles(profilesData.data || [])
+          }
+        } catch (e) { console.error('Error fetching profiles:', e) }
+        
+        await new Promise(resolve => setTimeout(resolve, 500))
+        
+        // Servers
+        try {
+          const serversResponse = await fetch(`${baseUrl}/api/mikrotik/hotspot/servers/${mikrotikId}`, { headers })
+          if (serversResponse.ok) {
+            const serversData = await serversResponse.json()
+            setServers(serversData.data || [])
+          }
+        } catch (e) { console.error('Error fetching servers:', e) }
+        
+        await new Promise(resolve => setTimeout(resolve, 500))
+        
+        // Server Profiles
+        try {
+          const serverProfilesResponse = await fetch(`${baseUrl}/api/mikrotik/hotspot/server-profiles/${mikrotikId}`, { headers })
+          if (serverProfilesResponse.ok) {
+            const serverProfilesData = await serverProfilesResponse.json()
+            setServerProfiles(serverProfilesData.data || [])
+          }
+        } catch (e) { console.error('Error fetching server profiles:', e) }
+        
+        // Templates são carregados apenas quando necessário
+        
       } catch (error) {
         console.error('Error loading initial data:', error)
         setError('Erro ao carregar dados do MikroTik. Verifique a conexão.')
       } finally {
         setLoading(false)
+        setDataLoaded(true)
       }
     }
 
     loadInitialData()
-  }, [mikrotikId, session?.access_token])
+  }, [mikrotikId, session?.access_token, baseUrl, dataLoaded])
 
   // Auto-update CPU/Memory every 15 seconds - só começa após carregamento inicial
   useEffect(() => {
@@ -706,7 +798,7 @@ export default function MikrotikDashboard() {
     // Set up interval for automatic updates
     const interval = setInterval(() => {
       fetchCpuMemoryData()
-    }, 15000) // 15 seconds
+    }, 30000) // 30 seconds to reduce API calls
 
     return () => {
       clearTimeout(timeoutId)
@@ -1397,10 +1489,10 @@ export default function MikrotikDashboard() {
   // Template handlers
   const handleUseTemplate = (template: Template) => {
     setSelectedTemplate(template)
-    // Initialize template variables with default values
+    // Initialize template variables with empty values
     const initialVariables: Record<string, string> = {}
     template.variables.forEach(variable => {
-      initialVariables[variable.key] = variable.defaultValue
+      initialVariables[variable.key] = ''
     })
     setTemplateVariables(initialVariables)
     setSelectedServerProfile('')
@@ -1408,7 +1500,7 @@ export default function MikrotikDashboard() {
   }
 
   const handleApplyTemplate = async () => {
-    if (!selectedTemplate?.files.login || !selectedServerProfile) {
+    if (!selectedTemplate || !selectedServerProfile) {
       addToast({
         type: 'warning',
         title: 'Atenção!',
@@ -1438,120 +1530,68 @@ export default function MikrotikDashboard() {
       addToast({
         type: 'info',
         title: 'Processando...',
-        description: 'Enviando template...'
+        description: 'Aplicando template...'
       })
 
-      // Buscar todos os arquivos da pasta do template
-      const templateFolder = selectedTemplate.files.login.replace('/login.html', '')
-      const templateFiles = []
-
-      // Lista de todos os arquivos que realmente existem na pasta do template (exceto preview.png)
-      const possibleFiles = [
-        // Arquivos HTML essenciais
-        'alogin.html',
-        'error.html',
-        'login.html',
-        'logout.html',
-        'rlogin.html',
-        
-        // Arquivos JavaScript essenciais (CRÍTICOS)
-        'md5.js',
-        'script.js',  // ← ADICIONADO - essencial para funcionamento
-        
-        // Arquivos CSS essenciais (CRÍTICOS)
-        'styles.css',  // ← ADICIONADO - essencial para layout
-        
-        // Arquivos de configuração
-        'api.json',
-        'errors.txt',
-        'favicon.ico',
-        
-        // Arquivos opcionais (podem não existir em todos os templates)
-        'frp.html',
-        'page.html',
-        'pix.png',
-        'radvert.html',
-        'redirect.html',
-        'status.html',
-        'teste.html',
-        
-        // Arquivos XML obrigatórios
-        'xml/alogin.html',
-        'xml/error.html',
-        'xml/flogout.html',
-        'xml/login.html',
-        'xml/logout.html',
-        'xml/rlogin.html',
-        'xml/WISPAccessGatewayParam.xsd'
-      ]
-
-      // Buscar todos os arquivos que existem na pasta do template
-      for (const fileName of possibleFiles) {
-        try {
-          const fileUrl = `${templateFolder}/${fileName}`
-          const fileResponse = await fetch(fileUrl)
-          
-                     if (fileResponse.ok) {
-             let fileContent: string | ArrayBuffer | null = null
-             
-             // Para arquivos de imagem, usar blob e converter para base64
-             if (fileName.match(/\.(png|jpg|jpeg|gif|svg|ico)$/i)) {
-               const blob = await fileResponse.blob()
-               const reader = new FileReader()
-               
-               await new Promise<void>((resolve) => {
-                 reader.onload = () => {
-                   fileContent = reader.result
-                   resolve()
-                 }
-                 reader.readAsDataURL(blob)
-               })
-             } else {
-               // Para arquivos de texto (HTML, CSS, JS)
-               fileContent = await fileResponse.text()
-               
-               // Se for o login.html, aplicar as variáveis
-               if (fileName === 'login.html' && typeof fileContent === 'string') {
-                 // Substituir variáveis no template
-                 Object.entries(templateVariables).forEach(([key, value]) => {
-                   const regex = new RegExp(`{{${key}}}`, 'g')
-                   fileContent = (fileContent as string).replace(regex, value)
-                 })
-                 
-                 // Substituir MIKROTIK_ID e API_URL automaticamente
-                 fileContent = (fileContent as string).replace(/{{MIKROTIK_ID}}/g, mikrotikId || '')
-                 fileContent = (fileContent as string).replace(/{{API_URL}}/g, baseUrl || '')
-               }
-             }
-            
-            templateFiles.push({
-              name: fileName,
-              content: fileContent,
-              path: `/flash/mikropix/${fileName}`
-            })
-            
-            console.log(`Arquivo do template encontrado: ${fileName}`)
-          }
-        } catch (error) {
-          // Arquivo não existe, continuar silenciosamente
-          console.log(`Arquivo ${fileName} não encontrado no template (normal)`)
-        }
-      }
-
-      if (templateFiles.length === 0) {
-        throw new Error('Nenhum arquivo foi encontrado no template')
-      }
-
-      console.log(`Template ${selectedTemplate.name}: ${templateFiles.length} arquivo(s) encontrado(s)`, templateFiles.map(f => f.name))
-
-      addToast({
-        type: 'info',
-        title: 'Processando...',
-        description: 'Enviando template...'
+      // Primeiro, buscar o template HTML do servidor
+      const templateResponse = await fetch(`${baseUrl}/api/mikrotik/templates/${selectedTemplate.id}/html`, {
+        headers
       })
-
-      // Usar o mesmo método de envio que já estava sendo usado (endpoint templates/apply)
-      // mas agora enviando todos os arquivos
+      
+      if (!templateResponse.ok) {
+        throw new Error('Erro ao carregar template HTML do servidor')
+      }
+      
+      const templateData = await templateResponse.json()
+      let templateContent = templateData.html || templateData.content || ''
+      
+      // Verificar se templateContent é válido
+      if (!templateContent || typeof templateContent !== 'string') {
+        throw new Error('Template HTML não encontrado ou inválido')
+      }
+      
+      // Substituir todas as variáveis no template
+      selectedTemplate.variables.forEach(variable => {
+        const value = templateVariables[variable.key] || ''
+        const placeholder = `{{${variable.key}}}`
+        templateContent = templateContent.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), value)
+      })
+      
+      // Substituir variáveis automáticas do sistema
+      templateContent = templateContent.replace(/{{MIKROTIK_ID}}/g, mikrotikId || '')
+      templateContent = templateContent.replace(/{{API_URL}}/g, baseUrl || '')
+      templateContent = templateContent.replace(/{{DEBUG_MODE}}/g, 'false')
+      
+      // Substituir variáveis específicas do template basic
+      templateContent = templateContent.replace(/{{PRIMARY_COLOR}}/g, templateVariables.PRIMARY_COLOR || '#007bff')
+      templateContent = templateContent.replace(/{{LOGO_ICON}}/g, templateVariables.LOGO_ICON || '📶')
+      templateContent = templateContent.replace(/{{WELCOME_TITLE}}/g, templateVariables.WELCOME_TITLE || 'WiFi Gratuito')
+      templateContent = templateContent.replace(/{{WELCOME_MESSAGE}}/g, templateVariables.WELCOME_MESSAGE || 'Conecte-se à internet')
+      
+      // Corrigir variáveis CSS vazias
+      templateContent = templateContent.replace(/--primary:\s*;/g, '--primary: ' + (templateVariables.PRIMARY_COLOR || '#007bff') + ';')
+      
+      // Corrigir sintaxe JavaScript - DEBUG vazio
+      templateContent = templateContent.replace(/DEBUG:\s*$/gm, 'DEBUG: false')
+      templateContent = templateContent.replace(/DEBUG:\s*\/\//gm, 'DEBUG: false //')
+      templateContent = templateContent.replace(/DEBUG:\s*\/\*.*?\*\//gm, 'DEBUG: false')
+      
+      // Corrigir outras variáveis JavaScript vazias (mas não URLs)
+      templateContent = templateContent.replace(/:\s*;(?!\s*\/\/)/g, ': "";')
+      templateContent = templateContent.replace(/:\s*\/\/(?![\w\.\-]+)/g, ': ""; //')
+      
+      console.log('[APPLY-TEMPLATE] Variáveis substituídas:', {
+        mikrotikId: mikrotikId,
+        apiUrl: baseUrl,
+        primaryColor: templateVariables.PRIMARY_COLOR || '#007bff',
+        logoIcon: templateVariables.LOGO_ICON || '📶',
+        welcomeTitle: templateVariables.WELCOME_TITLE || 'WiFi Gratuito',
+        welcomeMessage: templateVariables.WELCOME_MESSAGE || 'Conecte-se à internet'
+      })
+      
+      console.log('[APPLY-TEMPLATE] Template processado:', templateContent.substring(0, 200) + '...')
+      
+      // Enviar template processado para o backend
       const response = await fetch(`${baseUrl}/api/mikrotik/templates/apply`, {
         method: 'POST',
         headers: {
@@ -1562,9 +1602,8 @@ export default function MikrotikDashboard() {
           mikrotikId: mikrotikId,
           serverProfileId: selectedServerProfile,
           templateId: selectedTemplate.id,
-          templateFiles: templateFiles, // Enviar todos os arquivos
-          variables: templateVariables,
-          mikrotikParams: getMikrotikParams()
+          templateContent: templateContent,
+          variables: templateVariables
         })
       })
 
@@ -1968,7 +2007,12 @@ export default function MikrotikDashboard() {
               ].map(tab => (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => {
+                    setActiveTab(tab.id)
+                    if (tab.id === 'templates' && !templatesCached && !templatesLoading) {
+                      fetchTemplates()
+                    }
+                  }}
                   className={`group flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 whitespace-nowrap ${
                     activeTab === tab.id 
                       ? 'bg-blue-600 text-white shadow-lg scale-105' 
@@ -2196,7 +2240,12 @@ export default function MikrotikDashboard() {
                     Aplique templates personalizados às páginas de login do hotspot
                   </p>
                   <Button
-                    onClick={() => setActiveTab('templates')}
+                    onClick={() => {
+                      setActiveTab('templates')
+                      if (!templatesCached && !templatesLoading) {
+                        fetchTemplates()
+                      }
+                    }}
                     className="w-full bg-purple-600 hover:bg-purple-700 text-sm sm:text-base shadow-lg transition-all duration-300 group-hover:scale-105"
                   >
                     <FiLayout className="h-4 w-4 mr-2" />
@@ -2337,13 +2386,35 @@ export default function MikrotikDashboard() {
                 <div>
                   <h2 className="text-xl sm:text-2xl font-bold text-white">Templates de Hotspot</h2>
                   <p className="text-sm text-gray-400 mt-1">
-                    {templates.length} templates disponíveis para personalização
+                    {templatesLoading ? 'Carregando templates...' : `${templates.length} templates disponíveis para personalização`}
                   </p>
+
                 </div>
               </div>
               
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 lg:gap-6">
-                {templates.map((template, index) => (
+              {templatesLoading ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 lg:gap-6">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="bg-black/40 backdrop-blur-sm border border-gray-800/50 rounded-2xl overflow-hidden">
+                      <div className="aspect-[16/10] bg-gray-800/50 animate-pulse"></div>
+                      <div className="p-4 space-y-2">
+                        <div className="h-4 bg-gray-700/50 rounded animate-pulse"></div>
+                        <div className="h-3 bg-gray-700/30 rounded animate-pulse"></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : templates.length === 0 ? (
+                <div className="text-center py-12 border border-gray-800 rounded-lg bg-gray-900/30">
+                  <div className="text-gray-400 mb-4">
+                    <FiLayout className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p className="text-lg font-medium">Nenhum template disponível</p>
+                    <p className="text-sm text-gray-500 mt-2">Verifique a conexão com o servidor</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 lg:gap-6">
+                  {templates.map((template, index) => (
                   <motion.div
                     key={template.id}
                     initial={{ opacity: 0, y: 20 }}
@@ -2410,7 +2481,8 @@ export default function MikrotikDashboard() {
                     <div className="absolute inset-0 rounded-2xl border-2 border-transparent group-hover:border-blue-500/30 transition-all duration-500 pointer-events-none"></div>
                   </motion.div>
                 ))}
-              </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -2512,7 +2584,7 @@ export default function MikrotikDashboard() {
                             <div className="flex gap-2">
                               <input
                                 type="color"
-                                value={templateVariables[variable.key] || variable.defaultValue}
+                                value={templateVariables[variable.key] || ''}
                                 onChange={(e) => setTemplateVariables(prev => ({
                                   ...prev,
                                   [variable.key]: e.target.value
@@ -2521,30 +2593,30 @@ export default function MikrotikDashboard() {
                               />
                               <input
                                 type="text"
-                                value={templateVariables[variable.key] || variable.defaultValue}
+                                value={templateVariables[variable.key] || ''}
                                 onChange={(e) => setTemplateVariables(prev => ({
                                   ...prev,
                                   [variable.key]: e.target.value
                                 }))}
                                 className="flex-1 bg-black border border-gray-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all"
-                                placeholder={variable.defaultValue}
+                                placeholder={variable.placeholder}
                               />
                             </div>
                           ) : variable.type === 'number' ? (
                             <input
                               type="number"
-                              value={templateVariables[variable.key] || variable.defaultValue}
+                              value={templateVariables[variable.key] || ''}
                               onChange={(e) => setTemplateVariables(prev => ({
                                 ...prev,
                                 [variable.key]: e.target.value
                               }))}
                               className="w-full bg-black border border-gray-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all"
-                              placeholder={variable.defaultValue}
+                              placeholder={variable.placeholder}
                               required={variable.required}
                             />
                           ) : variable.type === 'select' ? (
                             <select
-                              value={templateVariables[variable.key] || variable.defaultValue}
+                              value={templateVariables[variable.key] || ''}
                               onChange={(e) => setTemplateVariables(prev => ({
                                 ...prev,
                                 [variable.key]: e.target.value
@@ -2561,13 +2633,13 @@ export default function MikrotikDashboard() {
                           ) : (
                             <input
                               type={variable.type === 'url' ? 'url' : 'text'}
-                              value={templateVariables[variable.key] || variable.defaultValue}
+                              value={templateVariables[variable.key] || ''}
                               onChange={(e) => setTemplateVariables(prev => ({
                                 ...prev,
                                 [variable.key]: e.target.value
                               }))}
                               className="w-full bg-black border border-gray-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all"
-                              placeholder={variable.defaultValue}
+                              placeholder={variable.placeholder}
                               required={variable.required}
                             />
                           )}
