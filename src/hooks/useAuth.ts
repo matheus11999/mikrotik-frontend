@@ -22,11 +22,14 @@ export function useAuth() {
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      // Atualizar sessão sempre que mudar
       setSession(session)
-      if (session?.user) {
+
+      // Evitar refetch desnecessário de perfil quando apenas o token foi renovado
+      if (event !== 'TOKEN_REFRESHED' && session?.user) {
         fetchUserProfile(session.user.id)
-      } else {
+      } else if (!session?.user) {
         setUser(null)
         setLoading(false)
       }

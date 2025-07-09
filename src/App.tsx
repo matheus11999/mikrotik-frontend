@@ -19,6 +19,7 @@ import VendasList from './pages/vendas/VendasList'
 import { TransacoesList } from './pages/transacoes/TransacoesList'
 import { SaquesList } from './pages/saques/SaquesList'
 import { WireGuardManagement } from './pages/wireguard/WireGuardManagement'
+import { WinboxManagement } from './pages/winbox/WinboxManagement'
 import UsersManagement from './pages/admin/UsersManagement'
 import { SystemSettings } from './pages/admin/SystemSettings'
 import { UserSettings } from './pages/settings/UserSettings'
@@ -27,12 +28,12 @@ import { useEffect } from 'react'
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 0, // SEM cache
-      gcTime: 0,    // Remove imediatamente
+      staleTime: 1000 * 60 * 5, // 5 min de cache para evitar refetch imediato
+      gcTime: 0,
       retry: 1,
-      refetchOnMount: true,
-      refetchOnWindowFocus: true,
-      refetchOnReconnect: true,
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
     },
   },
 })
@@ -102,7 +103,7 @@ function App() {
                   <Route path="mikrotiks" element={<PlanRestrictedRoute><MikrotiksList /></PlanRestrictedRoute>} />
                   <Route path="mikrotiks/new" element={<PlanRestrictedRoute><MikrotikFormPage /></PlanRestrictedRoute>} />
                   <Route path="mikrotiks/edit/:id" element={<PlanRestrictedRoute><MikrotikFormPage /></PlanRestrictedRoute>} />
-                  <Route path="mikrotiks/:mikrotikId/dashboard" element={<PlanRestrictedRoute allowTrialUsers={false}><MikrotikDashboard /></PlanRestrictedRoute>} />
+                  <Route path="mikrotiks/:mikrotikId/dashboard" element={<PlanRestrictedRoute><MikrotikDashboard /></PlanRestrictedRoute>} />
                   
                   {/* Vendas - Requer plano ativo */}
                   <Route path="vendas" element={<PlanRestrictedRoute><VendasList /></PlanRestrictedRoute>} />
@@ -115,6 +116,9 @@ function App() {
                   
                   {/* WireGuard - Requer plano ativo */}
                   <Route path="wireguard" element={<PlanRestrictedRoute><WireGuardManagement /></PlanRestrictedRoute>} />
+                  
+                  {/* Winbox - Requer plano ativo */}
+                  <Route path="winbox" element={<PlanRestrictedRoute><WinboxManagement /></PlanRestrictedRoute>} />
                   
                   {/* Admin Routes - Admin sempre tem acesso */}
                   <Route path="users" element={<PlanRestrictedRoute requiredRole="admin"><UsersManagement /></PlanRestrictedRoute>} />

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { X, Crown, Check, Star, Zap, TrendingUp, Shield, Globe, BarChart, Palette, ArrowRight, CheckCircle } from 'lucide-react'
 import { Button } from './ui/button'
 import { Badge } from './ui/badge'
@@ -99,14 +99,18 @@ export function PlanoModal({ isOpen, onClose, currentPlan }: PlanoModalProps) {
     }
   }, [paymentStatus, paymentApproved, stopPolling, onClose])
 
-  // Iniciar polling quando pagamento for criado
+  // Garantir que o polling seja iniciado apenas uma vez
+  const hasStartedPolling = useRef(false)
+
   useEffect(() => {
-    if (paymentData?.payment_id && showPayment) {
+    if (paymentData?.payment_id && showPayment && !hasStartedPolling.current) {
       startPolling(paymentData.payment_id, 3000) // Verificar a cada 3 segundos
+      hasStartedPolling.current = true
     }
-    
+
     return () => {
       stopPolling()
+      hasStartedPolling.current = false
     }
   }, [paymentData?.payment_id, showPayment, startPolling, stopPolling])
 
@@ -443,7 +447,7 @@ export function PlanoModal({ isOpen, onClose, currentPlan }: PlanoModalProps) {
       onOpenChange={onClose} 
       className="max-w-4xl w-full mx-4 backdrop-blur-md"
       title="Escolha seu Plano"
-      description="Selecione o plano ideal para suas necessidades"
+      description="Selecione o plano ideal para suas necessidades e desbloqueie todos os recursos"
     >
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
@@ -473,7 +477,7 @@ export function PlanoModal({ isOpen, onClose, currentPlan }: PlanoModalProps) {
           </div>
           
           {/* Grid de planos */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 max-w-4xl mx-auto">
+          <div className="grid grid-cols-1 gap-6 max-w-xl mx-auto">
             {plans.map((plan) => {
               const isCurrentPlan = currentPlan?.subscription_plans?.id === plan.id
               const isPro = plan.name === 'Pro'
@@ -484,7 +488,7 @@ export function PlanoModal({ isOpen, onClose, currentPlan }: PlanoModalProps) {
               return (
                 <div
                   key={plan.id}
-                  className={`relative bg-gradient-to-br border rounded-3xl p-6 sm:p-8 transition-all duration-500 hover:shadow-2xl hover:scale-[1.03] group overflow-hidden ${
+                  className={`relative bg-gradient-to-br border rounded-3xl p-6 sm:p-6 transition-all duration-500 hover:shadow-2xl hover:scale-[1.03] group overflow-visible max-w-sm mx-auto ${
                     isPro 
                       ? 'from-purple-900/30 via-purple-800/20 to-blue-900/30 border-purple-400/30 shadow-purple-500/20' 
                       : isBasic

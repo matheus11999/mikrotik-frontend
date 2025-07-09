@@ -26,7 +26,7 @@ export default defineConfig(({ mode }) => {
         }
       }),
       VitePWA({
-        registerType: 'autoUpdate',
+        registerType: 'prompt',
         includeAssets: ['favicon.ico', 'robots.txt'],
         manifest: {
           name: 'MikroPix',
@@ -70,7 +70,10 @@ export default defineConfig(({ mode }) => {
         },
         devOptions: {
           enabled: false
-        }
+        },
+        // Desabilitar auto-reload para evitar refresh da página
+        skipWaiting: false,
+        clientsClaim: false
       })
     ],
     resolve: {

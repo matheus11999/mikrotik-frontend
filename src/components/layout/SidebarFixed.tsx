@@ -29,7 +29,8 @@ import {
   Activity,
   Wifi,
   Settings,
-  Globe
+  Globe,
+  Laptop
 } from "lucide-react";
 import { Button } from "../ui/button";
 
@@ -125,6 +126,11 @@ export function SidebarFixed({ open, setOpen, collapsed, setCollapsed }: Sidebar
         label: "MikroTiks",
         href: "/app/mikrotiks",
         icon: <Router className="h-5 w-5" />,
+      },
+      {
+        label: "Winbox",
+        href: "/app/winbox",
+        icon: <Laptop className="h-5 w-5" />,
       },
       ...(user?.role === 'admin' ? [{
         label: "WireGuard",

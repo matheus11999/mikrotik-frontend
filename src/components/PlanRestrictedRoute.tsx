@@ -1,8 +1,9 @@
 import { Navigate } from 'react-router-dom'
 import { useAuthContext } from '../contexts/AuthContext'
 import { useUserSubscription } from '../hooks/useUserSubscription'
-import { useEffect } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useToast } from '../components/ui/toast'
+import { PlanoModal } from '../components/PlanoModal'
 
 interface PlanRestrictedRouteProps {
   children: React.ReactNode
@@ -24,6 +25,8 @@ export function PlanRestrictedRoute({
     daysRemaining,
     subscription 
   } = useUserSubscription()
+
+  const toastShown = useRef(false)
 
   // Debug logs
   useEffect(() => {
@@ -86,17 +89,23 @@ export function PlanRestrictedRoute({
 
     // Show appropriate notification
     if (!hasActivePlan) {
-      addToast({
-        type: 'error',
-        title: '⚠️ Plano Expirado',
-        description: 'Seu plano expirou. Renove para continuar acessando todas as funcionalidades.',
-      })
+      if (!toastShown.current) {
+        addToast({
+          type: 'error',
+          title: '⚠️ Plano Expirado',
+          description: 'Seu plano expirou. Renove para continuar acessando todas as funcionalidades.',
+        })
+        toastShown.current = true
+      }
     } else if (isTrialUser && !allowTrialUsers) {
-      addToast({
-        type: 'error',
-        title: '⚠️ Acesso Restrito',
-        description: 'Esta funcionalidade está disponível apenas para usuários com plano pago.',
-      })
+      if (!toastShown.current) {
+        addToast({
+          type: 'error',
+          title: '⚠️ Acesso Restrito',
+          description: 'Esta funcionalidade está disponível apenas para usuários com plano pago.',
+        })
+        toastShown.current = true
+      }
     }
 
     return <Navigate to="/app/dashboard" replace />
@@ -126,6 +135,8 @@ export function PlanStatusBanner() {
     isLoading 
   } = useUserSubscription()
 
+  const [showModal, setShowModal] = useState(false)
+
   if (isLoading) return null
 
   if (!hasActivePlan) {
@@ -141,10 +152,16 @@ export function PlanStatusBanner() {
               Seu plano expirou. Renove para acessar todas as funcionalidades.
             </p>
           </div>
-          <button className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+          <button 
+            className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            onClick={() => setShowModal(true)}
+          >
             Renovar Plano
           </button>
         </div>
+        {showModal && (
+          <PlanoModal isOpen={showModal} onClose={() => setShowModal(false)} currentPlan={null} />
+        )}
       </div>
     )
   }
@@ -168,10 +185,16 @@ export function PlanStatusBanner() {
               {isTrialUser ? ' Considere fazer upgrade para um plano pago.' : ' Renove para continuar usando.'}
             </p>
           </div>
-          <button className={`${isUrgent ? 'bg-orange-500 hover:bg-orange-600' : 'bg-yellow-500 hover:bg-yellow-600'} text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors`}>
+          <button 
+            className={`${isUrgent ? 'bg-orange-500 hover:bg-orange-600' : 'bg-yellow-500 hover:bg-yellow-600'} text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors`}
+            onClick={() => setShowModal(true)}
+          >
             {isTrialUser ? 'Fazer Upgrade' : 'Renovar'}
           </button>
         </div>
+        {showModal && (
+          <PlanoModal isOpen={showModal} onClose={() => setShowModal(false)} currentPlan={null} />
+        )}
       </div>
     )
   }
