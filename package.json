@@ -8,10 +8,13 @@
     "dev": "vite --host",
     "dev:debug": "vite --host --debug hmr",
     "build": "tsc -b && vite build",
+    "build:fresh": "npm run clear-cache && npm run build",
+    "build:deploy": "npm run clear-cache && rm -rf dist && npm run build",
     "lint": "eslint .",
     "preview": "vite preview",
     "clear-cache": "node clear-cache.cjs",
-    "dev:fresh": "npm run clear-cache && npm run dev"
+    "dev:fresh": "npm run clear-cache && npm run dev",
+    "verify-cache": "node verify-cache-busting.cjs"
   },
   "dependencies": {
     "@chakra-ui/react": "^3.21.0",

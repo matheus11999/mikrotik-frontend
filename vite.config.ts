@@ -54,6 +54,12 @@ export default defineConfig(({ mode }) => {
         workbox: {
           navigateFallback: '/index.html',
           navigateFallbackAllowlist: [/^\/[^/]*$/],
+          // Forçar limpeza de cache em novos builds
+          cleanupOutdatedCaches: true,
+          skipWaiting: true,
+          clientsClaim: true,
+          // Configurar caching strategy mais agressiva para atualizações
+          cacheId: `mikropix-${Date.now()}`,
           runtimeCaching: [
             {
               urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
@@ -65,11 +71,30 @@ export default defineConfig(({ mode }) => {
                   maxAgeSeconds: 60 * 60 * 24 * 365
                 }
               }
+            },
+            {
+              urlPattern: /\.(js|css|html)$/,
+              handler: 'StaleWhileRevalidate',
+              options: {
+                cacheName: 'static-cache',
+                expiration: {
+                  maxEntries: 50,
+                  maxAgeSeconds: 60 * 60 * 24 // 24 hours
+                }
+              }
+            },
+            {
+              urlPattern: /^https:\/\/api\.mikropix\.online\/.*/i,
+              handler: 'NetworkFirst',
+              options: {
+                cacheName: 'api-cache',
+                expiration: {
+                  maxEntries: 100,
+                  maxAgeSeconds: 60 * 5 // 5 minutes
+                }
+              }
             }
-          ],
-          // Desabilitar auto-reload para evitar refresh da página
-          skipWaiting: false,
-          clientsClaim: false
+          ]
         },
         devOptions: {
           enabled: false
@@ -111,10 +136,24 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         output: {
           manualChunks: undefined,
+          // Adicionar timestamp para forçar limpeza de cache
+          entryFileNames: `[name]-[hash]-${Date.now()}.js`,
+          chunkFileNames: `[name]-[hash]-${Date.now()}.js`,
+          assetFileNames: `[name]-[hash]-${Date.now()}.[ext]`,
         },
       },
       target: 'esnext',
       sourcemap: true,
+      // Forçar rebuild completo
+      emptyOutDir: true,
+      // Minificar assets
+      minify: 'terser',
+      terserOptions: {
+        compress: {
+          drop_console: mode === 'production',
+          drop_debugger: mode === 'production',
+        },
+      },
     },
     optimizeDeps: {
       include: [

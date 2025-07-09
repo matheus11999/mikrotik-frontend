@@ -3,8 +3,10 @@ export const testVPS2Connection = async (): Promise<boolean> => {
   try {
     console.log('Testando conectividade VPS2...');
     
+    const VPS2_URL = import.meta.env.VITE_MIKROTIK_API_URL || 'http://193.181.208.141:3000';
+    
     // Usar o endpoint /health que não requer autenticação
-    const response = await fetch('http://193.181.208.141:3000/health', {
+    const response = await fetch(`${VPS2_URL}/health`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -30,8 +32,10 @@ export const testWireGuardEndpoint = async (): Promise<boolean> => {
   try {
     console.log('Testando endpoint WireGuard...');
     
+    const VPS2_URL = import.meta.env.VITE_MIKROTIK_API_URL || 'http://193.181.208.141:3000';
+    
     // Usar o endpoint específico de teste do WG Easy
-    const response = await fetch('http://193.181.208.141:3000/test/wg-easy/connection', {
+    const response = await fetch(`${VPS2_URL}/test/wg-easy/connection`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
