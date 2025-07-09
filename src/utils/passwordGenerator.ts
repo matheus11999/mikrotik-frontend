@@ -79,6 +79,46 @@ export const formatSessionTimeout = (sessionTimeout?: string): string => {
 }
 
 /**
+ * Converte session_timeout para minutos (para comentários)
+ * @param sessionTimeout Session timeout em formato MikroTik (ex: "1h", "30m", "3600")
+ * @returns Duração em minutos (ex: "60 minutos", "30 minutos")
+ */
+export const formatSessionTimeoutInMinutes = (sessionTimeout?: string): string => {
+  if (!sessionTimeout) return 'Sem limite'
+  
+  const timeout = sessionTimeout.toString().toLowerCase()
+  
+  if (timeout.endsWith('h')) {
+    const hours = parseInt(timeout.replace('h', ''))
+    const minutes = hours * 60
+    return minutes === 1 ? '1 minuto' : `${minutes} minutos`
+  } else if (timeout.endsWith('m')) {
+    const minutes = parseInt(timeout.replace('m', ''))
+    return minutes === 1 ? '1 minuto' : `${minutes} minutos`
+  } else if (timeout.includes(':')) {
+    // Formato HH:MM:SS
+    const parts = timeout.split(':')
+    const hours = parseInt(parts[0])
+    const mins = parseInt(parts[1])
+    const totalMinutes = (hours * 60) + mins
+    
+    return totalMinutes === 1 ? '1 minuto' : `${totalMinutes} minutos`
+  } else {
+    // Formato em segundos
+    const seconds = parseInt(timeout)
+    const minutes = Math.floor(seconds / 60)
+    
+    if (minutes >= 1) {
+      return minutes === 1 ? '1 minuto' : `${minutes} minutos`
+    } else {
+      return `${seconds} segundos`
+    }
+  }
+  
+  return 'Sem limite'
+}
+
+/**
  * Gera um código numérico aleatório de 5 dígitos
  * @returns string com 5 dígitos (ex: "12345")
  */
@@ -201,7 +241,7 @@ export const generatePasswordBatch = (
         }
         
         // Criar usuário
-        const durationText = formatSessionTimeout(config.session_timeout)
+        const durationText = formatSessionTimeoutInMinutes(config.session_timeout)
         const user: GeneratedUser = {
           username,
           password,
