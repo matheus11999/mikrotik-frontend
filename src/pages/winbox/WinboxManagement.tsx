@@ -56,7 +56,7 @@ interface MikroTik {
   users?: {
     nome: string
     email: string
-  }
+  }[]
 }
 
 export function WinboxManagement() {

@@ -66,14 +66,14 @@ export default defineConfig(({ mode }) => {
                 }
               }
             }
-          ]
+          ],
+          // Desabilitar auto-reload para evitar refresh da página
+          skipWaiting: false,
+          clientsClaim: false
         },
         devOptions: {
           enabled: false
-        },
-        // Desabilitar auto-reload para evitar refresh da página
-        skipWaiting: false,
-        clientsClaim: false
+        }
       })
     ],
     resolve: {
