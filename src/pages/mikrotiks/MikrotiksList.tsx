@@ -439,22 +439,22 @@ export function MikrotiksList() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Tem certeza que deseja excluir este MikroTik? Isso também removerá a conexão WireGuard associada.')) return
+          if (!confirm('Tem certeza que deseja excluir este MikroTik? Isso também removerá a conexão Mikropix associada.')) return
 
     // Adicionar ao conjunto de MikroTiks sendo deletados
     setDeletingMikrotiks(prev => new Set(prev).add(id))
 
     try {
-      // Primeiro, buscar o MikroTik para obter os dados do WireGuard
+      // Primeiro, buscar o MikroTik para obter os dados do Mikropix
       const mikrotikToDelete = mikrotiks.find(m => m.id === id)
       
-      // Se tem chave pública do WireGuard, deletar o peer primeiro
+      // Se tem chave pública do Mikropix, deletar o peer primeiro
       if (mikrotikToDelete?.wireguard_public_key) {
         try {
           const token = session?.access_token || localStorage.getItem('token')
           const encodedPublicKey = encodeURIComponent(mikrotikToDelete.wireguard_public_key)
           
-          console.log('Deletando peer WireGuard:', mikrotikToDelete.wireguard_public_key)
+          console.log('Deletando peer Mikropix:', mikrotikToDelete.wireguard_public_key)
           
           const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://api.mikropix.online'}/api/mikrotik/wirerest/peers/${encodedPublicKey}`, {
             method: 'DELETE',
@@ -467,17 +467,17 @@ export function MikrotiksList() {
           const data = await response.json()
           
           if (response.ok && data.success) {
-            console.log('Peer WireGuard deletado com sucesso')
-            // Limpar dados WireGuard do Supabase
+            console.log('Peer Mikropix deletado com sucesso')
+            // Limpar dados Mikropix do Supabase
             await clearWireGuardDataFromSupabase(mikrotikToDelete.id)
           } else {
-            console.warn('Erro ao deletar peer WireGuard:', data.error)
-            // Mesmo com erro, limpar dados WireGuard do Supabase já que o MikroTik será deletado
+            console.warn('Erro ao deletar peer Mikropix:', data.error)
+            // Mesmo com erro, limpar dados Mikropix do Supabase já que o MikroTik será deletado
             await clearWireGuardDataFromSupabase(mikrotikToDelete.id)
           }
         } catch (error) {
-          console.warn('Erro ao deletar peer WireGuard:', error)
-          // Mesmo com erro, limpar dados WireGuard do Supabase já que o MikroTik será deletado
+          console.warn('Erro ao deletar peer Mikropix:', error)
+          // Mesmo com erro, limpar dados Mikropix do Supabase já que o MikroTik será deletado
           await clearWireGuardDataFromSupabase(mikrotikToDelete.id)
         }
       }
@@ -491,7 +491,7 @@ export function MikrotiksList() {
       addToast({
         type: 'success',
         title: 'Sucesso!',
-        description: `MikroTik "${mikrotikToDelete?.nome || 'N/A'}" removido com sucesso! ${mikrotikToDelete?.wireguard_public_key ? 'Peer WireGuard também foi removido.' : ''}`
+        description: `MikroTik "${mikrotikToDelete?.nome || 'N/A'}" removido com sucesso! ${mikrotikToDelete?.wireguard_public_key ? 'Conexão Mikropix também foi removida.' : ''}`
       })
     } catch (error) {
       console.error('Error deleting mikrotik:', error)
@@ -559,11 +559,11 @@ export function MikrotiksList() {
     const serverEndpoint = '193.181.208.141'
     const serverPort = '64326'
     
-    // Se não tem dados do WireGuard, não pode gerar código
+    // Se não tem dados do Mikropix, não pode gerar código
     if (!mikrotik.wireguard_private_key || !mikrotik.ip) {
-      return `# ERRO: MikroTik não possui configuração WireGuard completa
-# Para obter a configuração WireGuard:
-# 1. Use o botão "Novo MikroTik" para criar um com WireGuard automático
+      return `# ERRO: MikroTik não possui configuração Mikropix completa
+# Para obter a configuração Mikropix:
+# 1. Use o botão "Novo MikroTik" para criar um com Mikropix automático
 # 2. Ou configure manualmente no WireRest em: http://193.181.208.141:8081
 
 # Dados necessários:
@@ -573,7 +573,7 @@ export function MikrotiksList() {
 # - Chave pré-compartilhada: ${mikrotik.wireguard_preshared_key || 'NÃO CONFIGURADO'}`
     }
     
-    // Obter chave pública do servidor WireRest via proxy
+    // Obter chave pública do servidor via proxy
     let serverPublicKey = '[CHAVE_PUBLICA_DO_SERVIDOR]' // fallback
     try {
       const serverResponse = await fetch(`${import.meta.env.VITE_API_URL || 'https://api.mikropix.online'}/api/mikrotik/wirerest/interface`, {
@@ -592,52 +592,111 @@ export function MikrotiksList() {
       console.warn('Não foi possível obter chave pública do servidor')
     }
     
-    return `/interface/wireguard
-add name="${interfaceName}" private-key="${mikrotik.wireguard_private_key}" listen-port=64326 comment="MikroPix - Conexão"
+    return `# Configuração de timezone para América/Manaus
+/system/clock
+set time-zone-name="America/Manaus"
+
+# Configuração do servidor NTP do Brasil
+/system/ntp/client
+set enabled=yes
+set primary-ntp="200.160.0.8"
+set secondary-ntp="200.20.186.76"
+
+# Configuração Walled Garden - Domínios Mikropix
+/ip/hotspot/walled-garden
+add dst-host="api.mikropix.online" action=allow comment="Mikropix - Setup"
+add dst-host="mikropix.online" action=allow comment="Mikropix - Setup"
+add dst-host="*.mikropix.online" action=allow comment="Mikropix - Setup"
+
+# Configuração Mikropix
+/interface/wireguard
+add name="${interfaceName}" private-key="${mikrotik.wireguard_private_key}" listen-port=64326 comment="Mikropix - Setup"
 /interface/wireguard/peers
-add interface="${interfaceName}" public-key="${serverPublicKey}" preshared-key="${mikrotik.wireguard_preshared_key || ''}" allowed-address="0.0.0.0/0,::/0" endpoint-address="${serverEndpoint}" endpoint-port="${serverPort}" persistent-keepalive="${mikrotik.wireguard_keepalive || 25}s" comment="MikroPix - Conexão"
+add interface="${interfaceName}" public-key="${serverPublicKey}" preshared-key="${mikrotik.wireguard_preshared_key || ''}" allowed-address="0.0.0.0/0,::/0" endpoint-address="${serverEndpoint}" endpoint-port="${serverPort}" persistent-keepalive="${mikrotik.wireguard_keepalive || 25}s" comment="Mikropix - Setup"
 /ip/address
-add address="${mikrotik.ip}/24" interface="${interfaceName}" network="10.66.66.0" comment="MikroPix - Conexão"
+add address="${mikrotik.ip}/24" interface="${interfaceName}" network="10.66.66.0" comment="Mikropix - Setup"
 /ip/dns
 set servers="1.1.1.1" allow-remote-requests=yes
 /ip/firewall/filter
-add chain="input" protocol="udp" port="64326" action="accept" comment="MikroPix - Conexão"
-add chain="forward" out-interface="${interfaceName}" action="accept" comment="MikroPix - Conexão"
-add chain="forward" in-interface="${interfaceName}" action="accept" comment="MikroPix - Conexão"
+add chain="input" protocol="udp" port="64326" action="accept" comment="Mikropix - Setup"
+add chain="forward" out-interface="${interfaceName}" action="accept" comment="Mikropix - Setup"
+add chain="forward" in-interface="${interfaceName}" action="accept" comment="Mikropix - Setup"
 /ip/firewall/nat
-add chain="srcnat" out-interface="${interfaceName}" action="masquerade" comment="MikroPix - Conexão"
+add chain="srcnat" out-interface="${interfaceName}" action="masquerade" comment="Mikropix - Setup"
 /ip/firewall/mangle
-add chain="prerouting" in-interface="${interfaceName}" action="mark-connection" new-connection-mark="wireguard-conn" comment="MikroPix - Conexão"
-add chain="prerouting" connection-mark="wireguard-conn" action="mark-packet" new-packet-mark="wireguard-packet" comment="MikroPix - Conexão"
+add chain="prerouting" in-interface="${interfaceName}" action="mark-connection" new-connection-mark="wireguard-conn" comment="Mikropix - Setup"
+add chain="prerouting" connection-mark="wireguard-conn" action="mark-packet" new-packet-mark="wireguard-packet" comment="Mikropix - Setup"
+
+# Script para verificar e remover usuários/IP bindings expirados
+/system/script
+add name="mikropix-cleanup" policy="ftp,reboot,read,write,policy,test,password,sniff,sensitive,romon" source=":log info \\\"=== MIKROPIX CLEANUP INICIADO ===\\\";\\r\\n:local removedCount 0;\\r\\n:local totalChecked 0;\\r\\n:local currentDateTime [:tostr [:totime [/system/clock/get date]]];\\r\\n:set currentDateTime (\\$currentDateTime . \\\" \\\" . [:tostr [:totime [/system/clock/get time]]]);\\r\\n:local currentTime [:totime \\$currentDateTime];\\r\\n\\r\\n:log info \\\"Verificando hotspot users...\\\";\\r\\n:foreach user in=[/ip/hotspot/user/find] do={\\r\\n  :local comment [/ip/hotspot/user/get \\$user comment];\\r\\n  :if (\\$comment~\\\"Expira:\\\") do={\\r\\n    :set totalChecked (\\$totalChecked + 1);\\r\\n    :local userName [/ip/hotspot/user/get \\$user name];\\r\\n    :local dateStr [:pick \\$comment ([:find \\$comment \\\"Expira:\\\"]+7) [:len \\$comment]];\\r\\n    :local dateEnd [:find \\$dateStr \\\" \\\"];\\r\\n    :if (\\$dateEnd >= 0) do={\\r\\n      :set dateStr [:pick \\$dateStr 0 \\$dateEnd];\\r\\n    };\\r\\n    :local expireTime [:totime \\$dateStr];\\r\\n    :local timeDiff (\\$expireTime - \\$currentTime);\\r\\n    :if (\\$timeDiff > 0) do={\\r\\n      :local hoursLeft (\\$timeDiff / 3600);\\r\\n      :log info \\\"Hotspot user \\$userName - Expira: \\$dateStr - Tempo restante: \\$hoursLeft horas\\\";\\r\\n    } else={\\r\\n      :log warning \\\"REMOVIDO: Hotspot user \\$userName - Expirado em: \\$dateStr\\\";\\r\\n      /ip/hotspot/user/remove \\$user;\\r\\n      :set removedCount (\\$removedCount + 1);\\r\\n    };\\r\\n  };\\r\\n};\\r\\n\\r\\n:log info \\\"Verificando IP bindings...\\\";\\r\\n:foreach binding in=[/ip/hotspot/ip-binding/find] do={\\r\\n  :local comment [/ip/hotspot/ip-binding/get \\$binding comment];\\r\\n  :if (\\$comment~\\\"Expira:\\\") do={\\r\\n    :set totalChecked (\\$totalChecked + 1);\\r\\n    :local bindingAddress [/ip/hotspot/ip-binding/get \\$binding address];\\r\\n    :local dateStr [:pick \\$comment ([:find \\$comment \\\"Expira:\\\"]+7) [:len \\$comment]];\\r\\n    :local dateEnd [:find \\$dateStr \\\" \\\"];\\r\\n    :if (\\$dateEnd >= 0) do={\\r\\n      :set dateStr [:pick \\$dateStr 0 \\$dateEnd];\\r\\n    };\\r\\n    :local expireTime [:totime \\$dateStr];\\r\\n    :local timeDiff (\\$expireTime - \\$currentTime);\\r\\n    :if (\\$timeDiff > 0) do={\\r\\n      :local hoursLeft (\\$timeDiff / 3600);\\r\\n      :log info \\\"IP binding \\$bindingAddress - Expira: \\$dateStr - Tempo restante: \\$hoursLeft horas\\\";\\r\\n    } else={\\r\\n      :log warning \\\"REMOVIDO: IP binding \\$bindingAddress - Expirado em: \\$dateStr\\\";\\r\\n      /ip/hotspot/ip-binding/remove \\$binding;\\r\\n      :set removedCount (\\$removedCount + 1);\\r\\n    };\\r\\n  };\\r\\n};\\r\\n\\r\\n:log info \\\"=== MIKROPIX CLEANUP CONCLUIDO ===\";\\r\\n:log info \\\"Total verificado: \\$totalChecked | Removidos: \\$removedCount\\\";" comment="Mikropix - Setup"
+
+# Scheduler para executar o script a cada 2 minutos
+/system/scheduler
+add name="mikropix-cleanup-scheduler" interval=2m on-event="mikropix-cleanup" comment="Mikropix - Setup"
+
+# Ativar Mikropix
 /interface/wireguard
-set [find name="${interfaceName}"] disabled=no`
+set [find name="${interfaceName}"] disabled=no
+
+# Configuração concluída!
+:log info "Configuração Mikropix instalada com sucesso"`
   }
 
   const generateMikroTikRemovalCode = (mikrotik: Mikrotik) => {
     const interfaceName = 'wg-client'
     
-    return `# Código para REMOVER toda a configuração MikroPix
-# ATENÇÃO: Este código irá remover TODAS as configurações criadas pelo MikroPix
+    return `# Código para REMOVER toda a configuração Mikropix
+# ATENÇÃO: Este código irá remover TODAS as configurações criadas pelo Mikropix
 
+# Remover scheduler de limpeza
+/system/scheduler
+remove [find comment="Mikropix - Setup"]
+
+# Remover script de limpeza
+/system/script
+remove [find comment="Mikropix - Setup"]
+
+# Remover regras de firewall
 /ip/firewall/mangle
-remove [find comment="MikroPix - Conexão"]
+remove [find comment="Mikropix - Setup"]
 /ip/firewall/nat
-remove [find comment="MikroPix - Conexão"]
+remove [find comment="Mikropix - Setup"]
 /ip/firewall/filter
-remove [find comment="MikroPix - Conexão"]
+remove [find comment="Mikropix - Setup"]
+
+# Remover Walled Garden Mikropix
+/ip/hotspot/walled-garden
+remove [find comment="Mikropix - Setup"]
+
+# Remover endereços IP
 /ip/address
-remove [find comment="MikroPix - Conexão"]
+remove [find comment="Mikropix - Setup"]
+
+# Remover peers Mikropix
 /interface/wireguard/peers
-remove [find comment="MikroPix - Conexão"]
+remove [find comment="Mikropix - Setup"]
+
+# Remover interface Mikropix
 /interface/wireguard
 remove [find name="${interfaceName}"]
+
+# Resetar timezone para automático (opcional)
+/system/clock
+set time-zone-name="auto"
+
+# Desabilitar cliente NTP (opcional)
+/system/ntp/client
+set enabled=no primary-ntp="" secondary-ntp=""
 
 # Configuração removida com sucesso!
 # Para restaurar o DNS padrão (opcional):
 # /ip/dns set servers=""
 
 # IMPORTANTE: Verifique se não há outras configurações importantes
-# que possam ter sido afetadas antes de aplicar este código.`
+# que possam ter sido afetadas antes de aplicar este código.
+
+:log info "Configuração Mikropix removida com sucesso"`
   }
 
   const handleShowInstallationCode = async (mikrotik: Mikrotik) => {
@@ -649,7 +708,7 @@ remove [find name="${interfaceName}"]
       setConfigModalOpen(true)
     } catch (error) {
       console.error('Erro ao gerar código:', error)
-      alert('Erro ao gerar código de instalação')
+      alert('Erro ao gerar código de instalação Mikropix')
     }
   }
 
@@ -662,7 +721,7 @@ remove [find name="${interfaceName}"]
       setConfigModalOpen(true)
     } catch (error) {
       console.error('Erro ao gerar código de remoção:', error)
-      alert('Erro ao gerar código de remoção')
+      alert('Erro ao gerar código de remoção Mikropix')
     }
   }
 
@@ -673,11 +732,11 @@ remove [find name="${interfaceName}"]
       setTimeout(() => setCopiedConfig(null), 2000)
     } catch (error) {
       console.error('Erro ao copiar código:', error)
-      alert('Erro ao copiar código')
+      alert('Erro ao copiar código Mikropix')
     }
   }
 
-  // Função auxiliar para limpar dados WireGuard do Supabase
+  // Função auxiliar para limpar dados Mikropix do Supabase
   const clearWireGuardDataFromSupabase = async (mikrotikId: string) => {
     try {
       const { error: updateError } = await supabase
@@ -693,14 +752,14 @@ remove [find name="${interfaceName}"]
         .eq('id', mikrotikId)
       
       if (updateError) {
-        console.warn('Erro ao limpar dados WireGuard do Supabase:', updateError)
+        console.warn('Erro ao limpar dados Mikropix do Supabase:', updateError)
         return false
       } else {
-        console.log('Dados WireGuard limpos do Supabase com sucesso')
+        console.log('Dados Mikropix limpos do Supabase com sucesso')
         return true
       }
     } catch (cleanupError) {
-      console.warn('Erro na limpeza dos dados WireGuard:', cleanupError)
+      console.warn('Erro na limpeza dos dados Mikropix:', cleanupError)
       return false
     }
   }
@@ -881,9 +940,9 @@ remove [find name="${interfaceName}"]
                         ></div>
                       )}
                       
-                      {/* WireGuard Status */}
+                      {/* Mikropix Status */}
                       {mikrotik.wireguard_public_key && (
-                        <div className="w-3 h-3 rounded-full bg-purple-400 shadow-lg" title="WireGuard Configurado"></div>
+                        <div className="w-3 h-3 rounded-full bg-purple-400 shadow-lg" title="Mikropix Configurado"></div>
                       )}
                     </div>
                     
@@ -1013,7 +1072,7 @@ remove [find name="${interfaceName}"]
                           variant="outline" 
                           className="border-green-600/50 text-green-400 hover:text-green-300 hover:border-green-500 hover:bg-green-500/10 p-2"
                           onClick={() => handleShowInstallationCode(mikrotik)}
-                          title="Ver código de instalação WireGuard"
+                          title="Ver código de instalação Mikropix"
                         >
                           <Code className="h-4 w-4" />
                         </Button>
@@ -1022,7 +1081,7 @@ remove [find name="${interfaceName}"]
                           variant="outline" 
                           className="border-red-600/50 text-red-400 hover:text-red-300 hover:border-red-500 hover:bg-red-500/10 p-2"
                           onClick={() => handleShowRemovalCode(mikrotik)}
-                          title="Ver código de remoção WireGuard"
+                          title="Ver código de remoção Mikropix"
                         >
                           <X className="h-4 w-4" />
                         </Button>
@@ -1049,7 +1108,7 @@ remove [find name="${interfaceName}"]
 
 
 
-      {/* New Create MikroTik with WireGuard Modal */}
+      {/* New Create MikroTik with Mikropix Modal */}
       <CreateMikrotikWithWireGuardModal
         isOpen={newCreateModalOpen}
         onClose={() => setNewCreateModalOpen(false)}
@@ -1064,10 +1123,10 @@ remove [find name="${interfaceName}"]
             <div className="flex justify-between items-center mb-6">
               <div>
                 <Dialog.Title className="text-lg sm:text-xl font-bold text-white">
-                  {showRemovalCode ? 'Remoção' : 'Configuração'} WireGuard - {selectedMikrotikForConfig?.nome}
+                  {showRemovalCode ? 'Remoção' : 'Configuração'} Mikropix - {selectedMikrotikForConfig?.nome}
                 </Dialog.Title>
                 <p className="text-gray-400 text-sm mt-1">
-                  {showRemovalCode ? 'Código para remover configurações do MikroTik' : 'Código para configurar o MikroTik'}
+                  {showRemovalCode ? 'Código para remover configurações Mikropix do MikroTik' : 'Código para configurar Mikropix no MikroTik'}
                 </p>
               </div>
               <button
@@ -1086,50 +1145,45 @@ remove [find name="${interfaceName}"]
                   {showRemovalCode ? 'Como remover a configuração' : 'Como aplicar a configuração'}
                 </h3>
                 <ol className="text-sm text-gray-300 space-y-2 list-decimal list-inside">
-                  <li>Copie todo o código abaixo clicando no botão "Copiar Código"</li>
-                  <li>Abra seu WinBox e conecte ao MikroTik</li>
-                  <li>Acesse o <strong>Terminal</strong> no menu lateral</li>
-                  <li>Cole todo o código no terminal</li>
+                  <li>Acesse seu <strong>Winbox</strong></li>
+                  <li>Acesse <strong>New Terminal</strong> no menu lateral</li>
+                  <li>Cole o código copiado no terminal</li>
                   <li>Pressione <strong>Enter</strong> para executar</li>
                   {showRemovalCode ? (
                     <>
-                      <li className="text-red-400"><strong>ATENÇÃO:</strong> Isso irá remover TODAS as configurações MikroPix</li>
+                      <li className="text-red-400"><strong>ATENÇÃO:</strong> Isso irá remover TODAS as configurações Mikropix</li>
                       <li>Verifique se não há outras configurações importantes antes de aplicar</li>
                     </>
                   ) : (
                     <li>Aguarde a configuração ser aplicada</li>
                   )}
                 </ol>
+                <div className="mt-4 p-3 bg-yellow-900/30 border border-yellow-600/30 rounded-lg">
+                  <p className="text-sm text-yellow-200">
+                    <strong>Importante:</strong> A versão do seu MikroTik precisa ser <strong>7.12 ou maior</strong> para funcionar corretamente.
+                  </p>
+                </div>
               </div>
 
-              {/* Code Display */}
+              {/* Code Copy */}
               <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-medium text-white">
-                    {showRemovalCode ? 'Código de Remoção' : 'Código de Configuração'}
-                  </h3>
+                <div className="flex justify-center">
                   <Button
                     onClick={handleCopyCode}
-                    className={showRemovalCode ? "bg-red-600 hover:bg-red-700 text-white" : "bg-green-600 hover:bg-green-700 text-white"}
+                    className={`${showRemovalCode ? "bg-red-600 hover:bg-red-700" : "bg-green-600 hover:bg-green-700"} text-white px-8 py-3 text-lg font-medium`}
                   >
                     {copiedConfig === 'copied' ? (
                       <>
-                        <Check className="h-4 w-4 mr-2" />
+                        <Check className="h-5 w-5 mr-2" />
                         Copiado!
                       </>
                     ) : (
                       <>
-                        <Copy className="h-4 w-4 mr-2" />
-                        Copiar Código
+                        <Copy className="h-5 w-5 mr-2" />
+                        {showRemovalCode ? 'Copiar para Desinstalar' : 'Copiar para Instalar'}
                       </>
                     )}
                   </Button>
-                </div>
-                
-                <div className="bg-gray-900 border border-gray-700 rounded-lg p-4 overflow-x-auto">
-                  <pre className="text-sm text-green-400 whitespace-pre-wrap font-mono">
-                    {configCode}
-                  </pre>
                 </div>
               </div>
 
