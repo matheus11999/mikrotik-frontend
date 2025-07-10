@@ -597,6 +597,7 @@ export default function MikrotikDashboard() {
             setTemplates(data.data || [])
             setTemplatesCached(true)
             console.log('[FETCH-TEMPLATES] Templates carregados:', data.data?.length || 0)
+            console.log('[FETCH-TEMPLATES] Template data:', data.data)
             return // Success, exit retry loop
           } else {
             const errorText = await response.text()
@@ -2414,7 +2415,9 @@ export default function MikrotikDashboard() {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 lg:gap-6">
-                  {templates.map((template, index) => (
+                  {templates.map((template, index) => {
+                    console.log(`[TEMPLATE-RENDER] Template ${index}:`, template)
+                    return (
                   <motion.div
                     key={template.id}
                     initial={{ opacity: 0, y: 20 }}
@@ -2429,7 +2432,11 @@ export default function MikrotikDashboard() {
                         src={template.preview}
                         alt={template.name}
                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
+                        crossOrigin="anonymous"
+                        onLoad={() => console.log(`[TEMPLATE-IMAGE] Preview loaded successfully for ${template.name}: ${template.preview}`)}
                         onError={(e) => {
+                          console.error(`[TEMPLATE-IMAGE-ERROR] Failed to load preview for ${template.name}: ${template.preview}`, e)
+                          console.log(`[TEMPLATE-IMAGE-ERROR] Setting fallback image`)
                           e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjEyMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9ImdyYWQiIHgxPSIwJSIgeTE9IjAlIiB4Mj0iMTAwJSIgeTI9IjEwMCUiPjxzdG9wIG9mZnNldD0iMCUiIHN0eWxlPSJzdG9wLWNvbG9yOiMzNzQxNTE7c3RvcC1vcGFjaXR5OjEiIC8+PHN0b3Agb2Zmc2V0PSIxMDAlIiBzdHlsZT0ic3RvcC1jb2xvcjojMWYyOTM3O3N0b3Atb3BhY2l0eToxIiAvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMTIwIiBmaWxsPSJ1cmwoI2dyYWQpIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGRvbWluYW50LWJhc2VsaW5lPSJtaWRkbGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiM5Y2EzYWYiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgZm9udC13ZWlnaHQ9ImJvbGQiPlByZXZpZXc8L3RleHQ+PC9zdmc+'
                         }}
                       />
@@ -2480,7 +2487,8 @@ export default function MikrotikDashboard() {
                     {/* Hover border effect */}
                     <div className="absolute inset-0 rounded-2xl border-2 border-transparent group-hover:border-blue-500/30 transition-all duration-500 pointer-events-none"></div>
                   </motion.div>
-                ))}
+                    )
+                  })}
                 </div>
               )}
             </div>
