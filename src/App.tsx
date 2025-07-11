@@ -7,7 +7,6 @@ import { ToastProvider } from './components/ui/toast'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { PlanRestrictedRoute } from './components/PlanRestrictedRoute'
 import { LayoutFixed } from './components/layout/LayoutFixed'
-import { PWAInstallPrompt } from './components/PWAInstallPrompt'
 import { Login } from './pages/auth/Login'
 import { Register } from './pages/auth/Register'
 import { DashboardFinal } from './pages/dashboard/DashboardFinal'
@@ -80,7 +79,6 @@ function App() {
             <AuthProvider>
             <Router {...routerProps}>
             <div className="min-h-screen bg-black">
-              <PWAInstallPrompt />
               <Routes>
                 {/* Landing Page */}
                 <Route path="/" element={<LandingPage />} />

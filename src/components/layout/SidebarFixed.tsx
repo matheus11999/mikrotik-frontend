@@ -33,6 +33,7 @@ import {
   Laptop
 } from "lucide-react";
 import { Button } from "../ui/button";
+import { PWAInstallButton } from "../PWAInstallButton";
 
 interface SidebarProps {
   open: boolean;
@@ -411,6 +412,11 @@ export function SidebarFixed({ open, setOpen, collapsed, setCollapsed }: Sidebar
 
         {/* Footer - User Info */}
         <div className="p-4 border-t border-gray-800/50">
+          {/* PWA Install Button */}
+          <div className="mb-4">
+            <PWAInstallButton collapsed={collapsed} />
+          </div>
+
           {/* Saldo */}
           {!collapsed && (
             <motion.div
@@ -661,6 +667,11 @@ export function SidebarFixed({ open, setOpen, collapsed, setCollapsed }: Sidebar
 
             {/* Mobile Footer */}
             <div className="p-4 border-t border-gray-800/50">
+              {/* PWA Install Button */}
+              <div className="mb-4">
+                <PWAInstallButton collapsed={false} />
+              </div>
+
               {/* Saldo */}
               <div className="mb-4 p-3 rounded-lg bg-green-500/10 border border-green-500/20">
                 <div className="flex items-center gap-2 text-green-400 mb-1">

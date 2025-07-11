@@ -1,17 +1,12 @@
 import { useState, useEffect } from "react";
 import { SidebarFixed } from "./SidebarFixed";
 import { Outlet } from 'react-router-dom';
-import { useToast } from "../ui";
 import { motion, AnimatePresence } from "framer-motion";
-import { usePWAInstallPrompt } from "../../hooks/usePWAInstallPrompt";
 
 export function LayoutFixed() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-
-  const { addToast } = useToast();
-  const { isInstallable, promptInstall } = usePWAInstallPrompt();
 
   // Responsividade
   useEffect(() => {
@@ -27,20 +22,6 @@ export function LayoutFixed() {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
-
-  useEffect(() => {
-    if (isInstallable) {
-      // Aciona prompt nativo imediatamente
-      promptInstall().catch(() => {
-        // Se o usuário dispensar, exibe toast informativo
-        addToast({
-          type: 'info',
-          title: 'Dica: instale o aplicativo',
-          description: 'Use as opções do navegador para adicionar o MikroPix à tela inicial.'
-        })
-      })
-    }
-  }, [isInstallable, addToast, promptInstall]);
 
   return (
     <>
