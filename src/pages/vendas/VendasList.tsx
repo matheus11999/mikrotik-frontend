@@ -113,6 +113,7 @@ export default function VendasList() {
   })
   const [ordenacao, setOrdenacao] = useState<OrdenacaoFiltro>('data_desc')
   const [busca, setBusca] = useState('')
+  const [isScrolled, setIsScrolled] = useState(false)
   
   // Filtros específicos para admin
   const [filtroUsuario, setFiltroUsuario] = useState<string>('todos')
@@ -130,6 +131,17 @@ export default function VendasList() {
       fetchVendas()
     }
   }, [user, filtroTipo, filtroMes, ordenacao, filtroUsuario, filtroMikrotik])
+
+  // Scroll detection for blur effect
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrolled = window.scrollY > 20
+      setIsScrolled(scrolled)
+    }
+
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
 
   const fetchAdminData = async () => {
     if (!isAdmin) return
@@ -592,7 +604,7 @@ export default function VendasList() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-800 p-6">
+      <div className="min-h-screen bg-black p-6">
         <div className="max-w-7xl mx-auto">
           <div className="animate-pulse space-y-6">
             <div className="h-8 bg-gray-700 rounded w-48"></div>
@@ -609,29 +621,34 @@ export default function VendasList() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-800 p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex flex-col md:flex-row md:items-center md:justify-between gap-4"
-        >
-          <div>
-            <h1 className="text-3xl font-bold text-white flex items-center gap-3">
-              {isAdmin ? (
+    <div className="min-h-screen bg-black">
+      {/* Header with blur effect */}
+      <div className={`sticky top-16 lg:top-0 z-50 px-6 py-4 transition-all duration-500 ${
+        isScrolled 
+          ? 'bg-black/60 backdrop-blur-xl border-b border-gray-700/30 shadow-2xl' 
+          : 'bg-black/40 backdrop-blur-sm border-b border-gray-800/50'
+      }`}>
+        <div className="max-w-7xl mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex flex-col md:flex-row md:items-center md:justify-between gap-4"
+          >
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent flex items-center gap-3">
+                {isAdmin ? (
                 <>
-                  <Crown className="h-8 w-8 text-yellow-400" />
+                  <Crown className="h-6 sm:h-8 w-6 sm:w-8 text-yellow-400" />
                   Relatório Administrativo de Vendas
                 </>
               ) : (
                 <>
-                  <BarChart3 className="h-8 w-8 text-blue-400" />
+                  <BarChart3 className="h-6 sm:h-8 w-6 sm:w-8 text-blue-400" />
                   Relatório de Vendas
                 </>
               )}
             </h1>
-            <p className="text-gray-400 mt-1">
+            <p className="text-gray-400 mt-1 text-sm">
               {isAdmin 
                 ? 'Visão completa de todas as vendas, comissões e métricas do sistema'
                 : 'Acompanhe suas vendas PIX e vouchers detalhadamente'
@@ -640,23 +657,31 @@ export default function VendasList() {
           </div>
           
           <div className="flex items-center gap-3">
-            <Button
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
               onClick={fetchVendas}
-              variant="outline"
-              className="border-gray-700 hover:bg-gray-800"
+              className="px-4 py-2 bg-gradient-to-r from-gray-800/80 to-gray-700/80 hover:from-gray-700/90 hover:to-gray-600/90 text-white rounded-xl border border-gray-600/30 backdrop-blur-sm transition-all duration-300 shadow-lg hover:shadow-xl flex items-center gap-2"
             >
-              <RefreshCw className="h-4 w-4 mr-2" />
+              <RefreshCw className="h-4 w-4" />
               Atualizar
-            </Button>
-            <Button
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
               onClick={exportarCSV}
-              className="bg-green-600 hover:bg-green-700"
+              className="px-4 py-2 bg-gradient-to-r from-green-600/80 to-green-700/80 hover:from-green-500/90 hover:to-green-600/90 text-white rounded-xl border border-green-500/30 backdrop-blur-sm transition-all duration-300 shadow-lg hover:shadow-xl flex items-center gap-2"
             >
-              <Download className="h-4 w-4 mr-2" />
+              <Download className="h-4 w-4" />
               Exportar CSV
-            </Button>
+            </motion.button>
           </div>
         </motion.div>
+        </div>
+      </div>
+
+      {/* Main content */}
+      <div className="max-w-7xl mx-auto space-y-6 p-6">
 
         {/* Resumo Cards */}
         <motion.div
