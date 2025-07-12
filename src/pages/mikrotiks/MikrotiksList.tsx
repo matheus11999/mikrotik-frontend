@@ -8,6 +8,7 @@ import { ListLoading } from '../../components/ui'
 import { Router, Plus, Edit, Trash2, Search, Users, Zap, Signal, RefreshCw, Eye, Copy, Check, Globe, Code, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import * as Dialog from '@radix-ui/react-dialog'
+import { motion } from 'framer-motion'
 import { PlaceholdersAndVanishInput } from '../../components/ui/placeholders-and-vanish-input'
 import { v4 as uuidv4 } from 'uuid'
 import CreateMikrotikWithWireGuardModal from '../../components/modals/CreateMikrotikWithWireGuardModal'
@@ -269,6 +270,7 @@ export function MikrotiksList() {
   const [showRemovalCode, setShowRemovalCode] = useState(false)
   const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'inactive'>('all')
   const [deletingMikrotiks, setDeletingMikrotiks] = useState<Set<string>>(new Set())
+  const [isScrolled, setIsScrolled] = useState(false)
 
   useEffect(() => {
     fetchMikrotiks()
@@ -282,6 +284,17 @@ export function MikrotiksList() {
       fetchMikrotikStats()
     }
   }, [mikrotiks])
+
+  // Scroll detection for blur effect
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrolled = window.scrollY > 20
+      setIsScrolled(scrolled)
+    }
+
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
 
   const fetchMikrotiks = async () => {
     if (!user) return
@@ -780,9 +793,12 @@ Dados necessários:
   return (
     <div className="min-h-screen bg-black pt-16 lg:pt-0">
       {/* Header */}
-      <div className="border-b border-gray-800/50 bg-black/20 backdrop-blur-sm sticky top-16 lg:top-0 z-10">
-        <div className="px-4 sm:px-6 py-6">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className={`border-b px-4 sm:px-6 py-6 sticky top-16 lg:top-0 z-50 transition-all duration-500 ${
+        isScrolled 
+          ? 'bg-black/60 backdrop-blur-xl border-gray-700/30 shadow-2xl' 
+          : 'bg-black/40 backdrop-blur-sm border-gray-800/50'
+      }`}>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center space-x-4">
               <div className="p-4 rounded-2xl bg-gradient-to-br from-orange-500/20 to-orange-600/10 border border-orange-500/20">
                 <Router className="h-6 w-6 text-orange-400" />
@@ -798,21 +814,25 @@ Dados necessários:
             </div>
             
             <div className="flex gap-2">
-              <Button 
-                onClick={fetchMikrotikStats} 
-                variant="outline" 
-                className="border-gray-700 text-gray-300 hover:text-white hover:border-orange-500/50 hover:bg-orange-500/10 transition-all duration-200 hover:scale-105"
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={fetchMikrotikStats}
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-gray-800/80 to-gray-700/80 hover:from-gray-700/90 hover:to-gray-600/90 text-white rounded-xl border border-gray-600/30 backdrop-blur-sm transition-all duration-300 shadow-lg hover:shadow-xl"
               >
-                <RefreshCw className="h-4 w-4 mr-2" /> Atualizar
-              </Button>
-              <Button 
-                onClick={() => setNewCreateModalOpen(true)} 
-                className="bg-orange-600 hover:bg-orange-700 text-white shadow-lg transition-all duration-200 hover:scale-105"
+                <RefreshCw className="h-4 w-4" />
+                <span className="hidden sm:inline font-medium">Atualizar</span>
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setNewCreateModalOpen(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-orange-600/80 to-orange-700/80 hover:from-orange-500/90 hover:to-orange-600/90 text-white rounded-xl border border-orange-500/30 backdrop-blur-sm transition-all duration-300 shadow-lg hover:shadow-xl"
               >
-                <Plus className="h-4 w-4 mr-2" /> Novo MikroTik
-              </Button>
+                <Plus className="h-4 w-4" />
+                <span className="font-medium">Novo MikroTik</span>
+              </motion.button>
             </div>
-          </div>
         </div>
       </div>
 

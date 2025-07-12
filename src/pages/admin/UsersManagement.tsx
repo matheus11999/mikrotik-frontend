@@ -65,6 +65,7 @@ export function UsersManagement() {
   const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'user'>('all')
   const [creditAmount, setCreditAmount] = useState('')
   const [creditNote, setCreditNote] = useState('')
+  const [isScrolled, setIsScrolled] = useState(false)
 
   // Form states
   const [formData, setFormData] = useState({
@@ -90,6 +91,17 @@ export function UsersManagement() {
       fetchUsers()
     }
   }, [user])
+
+  // Scroll detection for blur effect
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrolled = window.scrollY > 20
+      setIsScrolled(scrolled)
+    }
+
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
 
   const fetchUsers = async () => {
     try {
@@ -423,10 +435,13 @@ export function UsersManagement() {
         <motion.div 
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="border-b border-gray-800/50 bg-black/20 backdrop-blur-sm sticky top-16 lg:top-0 z-10"
+          className={`border-b px-4 sm:px-6 py-6 sticky top-16 lg:top-0 z-50 transition-all duration-500 ${
+            isScrolled 
+              ? 'bg-black/60 backdrop-blur-xl border-gray-700/30 shadow-2xl' 
+              : 'bg-black/40 backdrop-blur-sm border-gray-800/50'
+          }`}
         >
-          <div className="px-4 sm:px-6 py-6">
-            <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
                 <motion.div 
                   initial={{ scale: 0.8 }}
@@ -459,28 +474,27 @@ export function UsersManagement() {
                 transition={{ delay: 0.2 }}
                 className="flex gap-3"
               >
-                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                  <Button
-                    onClick={() => setCreateUserModalOpen(true)}
-                    className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg transition-all duration-200"
-                  >
-                    <UserPlus className="w-4 h-4 mr-2" />
-                    Novo Usuário
-                  </Button>
-                </motion.div>
-                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                  <Button
-                    onClick={fetchUsers}
-                    disabled={loading}
-                    className="bg-purple-600 hover:bg-purple-700 text-white shadow-lg transition-all duration-200"
-                  >
-                    <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                    Atualizar
-                  </Button>
-                </motion.div>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setCreateUserModalOpen(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600/80 to-blue-700/80 hover:from-blue-500/90 hover:to-blue-600/90 text-white rounded-xl border border-blue-500/30 backdrop-blur-sm transition-all duration-300 shadow-lg hover:shadow-xl"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span className="font-medium">Novo Usuário</span>
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={fetchUsers}
+                  disabled={loading}
+                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600/80 to-purple-700/80 hover:from-purple-500/90 hover:to-purple-600/90 disabled:from-gray-700/60 disabled:to-gray-800/60 text-white rounded-xl border border-purple-500/30 backdrop-blur-sm transition-all duration-300 shadow-lg hover:shadow-xl disabled:shadow-none"
+                >
+                  <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                  <span className="font-medium">Atualizar</span>
+                </motion.button>
               </motion.div>
             </div>
-          </div>
         </motion.div>
 
         <div className="p-4 sm:p-6">

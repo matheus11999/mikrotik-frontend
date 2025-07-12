@@ -309,6 +309,7 @@ export default function MikrotikDashboard() {
   const [activeTab, setActiveTab] = useState('overview')
   const [error, setError] = useState<string | null>(null)
   const [cpuMemoryData, setCpuMemoryData] = useState<any>(null)
+  const [isScrolled, setIsScrolled] = useState(false)
   
   // Chart data for historical tracking with localStorage
   const [cpuHistory, setCpuHistory] = useState<{ time: string, value: number }[]>(() => {
@@ -886,6 +887,17 @@ export default function MikrotikDashboard() {
       clearInterval(interval)
     }
   }, [mikrotikId, session?.access_token, loading, fetchCpuMemoryData])
+
+  // Scroll detection for blur effect
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrolled = window.scrollY > 20
+      setIsScrolled(scrolled)
+    }
+
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
 
   // Modal handlers
   const openModal = (type: keyof typeof modals, item?: any) => {
@@ -1776,16 +1788,22 @@ export default function MikrotikDashboard() {
   return (
     <div className="min-h-screen bg-black pt-20 lg:pt-0">
       {/* Header */}
-      <div className="bg-black border-b border-gray-800 px-4 sm:px-6 py-4 sticky top-16 lg:top-0 z-10">
+      <div className={`border-b px-4 sm:px-6 py-4 sticky top-16 lg:top-0 z-50 transition-all duration-500 ${
+        isScrolled 
+          ? 'bg-black/60 backdrop-blur-xl border-gray-700/30 shadow-2xl' 
+          : 'bg-black/40 backdrop-blur-sm border-gray-800/50'
+      }`}>
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <button
+            <motion.button
+              whileHover={{ scale: 1.05, x: -2 }}
+              whileTap={{ scale: 0.95 }}
               onClick={() => navigate('/app/mikrotiks')}
-              className="flex items-center gap-2 px-3 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-gray-800/80 to-gray-700/80 hover:from-gray-700/90 hover:to-gray-600/90 text-white rounded-xl border border-gray-600/30 backdrop-blur-sm transition-all duration-300 shadow-lg hover:shadow-xl"
             >
               <ArrowLeft className="h-4 w-4" />
-              <span className="hidden sm:inline">Voltar</span>
-            </button>
+              <span className="hidden sm:inline font-medium">Voltar</span>
+            </motion.button>
             
             <div>
               <h1 className="text-lg sm:text-xl lg:text-2xl xl:text-3xl font-bold text-white">
@@ -1807,10 +1825,10 @@ export default function MikrotikDashboard() {
             whileTap={{ scale: 0.95 }}
             onClick={() => window.location.reload()}
             disabled={loading}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 text-white rounded-lg transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600/80 to-blue-700/80 hover:from-blue-500/90 hover:to-blue-600/90 disabled:from-gray-700/60 disabled:to-gray-800/60 text-white rounded-xl border border-blue-500/30 backdrop-blur-sm transition-all duration-300 shadow-lg hover:shadow-xl disabled:shadow-none"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">Atualizar</span>
+            <span className="hidden sm:inline font-medium">Atualizar</span>
           </motion.button>
         </div>
       </div>
@@ -2034,51 +2052,12 @@ export default function MikrotikDashboard() {
             </div>
           )}
 
-          {/* Sistema Card */}
-          {stats ? (
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="group bg-black border border-gray-800 hover:border-purple-500 hover:bg-gray-900/50 rounded-xl transition-all duration-300 hover:scale-[1.02] p-4 sm:p-6 shadow-lg"
-            >
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-purple-600/20 rounded-lg">
-                  <Settings className="h-5 w-5 text-purple-400" />
-                </div>
-                <h3 className="text-lg font-semibold text-white group-hover:text-purple-400 transition-colors">Sistema</h3>
-              </div>
-              <div className="space-y-2">
-                <p className="text-lg sm:text-xl font-bold text-purple-400 truncate">{getSystemInfo(stats).model}</p>
-                <p className="text-sm text-gray-400 truncate">{getSystemInfo(stats).identity}</p>
-                <p className="text-xs text-gray-500 truncate">{getSystemInfo(stats).version}</p>
-                <div className="mt-2 pt-2 border-t border-gray-700">
-                  <p className="text-xs text-gray-400">Uptime: {formatUptime(stats.resource?.uptime || stats.uptime)}</p>
-                </div>
-              </div>
-            </motion.div>
-          ) : (
-            <div className="bg-black border border-gray-800 rounded-xl p-4 sm:p-6 shadow-lg">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-purple-600/20 rounded-lg animate-pulse">
-                  <div className="h-5 w-5 bg-gray-700 rounded"></div>
-                </div>
-                <div className="h-6 bg-gray-700 rounded w-20 animate-pulse"></div>
-              </div>
-              <div className="space-y-2">
-                <div className="h-5 bg-gray-700 rounded w-32 animate-pulse"></div>
-                <div className="h-4 bg-gray-700 rounded w-28 animate-pulse"></div>
-                <div className="h-3 bg-gray-700 rounded w-24 animate-pulse"></div>
-              </div>
-            </div>
-          )}
-
           {/* Storage Card */}
           {stats ? (
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
+              transition={{ delay: 0.3 }}
               className="group bg-black border border-gray-800 hover:border-orange-500 hover:bg-gray-900/50 rounded-xl transition-all duration-300 hover:scale-[1.02] p-4 sm:p-6 shadow-lg"
             >
               <div className="flex items-center gap-3 mb-4">
@@ -2198,6 +2177,45 @@ export default function MikrotikDashboard() {
                   <div className="w-16 h-16 bg-gray-700 rounded-full animate-pulse"></div>
                 </div>
                 <div className="h-3 bg-gray-700 rounded w-32 animate-pulse"></div>
+              </div>
+            </div>
+          )}
+
+          {/* Sistema Card */}
+          {stats ? (
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+              className="group bg-black border border-gray-800 hover:border-purple-500 hover:bg-gray-900/50 rounded-xl transition-all duration-300 hover:scale-[1.02] p-4 sm:p-6 shadow-lg"
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-purple-600/20 rounded-lg">
+                  <Settings className="h-5 w-5 text-purple-400" />
+                </div>
+                <h3 className="text-lg font-semibold text-white group-hover:text-purple-400 transition-colors">Sistema</h3>
+              </div>
+              <div className="space-y-2">
+                <p className="text-lg sm:text-xl font-bold text-purple-400 truncate">{getSystemInfo(stats).model}</p>
+                <p className="text-sm text-gray-400 truncate">{getSystemInfo(stats).identity}</p>
+                <p className="text-xs text-gray-500 truncate">{getSystemInfo(stats).version}</p>
+                <div className="mt-2 pt-2 border-t border-gray-700">
+                  <p className="text-xs text-gray-400">Uptime: {formatUptime(stats.resource?.uptime || stats.uptime)}</p>
+                </div>
+              </div>
+            </motion.div>
+          ) : (
+            <div className="bg-black border border-gray-800 rounded-xl p-4 sm:p-6 shadow-lg">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-purple-600/20 rounded-lg animate-pulse">
+                  <div className="h-5 w-5 bg-gray-700 rounded"></div>
+                </div>
+                <div className="h-6 bg-gray-700 rounded w-20 animate-pulse"></div>
+              </div>
+              <div className="space-y-2">
+                <div className="h-5 bg-gray-700 rounded w-32 animate-pulse"></div>
+                <div className="h-4 bg-gray-700 rounded w-28 animate-pulse"></div>
+                <div className="h-3 bg-gray-700 rounded w-24 animate-pulse"></div>
               </div>
             </div>
           )}
