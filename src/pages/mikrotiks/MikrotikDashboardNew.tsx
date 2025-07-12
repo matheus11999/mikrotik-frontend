@@ -20,6 +20,7 @@ import { Badge } from '../../components/ui/badge'
 import { Button } from '../../components/ui/button'
 import { Card } from '../../components/ui/card'
 import { useToast } from '../../components/ui/toast'
+import { supabase } from '../../lib/supabase'
 import { FiUsers, FiList, FiLayout, FiServer } from 'react-icons/fi'
 import { SimpleModal } from '../../components/SimpleModal'
 import { BentoGrid, BentoGridItem } from '../../components/ui/bento-grid'
@@ -297,6 +298,7 @@ export default function MikrotikDashboard() {
   // States
   const [stats, setStats] = useState<MikrotikStats | null>(null)
   const [mikrotikInfo, setMikrotikInfo] = useState<any>(null) // Store mikrotik connection info
+  const [mikrotikName, setMikrotikName] = useState<string>('') // Store mikrotik name from Supabase
   const [users, setUsers] = useState<HotspotUser[]>([])
   const [activeUsers, setActiveUsers] = useState<ActiveUser[]>([])
   const [profiles, setProfiles] = useState<HotspotProfile[]>([])
@@ -393,6 +395,31 @@ export default function MikrotikDashboard() {
       port: '8728'
     }
   }
+
+  // Function to fetch MikroTik name from Supabase
+  const fetchMikrotikName = useCallback(async () => {
+    if (!mikrotikId || !user) return
+
+    try {
+      const { data, error } = await supabase
+        .from('mikrotiks')
+        .select('nome')
+        .eq('id', mikrotikId)
+        .eq('user_id', user.id)
+        .single()
+
+      if (error) {
+        console.error('Error fetching mikrotik name:', error)
+        return
+      }
+
+      if (data?.nome) {
+        setMikrotikName(data.nome)
+      }
+    } catch (error) {
+      console.error('Error fetching mikrotik name:', error)
+    }
+  }, [mikrotikId, user])
 
   // Separate fetch functions for each data type
   const fetchStats = useCallback(async () => {
@@ -755,6 +782,9 @@ export default function MikrotikDashboard() {
       setError(null)
 
       try {
+        // Fetch MikroTik name from Supabase first
+        await fetchMikrotikName()
+        
         // Fetch data sequentially with delays to avoid rate limiting
         // Criar funções inline para evitar dependencies loops
         
@@ -1759,7 +1789,7 @@ export default function MikrotikDashboard() {
             
             <div>
               <h1 className="text-lg sm:text-xl lg:text-2xl xl:text-3xl font-bold text-white">
-                {mikrotikInfo?.nome || 'MikroTik'} - Painel de Controle
+                {mikrotikName || 'MikroTik'} - Painel de Controle
               </h1>
               <div className="text-gray-400 text-sm space-y-1">
                 <p>{mikrotikInfo?.host}{mikrotikInfo?.location && ` - ${mikrotikInfo?.location}`}</p>
