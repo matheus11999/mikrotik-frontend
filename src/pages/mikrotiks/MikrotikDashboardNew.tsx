@@ -1719,7 +1719,7 @@ export default function MikrotikDashboard() {
 
   if (loading && !stats) {
     return (
-      <div className="min-h-screen bg-black pt-16 lg:pt-0 flex items-center justify-center">
+      <div className="min-h-screen bg-black pt-20 lg:pt-0 flex items-center justify-center">
         <motion.div 
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -1744,9 +1744,9 @@ export default function MikrotikDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-black pt-16 lg:pt-0">
+    <div className="min-h-screen bg-black pt-20 lg:pt-0">
       {/* Header */}
-      <div className="bg-black border-b border-gray-800 px-4 sm:px-6 py-4 sticky top-0 z-10">
+      <div className="bg-black border-b border-gray-800 px-4 sm:px-6 py-4 sticky top-16 lg:top-0 z-10">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <button
@@ -1759,13 +1759,13 @@ export default function MikrotikDashboard() {
             
             <div>
               <h1 className="text-lg sm:text-xl lg:text-2xl xl:text-3xl font-bold text-white">
-                {mikrotikInfo?.nome || 'MikroTik Dashboard'}
+                {mikrotikInfo?.nome || 'MikroTik'} - Painel de Controle
               </h1>
               <div className="text-gray-400 text-sm space-y-1">
-                <p>{mikrotikInfo?.host} • {mikrotikInfo?.location}</p>
+                <p>{mikrotikInfo?.host}{mikrotikInfo?.location && ` - ${mikrotikInfo?.location}`}</p>
                 {stats && (
                   <p className="text-green-400 font-medium">
-                    {stats.routerboard?.model || stats.resource?.['board-name'] || 'RouterBoard'} • {stats.identity?.name || 'RouterOS'}
+                    {stats.routerboard?.model || stats.resource?.['board-name'] || 'RouterBoard'}{stats.identity?.name && ` - ${stats.identity?.name}`}
                   </p>
                 )}
               </div>
@@ -2082,16 +2082,18 @@ export default function MikrotikDashboard() {
                     </p>
                     <p className="text-sm text-gray-400">Usado</p>
                   </div>
-                  <div className="relative w-16 h-16">
-                    <PieChart
-                      series={[
-                        {
-                          data: (() => {
-                            let usedPercentage = 0
-                            
-                            if (cpuMemoryData?.storage?.percentage !== undefined) {
-                              usedPercentage = cpuMemoryData.storage.percentage
-                            } else {
+                  <div className="w-20 h-12">
+                    {/* Barra de progresso simples */}
+                    <div className="space-y-2">
+                      <div className="w-full bg-gray-700 rounded-full h-2">
+                        <div 
+                          className="bg-orange-400 h-2 rounded-full transition-all duration-500"
+                          style={{
+                            width: `${(() => {
+                              if (cpuMemoryData?.storage?.percentage !== undefined) {
+                                return cpuMemoryData.storage.percentage
+                              }
+                              
                               const parseStorageValue = (storageStr) => {
                                 if (!storageStr) return 0
                                 const match = storageStr.match(/^([\d.]+)/)
@@ -2101,52 +2103,31 @@ export default function MikrotikDashboard() {
                               const total = parseStorageValue(stats.resource?.['total-hdd-space'])
                               const free = parseStorageValue(stats.resource?.['free-hdd-space'])
                               const used = total - free
-                              usedPercentage = total > 0 ? Math.round((used / total) * 100) : 0
+                              return total > 0 ? Math.round((used / total) * 100) : 0
+                            })()}%`
+                          }}
+                        />
+                      </div>
+                      <div className="text-center">
+                        <span className="text-xs text-orange-400 font-semibold">
+                          {(() => {
+                            if (cpuMemoryData?.storage?.percentage !== undefined) {
+                              return `${cpuMemoryData.storage.percentage}%`
                             }
                             
-                            const freePercentage = 100 - usedPercentage
-                            return [
-                              { id: 0, value: usedPercentage },
-                              { id: 1, value: freePercentage }
-                            ]
-                          })(),
-                          innerRadius: 18,
-                          outerRadius: 32,
-                          paddingAngle: 1,
-                          startAngle: -90,
-                          colors: ['#fb923c', '#374151']
-                        }
-                      ]}
-                      width={64}
-                      height={64}
-                      slotProps={{
-                        legend: { hidden: true },
-                      }}
-                      sx={{
-                        '& .MuiChartsLegend-root': {
-                          display: 'none',
-                        },
-                      }}
-                    />
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <span className="text-xs font-bold text-orange-400">
-                        {(() => {
-                          if (cpuMemoryData?.storage?.percentage !== undefined) {
-                            return `${cpuMemoryData.storage.percentage}%`
-                          }
-                          
-                          const parseStorageValue = (storageStr) => {
-                            if (!storageStr) return 0
-                            const match = storageStr.match(/^([\d.]+)/)
-                            return match ? parseFloat(match[1]) : 0
-                          }
-                          
-                          const total = parseStorageValue(stats.resource?.['total-hdd-space'])
-                          const free = parseStorageValue(stats.resource?.['free-hdd-space'])
-                          const used = total - free
-                          return `${total > 0 ? Math.round((used / total) * 100) : 0}%`
-                        })()}
-                      </span>
+                            const parseStorageValue = (storageStr) => {
+                              if (!storageStr) return 0
+                              const match = storageStr.match(/^([\d.]+)/)
+                              return match ? parseFloat(match[1]) : 0
+                            }
+                            
+                            const total = parseStorageValue(stats.resource?.['total-hdd-space'])
+                            const free = parseStorageValue(stats.resource?.['free-hdd-space'])
+                            const used = total - free
+                            return `${total > 0 ? Math.round((used / total) * 100) : 0}%`
+                          })()}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
