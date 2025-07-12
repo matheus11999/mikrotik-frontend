@@ -9,8 +9,11 @@ import {
   RefreshCw,
   AlertCircle,
   X,
-  ArrowLeft
+  ArrowLeft,
+  HardDrive
 } from 'lucide-react'
+import { SparkLineChart } from '@mui/x-charts/SparkLineChart'
+import { PieChart } from '@mui/x-charts/PieChart'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { Badge } from '../../components/ui/badge'
@@ -305,6 +308,16 @@ export default function MikrotikDashboard() {
   const [error, setError] = useState<string | null>(null)
   const [cpuMemoryData, setCpuMemoryData] = useState<any>(null)
   
+  // Chart data for historical tracking with localStorage
+  const [cpuHistory, setCpuHistory] = useState<{ time: string, value: number }[]>(() => {
+    const saved = localStorage.getItem(`cpuHistory_${mikrotikId}`)
+    return saved ? JSON.parse(saved) : []
+  })
+  const [memoryHistory, setMemoryHistory] = useState<{ time: string, value: number }[]>(() => {
+    const saved = localStorage.getItem(`memoryHistory_${mikrotikId}`)
+    return saved ? JSON.parse(saved) : []
+  })
+  
   // Templates state
   const [templates, setTemplates] = useState<Template[]>([])
   const [templatesLoading, setTemplatesLoading] = useState(false)
@@ -315,6 +328,13 @@ export default function MikrotikDashboard() {
   useEffect(() => {
     setDataLoaded(false)
     setTemplatesCached(false)
+    
+    // Load chart history for new mikrotikId
+    const cpuSaved = localStorage.getItem(`cpuHistory_${mikrotikId}`)
+    const memorySaved = localStorage.getItem(`memoryHistory_${mikrotikId}`)
+    
+    setCpuHistory(cpuSaved ? JSON.parse(cpuSaved) : [])
+    setMemoryHistory(memorySaved ? JSON.parse(memorySaved) : [])
   }, [mikrotikId])
 
   // Modal states
@@ -679,14 +699,44 @@ export default function MikrotikDashboard() {
         const data = await response.json()
         setCpuMemoryData(data.data)
         
+        // Update historical data for charts
+        const currentTime = new Date().toLocaleTimeString('pt-BR', { 
+          hour: '2-digit', 
+          minute: '2-digit' 
+        })
+        
+        // CPU history
+        const cpuPercentage = data.data.cpu?.percentage || 0
+        setCpuHistory(prev => {
+          const newHistory = [...prev, { time: currentTime, value: cpuPercentage }].slice(-15) // Keep last 15 points
+          localStorage.setItem(`cpuHistory_${mikrotikId}`, JSON.stringify(newHistory))
+          return newHistory
+        })
+        
+        // Memory history - use data.data.memory.percentage directly
+        const memoryPercentage = data.data.memory?.percentage || 0
+        setMemoryHistory(prev => {
+          const newHistory = [...prev, { time: currentTime, value: memoryPercentage }].slice(-15) // Keep last 15 points
+          localStorage.setItem(`memoryHistory_${mikrotikId}`, JSON.stringify(newHistory))
+          return newHistory
+        })
+        
+        console.log('CPU/Memory/Storage data updated:', { 
+          cpu: cpuPercentage, 
+          memory: memoryPercentage, 
+          storage: data.data.storage?.percentage || 'N/A' 
+        })
+        
         // Update stats resource data if stats exists - preserva routerboard e outros dados
         setStats(prev => prev ? ({
           ...prev,
           resource: {
             ...prev.resource,
-            'cpu-load': data.data.cpu.percentage.toString(), // Não adiciona % aqui pois a função getCpuInfo já adiciona
-            'total-memory': data.data.memory.total.toString(),
-            'free-memory': data.data.memory.free.toString()
+            'cpu-load': `${cpuPercentage}%`,
+            'total-memory': data.data.memory?.total?.toString() || '0',
+            'free-memory': data.data.memory?.free?.toString() || '0',
+            'total-hdd-space': data.data.storage?.total?.toString() || '0',
+            'free-hdd-space': data.data.storage?.free?.toString() || '0'
           }
           // Preserva routerboard, identity e outros dados importantes
         }) : null)
@@ -799,7 +849,7 @@ export default function MikrotikDashboard() {
     // Set up interval for automatic updates
     const interval = setInterval(() => {
       fetchCpuMemoryData()
-    }, 30000) // 30 seconds to reduce API calls
+    }, 4000) // 4 seconds for real-time updates
 
     return () => {
       clearTimeout(timeoutId)
@@ -1779,37 +1829,47 @@ export default function MikrotikDashboard() {
               </div>
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <p className="text-2xl sm:text-3xl font-bold text-blue-400">{getCpuInfo(stats).load}</p>
-                  <div className="relative w-16 h-16">
-                    <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
-                      <path
-                        className="text-gray-700"
-                        stroke="currentColor"
-                        strokeWidth="3"
-                        fill="none"
-                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                      />
-                      <path
-                        className="text-blue-400"
-                        stroke="currentColor"
-                        strokeWidth="3"
-                        strokeDasharray={`${(() => {
-                          const percentage = parseInt(getCpuInfo(stats).load.replace('%', ''))
-                          return isNaN(percentage) ? 0 : percentage
-                        })()}, 100`}
-                        strokeLinecap="round"
-                        fill="none"
-                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                      />
-                    </svg>
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <span className="text-xs font-bold text-blue-400">
-                        {(() => {
-                          const percentage = parseInt(getCpuInfo(stats).load.replace('%', ''))
-                          return isNaN(percentage) ? '0' : percentage
-                        })()}%
-                      </span>
-                    </div>
+                  <div>
+                    <p className="text-2xl sm:text-3xl font-bold text-blue-400">
+                      {(() => {
+                        // Use the percentage directly from cpuMemoryData if available
+                        if (cpuMemoryData?.cpu?.percentage !== undefined) {
+                          return `${cpuMemoryData.cpu.percentage}%`
+                        }
+                        
+                        // Fallback to getCpuInfo for backwards compatibility
+                        return getCpuInfo(stats).load
+                      })()}
+                    </p>
+                    <p className="text-sm text-gray-400">Uso atual</p>
+                  </div>
+                  <div className="w-24 h-12">
+                    <SparkLineChart
+                      data={cpuHistory.length > 0 ? cpuHistory.map(item => item.value) : [0, 0, 0, 0, 0]}
+                      width={96}
+                      height={48}
+                      curve="linear"
+                      area
+                      colors={['#60a5fa']}
+                      margin={{ left: 0, right: 0, top: 4, bottom: 4 }}
+                      sx={{
+                        '& .MuiAreaElement-root': {
+                          fill: 'url(#cpuGradient)',
+                          filter: 'brightness(120%)',
+                        },
+                        '& .MuiLineElement-root': {
+                          stroke: '#60a5fa',
+                          strokeWidth: 2,
+                        },
+                      }}
+                    >
+                      <defs>
+                        <linearGradient id="cpuGradient" x1="50%" y1="0%" x2="50%" y2="100%">
+                          <stop offset="0%" stopColor="#60a5fa" stopOpacity={0.3} />
+                          <stop offset="100%" stopColor="#60a5fa" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                    </SparkLineChart>
                   </div>
                 </div>
                 <p className="text-sm text-gray-400 truncate">{getCpuInfo(stats).type}</p>
@@ -1852,46 +1912,75 @@ export default function MikrotikDashboard() {
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xl sm:text-2xl font-bold text-green-400">{formatMemory(stats.resource?.['free-memory'])}</p>
-                    <p className="text-sm text-gray-400">Livre</p>
+                    <p className="text-xl sm:text-2xl font-bold text-green-400">
+                      {(() => {
+                        // Use the percentage directly from cpuMemoryData if available (updates every 4 seconds)
+                        if (cpuMemoryData?.memory?.percentage !== undefined) {
+                          return `${cpuMemoryData.memory.percentage}%`
+                        }
+                        
+                        // Fallback to manual calculation for backwards compatibility
+                        const parseMemoryValue = (memStr) => {
+                          if (!memStr) return 0
+                          const match = memStr.match(/^([\d.]+)/)
+                          return match ? parseFloat(match[1]) : 0
+                        }
+                        
+                        const total = parseMemoryValue(stats.resource?.['total-memory'])
+                        const free = parseMemoryValue(stats.resource?.['free-memory'])
+                        const used = total - free
+                        return `${total > 0 ? Math.round((used / total) * 100) : 0}%`
+                      })()}
+                    </p>
+                    <p className="text-sm text-gray-400">Uso atual</p>
                   </div>
-                  <div className="relative w-16 h-16">
-                    <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
-                      <path
-                        className="text-gray-700"
-                        stroke="currentColor"
-                        strokeWidth="3"
-                        fill="none"
-                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                      />
-                      <path
-                        className="text-green-400"
-                        stroke="currentColor"
-                        strokeWidth="3"
-                        strokeDasharray={`${(() => {
-                          const total = parseInt(stats.resource?.['total-memory'] || '0')
-                          const free = parseInt(stats.resource?.['free-memory'] || '0')
-                          const used = total - free
-                          return total > 0 ? Math.round((used / total) * 100) : 0
-                        })()}, 100`}
-                        strokeLinecap="round"
-                        fill="none"
-                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                      />
-                    </svg>
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <span className="text-xs font-bold text-green-400">
-                        {(() => {
-                          const total = parseInt(stats.resource?.['total-memory'] || '0')
-                          const free = parseInt(stats.resource?.['free-memory'] || '0')
-                          const used = total - free
-                          return total > 0 ? Math.round((used / total) * 100) : 0
-                        })()}%
-                      </span>
-                    </div>
+                  <div className="w-24 h-12">
+                    <SparkLineChart
+                      data={memoryHistory.length > 0 ? memoryHistory.map(item => item.value) : [0, 0, 0, 0, 0]}
+                      width={96}
+                      height={48}
+                      curve="linear"
+                      area
+                      colors={['#4ade80']}
+                      margin={{ left: 0, right: 0, top: 4, bottom: 4 }}
+                      sx={{
+                        '& .MuiAreaElement-root': {
+                          fill: 'url(#memoryGradient)',
+                          filter: 'brightness(120%)',
+                        },
+                        '& .MuiLineElement-root': {
+                          stroke: '#4ade80',
+                          strokeWidth: 2,
+                        },
+                      }}
+                    >
+                      <defs>
+                        <linearGradient id="memoryGradient" x1="50%" y1="0%" x2="50%" y2="100%">
+                          <stop offset="0%" stopColor="#4ade80" stopOpacity={0.3} />
+                          <stop offset="100%" stopColor="#4ade80" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                    </SparkLineChart>
                   </div>
                 </div>
-                <p className="text-xs text-gray-500 truncate">Total: {formatMemory(stats.resource?.['total-memory'])}</p>
+                <p className="text-xs text-gray-500 truncate">
+                  {(() => {
+                    // Use the formatted values from cpuMemoryData if available
+                    if (cpuMemoryData?.memory?.usedFormatted && cpuMemoryData?.memory?.totalFormatted) {
+                      return `Usado: ${cpuMemoryData.memory.usedFormatted} / ${cpuMemoryData.memory.totalFormatted}`
+                    }
+                    
+                    // Fallback to direct display from RouterOS data
+                    const totalMem = stats.resource?.['total-memory'] || 'N/A'
+                    const freeMem = stats.resource?.['free-memory'] || 'N/A'
+                    
+                    if (totalMem !== 'N/A' && freeMem !== 'N/A') {
+                      return `Livre: ${freeMem} / Total: ${totalMem}`
+                    }
+                    
+                    return 'Dados não disponíveis'
+                  })()}
+                </p>
               </div>
             </motion.div>
           ) : (
@@ -1933,6 +2022,9 @@ export default function MikrotikDashboard() {
                 <p className="text-lg sm:text-xl font-bold text-purple-400 truncate">{getSystemInfo(stats).model}</p>
                 <p className="text-sm text-gray-400 truncate">{getSystemInfo(stats).identity}</p>
                 <p className="text-xs text-gray-500 truncate">{getSystemInfo(stats).version}</p>
+                <div className="mt-2 pt-2 border-t border-gray-700">
+                  <p className="text-xs text-gray-400">Uptime: {formatUptime(stats.resource?.uptime || stats.uptime)}</p>
+                </div>
               </div>
             </motion.div>
           ) : (
@@ -1951,7 +2043,7 @@ export default function MikrotikDashboard() {
             </div>
           )}
 
-          {/* Uptime Card */}
+          {/* Storage Card */}
           {stats ? (
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
@@ -1961,17 +2053,121 @@ export default function MikrotikDashboard() {
             >
               <div className="flex items-center gap-3 mb-4">
                 <div className="p-2 bg-orange-600/20 rounded-lg">
-                  <RefreshCw className="h-5 w-5 text-orange-400" />
+                  <HardDrive className="h-5 w-5 text-orange-400" />
                 </div>
-                <h3 className="text-lg font-semibold text-white group-hover:text-orange-400 transition-colors">Uptime</h3>
+                <h3 className="text-lg font-semibold text-white group-hover:text-orange-400 transition-colors">Armazenamento</h3>
               </div>
-              <div className="space-y-2">
-                <p className="text-lg sm:text-xl font-bold text-orange-400 truncate">{formatUptime(stats.resource?.uptime || stats.uptime)}</p>
-                <p className="text-sm text-gray-400">Tempo ativo</p>
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                  <p className="text-xs text-green-400">Online</p>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xl sm:text-2xl font-bold text-orange-400">
+                      {(() => {
+                        // Use the percentage directly from cpuMemoryData if available
+                        if (cpuMemoryData?.storage?.percentage !== undefined) {
+                          return `${cpuMemoryData.storage.percentage}%`
+                        }
+                        
+                        // Fallback to manual calculation
+                        const parseStorageValue = (storageStr) => {
+                          if (!storageStr) return 0
+                          const match = storageStr.match(/^([\d.]+)/)
+                          return match ? parseFloat(match[1]) : 0
+                        }
+                        
+                        const total = parseStorageValue(stats.resource?.['total-hdd-space'])
+                        const free = parseStorageValue(stats.resource?.['free-hdd-space'])
+                        const used = total - free
+                        return `${total > 0 ? Math.round((used / total) * 100) : 0}%`
+                      })()}
+                    </p>
+                    <p className="text-sm text-gray-400">Usado</p>
+                  </div>
+                  <div className="relative w-16 h-16">
+                    <PieChart
+                      series={[
+                        {
+                          data: (() => {
+                            let usedPercentage = 0
+                            
+                            if (cpuMemoryData?.storage?.percentage !== undefined) {
+                              usedPercentage = cpuMemoryData.storage.percentage
+                            } else {
+                              const parseStorageValue = (storageStr) => {
+                                if (!storageStr) return 0
+                                const match = storageStr.match(/^([\d.]+)/)
+                                return match ? parseFloat(match[1]) : 0
+                              }
+                              
+                              const total = parseStorageValue(stats.resource?.['total-hdd-space'])
+                              const free = parseStorageValue(stats.resource?.['free-hdd-space'])
+                              const used = total - free
+                              usedPercentage = total > 0 ? Math.round((used / total) * 100) : 0
+                            }
+                            
+                            const freePercentage = 100 - usedPercentage
+                            return [
+                              { id: 0, value: usedPercentage },
+                              { id: 1, value: freePercentage }
+                            ]
+                          })(),
+                          innerRadius: 18,
+                          outerRadius: 32,
+                          paddingAngle: 1,
+                          startAngle: -90,
+                          colors: ['#fb923c', '#374151']
+                        }
+                      ]}
+                      width={64}
+                      height={64}
+                      slotProps={{
+                        legend: { hidden: true },
+                      }}
+                      sx={{
+                        '& .MuiChartsLegend-root': {
+                          display: 'none',
+                        },
+                      }}
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-xs font-bold text-orange-400">
+                        {(() => {
+                          if (cpuMemoryData?.storage?.percentage !== undefined) {
+                            return `${cpuMemoryData.storage.percentage}%`
+                          }
+                          
+                          const parseStorageValue = (storageStr) => {
+                            if (!storageStr) return 0
+                            const match = storageStr.match(/^([\d.]+)/)
+                            return match ? parseFloat(match[1]) : 0
+                          }
+                          
+                          const total = parseStorageValue(stats.resource?.['total-hdd-space'])
+                          const free = parseStorageValue(stats.resource?.['free-hdd-space'])
+                          const used = total - free
+                          return `${total > 0 ? Math.round((used / total) * 100) : 0}%`
+                        })()}
+                      </span>
+                    </div>
+                  </div>
                 </div>
+                <p className="text-xs text-gray-500 truncate">
+                  {(() => {
+                    // Use the formatted values from cpuMemoryData if available (updates every 4 seconds)
+                    if (cpuMemoryData?.storage?.freeFormatted && cpuMemoryData?.storage?.totalFormatted) {
+                      return `Livre: ${cpuMemoryData.storage.freeFormatted} / Total: ${cpuMemoryData.storage.totalFormatted}`
+                    }
+                    
+                    // Fallback to direct display from RouterOS data
+                    const freeDisk = stats.resource?.['free-hdd-space'] || 'N/A'
+                    const totalDisk = stats.resource?.['total-hdd-space'] || 'N/A'
+                    
+                    if (totalDisk !== 'N/A' && freeDisk !== 'N/A') {
+                      return `Livre: ${freeDisk} / Total: ${totalDisk}`
+                    }
+                    
+                    return 'Dados não disponíveis'
+                  })()}
+                </p>
               </div>
             </motion.div>
           ) : (
@@ -1980,15 +2176,17 @@ export default function MikrotikDashboard() {
                 <div className="p-2 bg-orange-600/20 rounded-lg animate-pulse">
                   <div className="h-5 w-5 bg-gray-700 rounded"></div>
                 </div>
-                <div className="h-6 bg-gray-700 rounded w-16 animate-pulse"></div>
+                <div className="h-6 bg-gray-700 rounded w-24 animate-pulse"></div>
               </div>
-              <div className="space-y-2">
-                <div className="h-5 bg-gray-700 rounded w-24 animate-pulse"></div>
-                <div className="h-4 bg-gray-700 rounded w-20 animate-pulse"></div>
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-gray-700 rounded-full animate-pulse"></div>
-                  <div className="h-3 bg-gray-700 rounded w-12 animate-pulse"></div>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="h-6 bg-gray-700 rounded w-12 mb-2 animate-pulse"></div>
+                    <div className="h-4 bg-gray-700 rounded w-16 animate-pulse"></div>
+                  </div>
+                  <div className="w-16 h-16 bg-gray-700 rounded-full animate-pulse"></div>
                 </div>
+                <div className="h-3 bg-gray-700 rounded w-32 animate-pulse"></div>
               </div>
             </div>
           )}

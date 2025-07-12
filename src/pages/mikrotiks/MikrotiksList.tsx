@@ -343,16 +343,27 @@ export function MikrotiksList() {
             'Authorization': `Bearer ${session?.access_token || ''}`,
             'Content-Type': 'application/json'
           }
+          const endpoint = `${baseUrl}/api/mikrotik/essential-info/${mikrotik.id}`
           
-          console.log(`[MikrotiksList] Fetching stats for ${mikrotik.nome} (${mikrotik.id})`);
+          console.log(`[MikrotiksList] Fetching stats for ${mikrotik.nome} (${mikrotik.id}) from ${endpoint}`);
           
-          const response = await fetch(`${baseUrl}/api/mikrotik/essential-info/${mikrotik.id}`, {
+          // Create a timeout promise that rejects after 5 seconds
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => {
+              reject(new Error('Connection timeout after 5 seconds'))
+            }, 5000)
+          })
+          
+          // Race between fetch and timeout
+          const fetchPromise = fetch(endpoint, {
             method: 'GET',
             headers
           })
           
+          const response = await Promise.race([fetchPromise, timeoutPromise]) as Response
+          
           if (!response.ok) {
-            throw new Error(`API Error: ${response.status} ${response.statusText}`)
+            throw new Error(`API Error: ${response.status} ${response.statusText} - Route: ${endpoint}`)
           }
           
           const data = await response.json()
@@ -414,10 +425,44 @@ export function MikrotiksList() {
           console.log(`[MikrotiksList] Final processed data for ${mikrotik.nome}:`, JSON.stringify(result, null, 2));
           return result;
         } catch (error) {
-          console.error(`[MikrotiksList] Error fetching stats for ${mikrotik.nome}:`, error);
+          const responseTime = Date.now() - startTime
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+          const isTimeout = errorMessage.includes('timeout')
+          const is401 = (error as any)?.status === 401
+          const is503 = (error as any)?.status === 503
+          const is408 = (error as any)?.status === 408
+          
+          // Parse error from response if available
+          let displayError = errorMessage
+          if (isTimeout || is408) {
+            displayError = 'Conexão expirou (5s)'
+          } else if (is401) {
+            displayError = 'Usuário/senha incorretos'
+          } else if (is503) {
+            displayError = 'Dispositivo offline'
+          } else if (errorMessage.includes('incorretos')) {
+            displayError = 'Credenciais inválidas'
+          } else if (errorMessage.includes('offline')) {
+            displayError = 'MikroTik offline'
+          }
+          
+          console.error(`[MikrotiksList] Error fetching stats for ${mikrotik.nome}:`, {
+            error: errorMessage,
+            displayError,
+            responseTime,
+            endpoint: `${import.meta.env.VITE_API_URL || 'https://api.mikropix.online'}/api/mikrotik/essential-info/${mikrotik.id}`,
+            isTimeout,
+            status: (error as any)?.status
+          });
+          
           return {
             id: mikrotik.id,
-            stats: { error: true }
+            stats: { 
+              isOnline: false,
+              error: displayError,
+              lastChecked: Date.now(),
+              responseTime
+            }
           };
         }
       }
