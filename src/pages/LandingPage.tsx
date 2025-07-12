@@ -597,8 +597,8 @@ const LandingPage = () => {
                 orange: 'from-orange-500/10 to-orange-600/5 border-orange-500/20 text-orange-400',
                 cyan: 'from-cyan-500/10 to-cyan-600/5 border-cyan-500/20 text-cyan-400',
                 indigo: 'from-indigo-500/10 to-indigo-600/5 border-indigo-500/20 text-indigo-400'
-              }
-              const colorClasses = colorMap[feature.color]
+              } as const
+              const colorClasses = colorMap[feature.color as keyof typeof colorMap]
               
               return (
                 <motion.div
