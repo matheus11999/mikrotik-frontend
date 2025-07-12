@@ -6,7 +6,7 @@ import { z } from 'zod'
 import { Link, Navigate } from 'react-router-dom'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { Button, Input, InlineLoader } from '../../components/ui'
-import { Eye, EyeOff, Mail, Lock, User, UserPlus, ArrowLeft, Wifi, CheckCircle, CreditCard } from 'lucide-react'
+import { Eye, EyeOff, Mail, Lock, User, UserPlus, ArrowLeft, Wifi, CheckCircle, CreditCard, Star, Crown, ArrowRight } from 'lucide-react'
 
 // Função para validar CPF
 function isValidCPF(cpf: string): boolean {
@@ -158,16 +158,26 @@ export function Register() {
               transition={{ delay: 0.6, duration: 0.6 }}
               className="text-2xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent mb-4"
             >
-              Conta criada com sucesso!
+              🎉 Conta criada com sucesso!
             </motion.h1>
-            <motion.p 
+            <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.7, duration: 0.6 }}
-              className="text-gray-400 mb-8 text-lg"
+              className="mb-6"
             >
-              Verifique seu email para confirmar sua conta e fazer login.
-            </motion.p>
+              <div className="bg-green-500/20 border-2 border-green-500/30 rounded-xl p-4 mb-4">
+                <p className="text-green-400 font-bold text-lg mb-2">
+                  ✅ Seu PLANO PRO está ativo por 7 dias!
+                </p>
+                <p className="text-green-300 text-sm">
+                  Todos os recursos premium já estão disponíveis na sua conta
+                </p>
+              </div>
+              <p className="text-gray-400 text-base">
+                Verifique seu email para confirmar sua conta e fazer login.
+              </p>
+            </motion.div>
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -176,8 +186,10 @@ export function Register() {
               whileTap={{ scale: 0.98 }}
             >
               <Link to="/login">
-                <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-xl font-medium shadow-lg hover:shadow-xl transition-all duration-300">
-                  Ir para Login
+                <Button className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white py-4 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all duration-300 border-2 border-green-500/30">
+                  <Crown className="w-5 h-5 mr-2" />
+                  Acessar meu Plano Pro
+                  <ArrowRight className="w-5 h-5 ml-2" />
                 </Button>
               </Link>
             </motion.div>
@@ -188,67 +200,152 @@ export function Register() {
   }
 
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center p-6">
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-        className="w-full max-w-md"
-      >
-        {/* Header */}
-        <motion.div 
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2, duration: 0.6 }}
-          className="text-center mb-8"
-        >
-          <motion.div 
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ delay: 0.3, type: "spring", stiffness: 200 }}
-            className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-blue-500/20 to-cyan-500/10 border border-blue-500/20 backdrop-blur-sm flex items-center justify-center shadow-2xl"
-          >
-            <Wifi className="h-8 w-8 text-blue-400" />
-          </motion.div>
-          <motion.h1 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4, duration: 0.6 }}
-            className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent mb-3"
-          >
-            Criar conta
-          </motion.h1>
-          <motion.p 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5, duration: 0.6 }}
-            className="text-gray-400 text-lg"
-          >
-            Preencha os dados para começar
-          </motion.p>
+    <div className="min-h-screen bg-black flex items-center justify-center p-4">
+      <div className="w-full max-w-6xl mx-auto">
+        <div className="grid lg:grid-cols-2 gap-8 lg:gap-12 items-center">
+          
+          {/* Left Side - Benefits */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6, duration: 0.6 }}
-            className="mt-4 p-3 rounded-lg bg-gradient-to-r from-green-500/10 to-blue-500/10 border border-green-500/20"
+            initial={{ opacity: 0, x: -50 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.8, ease: "easeOut" }}
+            className="order-2 lg:order-1"
           >
-            <p className="text-green-400 text-sm font-medium flex items-center gap-2">
-              🎁 <span>Ganhe 7 dias grátis ao se registrar!</span>
-            </p>
-            <p className="text-green-300/70 text-xs mt-1">
-              Seu plano teste será ativado automaticamente após o registro
-            </p>
-          </motion.div>
-        </motion.div>
+            {/* Header */}
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2, duration: 0.8 }}
+              className="mb-8"
+            >
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500/20 to-cyan-500/10 border border-blue-500/20 backdrop-blur-sm flex items-center justify-center">
+                  <Wifi className="h-6 w-6 text-blue-400" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold text-white">MikroPix</h1>
+                  <p className="text-gray-400 text-sm">Sistema de gestão MikroTik</p>
+                </div>
+              </div>
+              
+              <h2 className="text-3xl lg:text-4xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent mb-4">
+                Comece seu teste grátis
+              </h2>
+              <p className="text-xl text-gray-400">
+                7 dias de acesso completo ao <span className="text-blue-400 font-semibold">Plano Pro</span>
+              </p>
+            </motion.div>
 
-        {/* Form */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6, duration: 0.6 }}
-          className="bg-black/40 backdrop-blur-sm border border-gray-800/50 rounded-2xl p-8 shadow-2xl"
-        >
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+            {/* Pro Plan Highlight */}
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4, duration: 0.8 }}
+              className="relative mb-8 p-6 rounded-2xl bg-gradient-to-br from-green-500/20 to-emerald-500/10 border-2 border-green-500/30 shadow-2xl shadow-green-500/20"
+            >
+              {/* Floating badge */}
+              <motion.div
+                initial={{ scale: 0, rotate: -10 }}
+                animate={{ scale: 1, rotate: 0 }}
+                transition={{ delay: 0.6, type: "spring", stiffness: 200 }}
+                className="absolute -top-3 -right-3 bg-gradient-to-r from-orange-500 to-red-500 text-white px-4 py-2 rounded-full font-bold text-xs shadow-lg"
+              >
+                GRÁTIS POR 7 DIAS
+              </motion.div>
+
+              <div className="flex items-start gap-4 mb-6">
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ delay: 0.7, type: "spring", stiffness: 200 }}
+                  className="w-16 h-16 bg-green-500/20 rounded-2xl flex items-center justify-center border border-green-500/30"
+                >
+                  <Crown className="w-8 h-8 text-green-400" />
+                </motion.div>
+                <div>
+                  <h3 className="text-2xl font-bold text-white mb-2">Plano Pro</h3>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-3xl font-bold text-green-400">R$ 34,90</span>
+                    <span className="text-gray-400">/mês</span>
+                    <span className="text-sm bg-red-500 text-white px-2 py-1 rounded font-bold">-42%</span>
+                  </div>
+                  <p className="text-green-300 font-semibold">
+                    ✨ Teste completo sem compromisso
+                  </p>
+                </div>
+              </div>
+
+              {/* Benefits Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {[
+                  { icon: "✓", text: "Até 3 MikroTiks" },
+                  { icon: "✓", text: "Templates profissionais" },
+                  { icon: "✓", text: "Vendas automáticas PIX" },
+                  { icon: "✓", text: "Relatórios completos" },
+                  { icon: "✓", text: "Suporte prioritário" },
+                  { icon: "✓", text: "Sem IP público necessário" }
+                ].map((benefit, index) => (
+                  <motion.div
+                    key={index}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.8 + index * 0.1, duration: 0.6 }}
+                    className="flex items-center gap-3"
+                  >
+                    <span className="text-green-400 font-bold">{benefit.icon}</span>
+                    <span className="text-gray-300 text-sm">{benefit.text}</span>
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+
+            {/* Security badges */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 1.2, duration: 0.6 }}
+              className="flex items-center gap-6 text-sm text-gray-400"
+            >
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                <span>Sem cartão</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                <span>Cancele quando quiser</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
+                <span>Suporte 24/7</span>
+              </div>
+            </motion.div>
+          </motion.div>
+
+          {/* Right Side - Form */}
+          <motion.div
+            initial={{ opacity: 0, x: 50 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.8, ease: "easeOut" }}
+            className="order-1 lg:order-2"
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3, duration: 0.8 }}
+              className="bg-black/40 backdrop-blur-sm border border-gray-800/50 rounded-2xl p-6 lg:p-8 shadow-2xl"
+            >
+              {/* Form Header */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5, duration: 0.6 }}
+                className="text-center mb-8"
+              >
+                <h3 className="text-2xl font-bold text-white mb-2">Criar sua conta</h3>
+                <p className="text-gray-400">Preencha os dados abaixo para começar</p>
+              </motion.div>
+
+              <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             {error && (
               <motion.div 
                 initial={{ opacity: 0, scale: 0.95 }}
@@ -260,55 +357,69 @@ export function Register() {
             )}
 
             <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.7, duration: 0.6 }}
               className="space-y-2"
             >
               <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
-                <User className="h-4 w-4" />
+                <User className="h-4 w-4 text-blue-400" />
                 Nome completo
               </label>
-              <Input
-                {...register('nome')}
-                type="text"
-                placeholder="Digite seu nome completo"
-                className="bg-gray-900/50 border-gray-700/50 text-white placeholder-gray-400 focus:border-blue-500 focus:ring-blue-500 rounded-xl h-12"
-              />
+              <div className="relative">
+                <Input
+                  {...register('nome')}
+                  type="text"
+                  placeholder="Digite seu nome completo"
+                  className="bg-black/40 border-gray-700/50 text-white placeholder-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 rounded-xl h-12 pl-4 transition-all duration-300"
+                />
+              </div>
               {errors.nome && (
-                <p className="text-red-400 text-sm">{errors.nome.message}</p>
+                <motion.p 
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="text-red-400 text-sm flex items-center gap-1"
+                >
+                  <span>⚠️</span> {errors.nome.message}
+                </motion.p>
               )}
             </motion.div>
 
             <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.8, duration: 0.6 }}
               className="space-y-2"
             >
               <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
-                <Mail className="h-4 w-4" />
+                <Mail className="h-4 w-4 text-blue-400" />
                 Email
               </label>
               <Input
                 {...register('email')}
                 type="email"
                 placeholder="Digite seu email"
-                className="bg-gray-900/50 border-gray-700/50 text-white placeholder-gray-400 focus:border-blue-500 focus:ring-blue-500 rounded-xl h-12"
+                className="bg-black/40 border-gray-700/50 text-white placeholder-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 rounded-xl h-12 pl-4 transition-all duration-300"
               />
               {errors.email && (
-                <p className="text-red-400 text-sm">{errors.email.message}</p>
+                <motion.p 
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="text-red-400 text-sm flex items-center gap-1"
+                >
+                  <span>⚠️</span> {errors.email.message}
+                </motion.p>
               )}
             </motion.div>
 
             <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.9, duration: 0.6 }}
               className="space-y-2"
             >
               <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
-                <CreditCard className="h-4 w-4" />
+                <CreditCard className="h-4 w-4 text-blue-400" />
                 CPF
               </label>
               <Input
@@ -317,21 +428,27 @@ export function Register() {
                 type="text"
                 placeholder="000.000.000-00"
                 maxLength={14}
-                className="bg-gray-900/50 border-gray-700/50 text-white placeholder-gray-400 focus:border-blue-500 focus:ring-blue-500 rounded-xl h-12"
+                className="bg-black/40 border-gray-700/50 text-white placeholder-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 rounded-xl h-12 pl-4 transition-all duration-300"
               />
               {errors.cpf && (
-                <p className="text-red-400 text-sm">{errors.cpf.message}</p>
+                <motion.p 
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="text-red-400 text-sm flex items-center gap-1"
+                >
+                  <span>⚠️</span> {errors.cpf.message}
+                </motion.p>
               )}
             </motion.div>
 
             <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 1.0, duration: 0.6 }}
               className="space-y-2"
             >
               <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
-                <Lock className="h-4 w-4" />
+                <Lock className="h-4 w-4 text-blue-400" />
                 Senha
               </label>
               <div className="relative">
@@ -339,18 +456,26 @@ export function Register() {
                   {...register('password')}
                   type={showPassword ? 'text' : 'password'}
                   placeholder="Digite sua senha"
-                  className="bg-gray-900/50 border-gray-700/50 text-white placeholder-gray-400 focus:border-blue-500 focus:ring-blue-500 rounded-xl h-12 pr-12"
+                  className="bg-black/40 border-gray-700/50 text-white placeholder-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 rounded-xl h-12 pl-4 pr-12 transition-all duration-300"
                 />
-                <button
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-400 transition-colors"
                 >
                   {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                </button>
+                </motion.button>
               </div>
               {errors.password && (
-                <p className="text-red-400 text-sm">{errors.password.message}</p>
+                <motion.p 
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="text-red-400 text-sm flex items-center gap-1"
+                >
+                  <span>⚠️</span> {errors.password.message}
+                </motion.p>
               )}
             </motion.div>
 
@@ -358,50 +483,40 @@ export function Register() {
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.8, duration: 0.6 }}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+              transition={{ delay: 1.1, duration: 0.6 }}
+              className="pt-4"
             >
-              <Button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-xl font-medium transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl"
+              <motion.div
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
               >
-                {loading ? (
-                  <div className="w-full flex items-center justify-center space-x-2">
-                    <InlineLoader size="sm" />
-                    <span>Criando...</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center space-x-2">
-                    <UserPlus className="h-5 w-5" />
-                    <span>Criar conta</span>
-                  </div>
-                )}
-              </Button>
-            </motion.div>
-
-            {/* Divider */}
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.9, duration: 0.6 }}
-              className="relative my-8"
-            >
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-800/50"></div>
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-4 bg-black/40 backdrop-blur-sm text-gray-400">ou</span>
-              </div>
+                <Button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white py-4 rounded-xl font-bold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl border-2 border-green-500/30 relative overflow-hidden"
+                >
+                  {loading ? (
+                    <div className="w-full flex items-center justify-center space-x-2">
+                      <InlineLoader size="sm" />
+                      <span>Criando conta...</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center space-x-2">
+                      <Star className="h-5 w-5" />
+                      <span>Começar teste grátis de 7 dias</span>
+                      <ArrowRight className="h-5 w-5" />
+                    </div>
+                  )}
+                </Button>
+              </motion.div>
             </motion.div>
 
             {/* Login Link */}
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 1.0, duration: 0.6 }}
-              className="text-center"
+              transition={{ delay: 1.2, duration: 0.6 }}
+              className="text-center pt-6 border-t border-gray-800/50 mt-8"
             >
               <span className="text-gray-400">Já tem uma conta? </span>
               <motion.div
@@ -411,28 +526,18 @@ export function Register() {
               >
                 <Link 
                   to="/login" 
-                  className="text-blue-400 hover:text-blue-300 font-medium transition-colors inline-flex items-center space-x-1"
+                  className="text-blue-400 hover:text-blue-300 font-semibold transition-colors inline-flex items-center space-x-1"
                 >
-                  <ArrowLeft className="h-4 w-4" />
                   <span>Fazer login</span>
+                  <ArrowRight className="h-4 w-4" />
                 </Link>
               </motion.div>
             </motion.div>
           </form>
-        </motion.div>
-
-        {/* Footer */}
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1.1, duration: 0.6 }}
-          className="text-center mt-8"
-        >
-          <p className="text-gray-500 text-sm">
-            © 2024 MikroPix. Sistema de gestão MikroTik.
-          </p>
-        </motion.div>
-      </motion.div>
+            </motion.div>
+          </motion.div>
+        </div>
+      </div>
     </div>
   )
 }

@@ -26,28 +26,68 @@ export default defineConfig(({ mode }) => {
         }
       }),
       VitePWA({
-        registerType: 'prompt',
-        includeAssets: ['favicon.ico', 'robots.txt'],
+        registerType: 'autoUpdate',
+        includeAssets: ['favicon.ico', 'robots.txt', 'img/logo-white.png'],
         manifest: {
-          name: 'MikroPix',
+          name: 'MikroPix - Sistema de Gestão MikroTik',
           short_name: 'MikroPix',
-          description: 'Sistema de gestão MikroTik',
+          description: 'Sistema completo de gestão para dispositivos MikroTik e hotspots',
           theme_color: '#3b82f6',
           background_color: '#000000',
           display: 'standalone',
+          orientation: 'portrait-primary',
           scope: '/',
-          start_url: '/',
+          start_url: '/?source=pwa',
           lang: 'pt-BR',
+          categories: ['business', 'productivity', 'utilities'],
           icons: [
             {
               src: '/img/logo-white.png',
+              sizes: '72x72',
+              type: 'image/png',
+              purpose: 'any'
+            },
+            {
+              src: '/img/logo-white.png',
+              sizes: '96x96',
+              type: 'image/png',
+              purpose: 'any'
+            },
+            {
+              src: '/img/logo-white.png',
+              sizes: '128x128',
+              type: 'image/png',
+              purpose: 'any'
+            },
+            {
+              src: '/img/logo-white.png',
+              sizes: '144x144',
+              type: 'image/png',
+              purpose: 'any'
+            },
+            {
+              src: '/img/logo-white.png',
+              sizes: '152x152',
+              type: 'image/png',
+              purpose: 'any'
+            },
+            {
+              src: '/img/logo-white.png',
               sizes: '192x192',
-              type: 'image/png'
+              type: 'image/png',
+              purpose: 'any maskable'
+            },
+            {
+              src: '/img/logo-white.png',
+              sizes: '384x384',
+              type: 'image/png',
+              purpose: 'any'
             },
             {
               src: '/img/logo-white.png',
               sizes: '512x512',
-              type: 'image/png'
+              type: 'image/png',
+              purpose: 'any maskable'
             }
           ]
         },
@@ -97,7 +137,9 @@ export default defineConfig(({ mode }) => {
           ]
         },
         devOptions: {
-          enabled: false
+          enabled: true,
+          type: 'module',
+          navigateFallback: '/index.html'
         }
       })
     ],
@@ -117,6 +159,12 @@ export default defineConfig(({ mode }) => {
         usePolling: false,
         interval: 100,
       },
+      // Desabilitar cache completamente em desenvolvimento
+      headers: mode === 'development' ? {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      } : {},
       // Configurar proxy apenas quando não estamos usando API externa
       proxy: useExternalAPI ? undefined : {
         '/api': {
@@ -166,7 +214,8 @@ export default defineConfig(({ mode }) => {
         '@emotion/styled'
       ],
       exclude: ['@tanstack/react-query'],
-      force: true,
+      // Forçar rebuild de dependências em desenvolvimento
+      force: mode === 'development',
       esbuildOptions: {
         target: 'esnext',
         jsx: 'automatic'

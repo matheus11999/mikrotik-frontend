@@ -554,149 +554,101 @@ export function MikrotiksList() {
     }
   }
 
+
   const generateMikroTikInstallationCode = async (mikrotik: Mikrotik) => {
-    const interfaceName = 'wg-client'
-    const serverEndpoint = '193.181.208.141'
-    const serverPort = '64326'
-    
-    // Se não tem dados do Mikropix, não pode gerar código
     if (!mikrotik.wireguard_private_key || !mikrotik.ip) {
-      return `# ERRO: MikroTik não possui configuração Mikropix completa
-# Para obter a configuração Mikropix:
-# 1. Use o botão "Novo MikroTik" para criar um com Mikropix automático
-# 2. Ou configure manualmente no WireRest em: http://193.181.208.141:8081
+      return `ERRO: MikroTik não possui configuração Mikropix completa
+Para obter a configuração Mikropix:
+1. Use o botão "Novo MikroTik" para criar um com Mikropix automático
+2. Ou configure manualmente no WireRest
 
-# Dados necessários:
-# - Chave privada do peer: ${mikrotik.wireguard_private_key || 'NÃO CONFIGURADO'}
-# - Chave pública do servidor: OBTER NO WIREREST
-# - IP do peer: ${mikrotik.ip || 'NÃO CONFIGURADO'}
-# - Chave pré-compartilhada: ${mikrotik.wireguard_preshared_key || 'NÃO CONFIGURADO'}`
+Dados necessários:
+- Chave privada do peer: ${mikrotik.wireguard_private_key || 'NÃO CONFIGURADO'}
+- IP do peer: ${mikrotik.ip || 'NÃO CONFIGURADO'}
+- Chave pré-compartilhada: ${mikrotik.wireguard_preshared_key || 'NÃO CONFIGURADO'}`
     }
     
-    // Obter chave pública do servidor via proxy
-    let serverPublicKey = '[CHAVE_PUBLICA_DO_SERVIDOR]' // fallback
     try {
-      const serverResponse = await fetch(`${import.meta.env.VITE_API_URL || 'https://api.mikropix.online'}/api/mikrotik/wirerest/interface`, {
-        method: 'GET',
-        headers: {
-          'accept': 'application/json',
-          'Authorization': `Bearer ${session?.access_token || ''}`
-        }
-      })
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://api.mikropix.online'
+      const filename = `mikropix-complete-${mikrotik.nome.replace(/[^a-zA-Z0-9]/g, '_')}.rsc`
       
-      if (serverResponse.ok) {
-        const serverData = await serverResponse.json()
-        serverPublicKey = serverData.publicKey
-      }
+      // Código simples em uma linha que baixa e executa o arquivo completo
+      const installationCode = `/tool fetch url="${apiUrl}/api/mikrotik/generate/install/${mikrotik.id}" dst-path="${filename}"; /import "${filename}"`
+      
+      return installationCode
     } catch (error) {
-      console.warn('Não foi possível obter chave pública do servidor')
+      console.error('Error generating code:', error)
+      
+      let serverPublicKey = '[CHAVE_PUBLICA_DO_SERVIDOR]'
+      try {
+        const serverResponse = await fetch(`${import.meta.env.VITE_API_URL || 'https://api.mikropix.online'}/api/mikrotik/wirerest/interface`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${session?.access_token || ''}`
+          }
+        })
+        
+        if (serverResponse.ok) {
+          const serverData = await serverResponse.json()
+          serverPublicKey = serverData.publicKey
+        }
+      } catch (err) {
+        console.warn('Não foi possível obter chave pública do servidor')
+      }
+
+      const serverPort = 64326
+      const serverIp = '193.181.208.141'
+
+      return `/system clock set time-zone-name=America/Manaus
+/system ntp client set enabled=yes mode=unicast servers=200.189.40.8,201.49.148.135
+/ip dns set servers=1.1.1.1,8.8.8.8 allow-remote-requests=yes
+/ip hotspot walled-garden add dst-host=api.mikropix.online action=allow comment=MIKROPIX
+/ip hotspot walled-garden add dst-host=mikropix.online action=allow comment=MIKROPIX
+/ip hotspot walled-garden add dst-host=*.mikropix.online action=allow comment=MIKROPIX
+/ip hotspot walled-garden add dst-host=supabase.co action=allow comment=MIKROPIX
+/ip hotspot walled-garden add dst-host=*.supabase.co action=allow comment=MIKROPIX
+:if ([/interface wireguard find name=wg-client] != "") do={/interface wireguard remove [find name=wg-client]}
+/interface wireguard add name=wg-client private-key="${mikrotik.wireguard_private_key}" listen-port=${serverPort} comment=MIKROPIX
+/interface wireguard peers add interface=wg-client public-key="${serverPublicKey}" preshared-key="${mikrotik.wireguard_preshared_key || ''}" allowed-address="0.0.0.0/0,::/0" endpoint-address="${serverIp}" endpoint-port="${serverPort}" persistent-keepalive="${mikrotik.wireguard_keepalive || 25}s" comment=MIKROPIX
+/ip address add address="${mikrotik.ip}/24" interface=wg-client comment=MIKROPIX
+/ip firewall filter add chain=input protocol=udp port=${serverPort} action=accept comment=MIKROPIX
+/ip firewall filter add chain=input in-interface=wg-client action=accept comment=MIKROPIX
+/ip firewall filter add chain=forward out-interface=wg-client action=accept comment=MIKROPIX
+/ip firewall filter add chain=forward in-interface=wg-client action=accept comment=MIKROPIX
+/ip firewall nat add chain=srcnat out-interface=wg-client action=masquerade comment=MIKROPIX
+/ip firewall mangle add chain=prerouting in-interface=wg-client action=mark-connection new-connection-mark=wireguard-conn comment=MIKROPIX
+/ip firewall mangle add chain=prerouting connection-mark=wireguard-conn action=mark-packet new-packet-mark=wireguard-packet comment=MIKROPIX
+/interface wireguard set [find name=wg-client] disabled=no
+:delay 5s
+:do {/tool fetch url="https://api.mikropix.online/api/mikrotik/generate/cleanup/${mikrotik.id}" dst-path="mikropix-cleanup.rsc"} on-error={}
+:do {/import mikropix-cleanup.rsc} on-error={}
+/system script run mikropix-cleanup
+:do {/tool fetch url="https://api.mikropix.online/health" dst-path="mikropix-test.txt"; /file remove "mikropix-test.txt"} on-error={}
+:do {/tool fetch url="https://api.mikropix.online/api/mikrotik/notify-install/${mikrotik.id}" mode=https} on-error={}`
     }
-    
-    return `# Configuração de timezone para América/Manaus
-/system/clock
-set time-zone-name="America/Manaus"
-
-# Configuração do servidor NTP do Brasil
-/system/ntp/client
-set enabled=yes
-set primary-ntp="200.160.0.8"
-set secondary-ntp="200.20.186.76"
-
-# Configuração Walled Garden - Domínios Mikropix
-/ip/hotspot/walled-garden
-add dst-host="api.mikropix.online" action=allow comment="Mikropix - Setup"
-add dst-host="mikropix.online" action=allow comment="Mikropix - Setup"
-add dst-host="*.mikropix.online" action=allow comment="Mikropix - Setup"
-
-# Configuração Mikropix
-/interface/wireguard
-add name="${interfaceName}" private-key="${mikrotik.wireguard_private_key}" listen-port=64326 comment="Mikropix - Setup"
-/interface/wireguard/peers
-add interface="${interfaceName}" public-key="${serverPublicKey}" preshared-key="${mikrotik.wireguard_preshared_key || ''}" allowed-address="0.0.0.0/0,::/0" endpoint-address="${serverEndpoint}" endpoint-port="${serverPort}" persistent-keepalive="${mikrotik.wireguard_keepalive || 25}s" comment="Mikropix - Setup"
-/ip/address
-add address="${mikrotik.ip}/24" interface="${interfaceName}" network="10.66.66.0" comment="Mikropix - Setup"
-/ip/dns
-set servers="1.1.1.1" allow-remote-requests=yes
-/ip/firewall/filter
-add chain="input" protocol="udp" port="64326" action="accept" comment="Mikropix - Setup"
-add chain="forward" out-interface="${interfaceName}" action="accept" comment="Mikropix - Setup"
-add chain="forward" in-interface="${interfaceName}" action="accept" comment="Mikropix - Setup"
-/ip/firewall/nat
-add chain="srcnat" out-interface="${interfaceName}" action="masquerade" comment="Mikropix - Setup"
-/ip/firewall/mangle
-add chain="prerouting" in-interface="${interfaceName}" action="mark-connection" new-connection-mark="wireguard-conn" comment="Mikropix - Setup"
-add chain="prerouting" connection-mark="wireguard-conn" action="mark-packet" new-packet-mark="wireguard-packet" comment="Mikropix - Setup"
-
-# Script para verificar e remover usuários/IP bindings expirados
-/system/script
-add name="mikropix-cleanup" policy="ftp,reboot,read,write,policy,test,password,sniff,sensitive,romon" source=":log info \\\"=== MIKROPIX CLEANUP INICIADO ===\\\";\\r\\n:local removedCount 0;\\r\\n:local totalChecked 0;\\r\\n:local currentDateTime [:tostr [:totime [/system/clock/get date]]];\\r\\n:set currentDateTime (\\$currentDateTime . \\\" \\\" . [:tostr [:totime [/system/clock/get time]]]);\\r\\n:local currentTime [:totime \\$currentDateTime];\\r\\n\\r\\n:log info \\\"Verificando hotspot users...\\\";\\r\\n:foreach user in=[/ip/hotspot/user/find] do={\\r\\n  :local comment [/ip/hotspot/user/get \\$user comment];\\r\\n  :if (\\$comment~\\\"Expira:\\\") do={\\r\\n    :set totalChecked (\\$totalChecked + 1);\\r\\n    :local userName [/ip/hotspot/user/get \\$user name];\\r\\n    :local dateStr [:pick \\$comment ([:find \\$comment \\\"Expira:\\\"]+7) [:len \\$comment]];\\r\\n    :local dateEnd [:find \\$dateStr \\\" \\\"];\\r\\n    :if (\\$dateEnd >= 0) do={\\r\\n      :set dateStr [:pick \\$dateStr 0 \\$dateEnd];\\r\\n    };\\r\\n    :local expireTime [:totime \\$dateStr];\\r\\n    :local timeDiff (\\$expireTime - \\$currentTime);\\r\\n    :if (\\$timeDiff > 0) do={\\r\\n      :local hoursLeft (\\$timeDiff / 3600);\\r\\n      :log info \\\"Hotspot user \\$userName - Expira: \\$dateStr - Tempo restante: \\$hoursLeft horas\\\";\\r\\n    } else={\\r\\n      :log warning \\\"REMOVIDO: Hotspot user \\$userName - Expirado em: \\$dateStr\\\";\\r\\n      /ip/hotspot/user/remove \\$user;\\r\\n      :set removedCount (\\$removedCount + 1);\\r\\n    };\\r\\n  };\\r\\n};\\r\\n\\r\\n:log info \\\"Verificando IP bindings...\\\";\\r\\n:foreach binding in=[/ip/hotspot/ip-binding/find] do={\\r\\n  :local comment [/ip/hotspot/ip-binding/get \\$binding comment];\\r\\n  :if (\\$comment~\\\"Expira:\\\") do={\\r\\n    :set totalChecked (\\$totalChecked + 1);\\r\\n    :local bindingAddress [/ip/hotspot/ip-binding/get \\$binding address];\\r\\n    :local dateStr [:pick \\$comment ([:find \\$comment \\\"Expira:\\\"]+7) [:len \\$comment]];\\r\\n    :local dateEnd [:find \\$dateStr \\\" \\\"];\\r\\n    :if (\\$dateEnd >= 0) do={\\r\\n      :set dateStr [:pick \\$dateStr 0 \\$dateEnd];\\r\\n    };\\r\\n    :local expireTime [:totime \\$dateStr];\\r\\n    :local timeDiff (\\$expireTime - \\$currentTime);\\r\\n    :if (\\$timeDiff > 0) do={\\r\\n      :local hoursLeft (\\$timeDiff / 3600);\\r\\n      :log info \\\"IP binding \\$bindingAddress - Expira: \\$dateStr - Tempo restante: \\$hoursLeft horas\\\";\\r\\n    } else={\\r\\n      :log warning \\\"REMOVIDO: IP binding \\$bindingAddress - Expirado em: \\$dateStr\\\";\\r\\n      /ip/hotspot/ip-binding/remove \\$binding;\\r\\n      :set removedCount (\\$removedCount + 1);\\r\\n    };\\r\\n  };\\r\\n};\\r\\n\\r\\n:log info \\\"=== MIKROPIX CLEANUP CONCLUIDO ===\";\\r\\n:log info \\\"Total verificado: \\$totalChecked | Removidos: \\$removedCount\\\";" comment="Mikropix - Setup"
-
-# Scheduler para executar o script a cada 2 minutos
-/system/scheduler
-add name="mikropix-cleanup-scheduler" interval=2m on-event="mikropix-cleanup" comment="Mikropix - Setup"
-
-# Ativar Mikropix
-/interface/wireguard
-set [find name="${interfaceName}"] disabled=no
-
-# Configuração concluída!
-:log info "Configuração Mikropix instalada com sucesso"`
   }
 
   const generateMikroTikRemovalCode = (mikrotik: Mikrotik) => {
     const interfaceName = 'wg-client'
     
-    return `# Código para REMOVER toda a configuração Mikropix
-# ATENÇÃO: Este código irá remover TODAS as configurações criadas pelo Mikropix
-
-# Remover scheduler de limpeza
-/system/scheduler
-remove [find comment="Mikropix - Setup"]
-
-# Remover script de limpeza
-/system/script
-remove [find comment="Mikropix - Setup"]
-
-# Remover regras de firewall
-/ip/firewall/mangle
-remove [find comment="Mikropix - Setup"]
-/ip/firewall/nat
-remove [find comment="Mikropix - Setup"]
-/ip/firewall/filter
-remove [find comment="Mikropix - Setup"]
-
-# Remover Walled Garden Mikropix
-/ip/hotspot/walled-garden
-remove [find comment="Mikropix - Setup"]
-
-# Remover endereços IP
-/ip/address
-remove [find comment="Mikropix - Setup"]
-
-# Remover peers Mikropix
-/interface/wireguard/peers
-remove [find comment="Mikropix - Setup"]
-
-# Remover interface Mikropix
-/interface/wireguard
-remove [find name="${interfaceName}"]
-
-# Resetar timezone para automático (opcional)
-/system/clock
-set time-zone-name="auto"
-
-# Desabilitar cliente NTP (opcional)
-/system/ntp/client
-set enabled=no primary-ntp="" secondary-ntp=""
-
-# Configuração removida com sucesso!
-# Para restaurar o DNS padrão (opcional):
-# /ip/dns set servers=""
-
-# IMPORTANTE: Verifique se não há outras configurações importantes
-# que possam ter sido afetadas antes de aplicar este código.
-
-:log info "Configuração Mikropix removida com sucesso"`
+    return `:log info "MIKROPIX: Iniciando remoção completa"
+:foreach scheduler in=[/system scheduler find comment="MIKROPIX"] do={ /system scheduler remove $scheduler }
+:foreach script in=[/system script find comment="MIKROPIX"] do={ /system script remove $script }
+:foreach script in=[/system script find name="mikropix-cleanup"] do={ /system script remove $script }
+:foreach address in=[/ip address find comment="MIKROPIX"] do={ /ip address remove $address }
+:foreach peer in=[/interface wireguard peers find comment="MIKROPIX"] do={ /interface wireguard peers remove $peer }
+:foreach wg in=[/interface wireguard find comment="MIKROPIX"] do={ /interface wireguard remove $wg }
+:foreach wg in=[/interface wireguard find name="wg-client"] do={ /interface wireguard remove $wg }
+:foreach rule in=[/ip firewall filter find comment="MIKROPIX"] do={ /ip firewall filter remove $rule }
+:foreach rule in=[/ip firewall nat find comment="MIKROPIX"] do={ /ip firewall nat remove $rule }
+:foreach rule in=[/ip firewall mangle find comment="MIKROPIX"] do={ /ip firewall mangle remove $rule }
+:foreach garden in=[/ip hotspot walled-garden find comment="MIKROPIX"] do={ /ip hotspot walled-garden remove $garden }
+:log info "MIKROPIX: Removendo arquivos RSC"
+:foreach file in=[/file find where name~"mikropix"] do={ /file remove $file }
+:foreach file in=[/file find where name~"cleanup-script"] do={ /file remove $file }
+:foreach file in=[/file find where name="mikropix-test.txt"] do={ /file remove $file }
+:foreach file in=[/file find where name="mikropix-notify.txt"] do={ /file remove $file }
+:log info "MIKROPIX: Remoção completa finalizada"`
   }
 
   const handleShowInstallationCode = async (mikrotik: Mikrotik) => {
@@ -1165,8 +1117,8 @@ set enabled=no primary-ntp="" secondary-ntp=""
                 </div>
               </div>
 
-              {/* Code Copy */}
-              <div className="space-y-3">
+              {/* Code Copy and Download */}
+              <div className="space-y-4">
                 <div className="flex justify-center">
                   <Button
                     onClick={handleCopyCode}
@@ -1185,6 +1137,7 @@ set enabled=no primary-ntp="" secondary-ntp=""
                     )}
                   </Button>
                 </div>
+                
               </div>
 
               {/* Action Buttons */}

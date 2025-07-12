@@ -5,6 +5,14 @@ import { Button } from '../components/ui/button'
 import { Badge } from '../components/ui/badge'
 import { BackgroundGradient } from '../components/ui/background-gradient'
 import { Meteors } from '../components/ui/meteors'
+// Comentando componentes unificados temporariamente
+// import { 
+//   UnifiedCard, 
+//   UnifiedIcon, 
+//   UnifiedBadge, 
+//   UnifiedTypography, 
+//   UnifiedButton 
+// } from '../components/ui/unified'
 import { 
   Wifi, 
   Shield, 
@@ -215,26 +223,16 @@ const LandingPage = () => {
             
             <div className="flex items-center space-x-4">
               <Link to="/login">
-                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                  <Button 
-                    variant="ghost" 
-                    className="text-white hover:text-blue-400 hover:bg-blue-500/10 transition-all duration-300 px-6 py-2 rounded-xl border border-transparent hover:border-blue-500/30"
-                  >
-                    <User className="w-4 h-4 mr-2" />
-                    Entrar
-                  </Button>
-                </motion.div>
+                <Button variant="ghost" className="text-white hover:text-blue-400">
+                  <User className="w-4 h-4 mr-2" />
+                  Entrar
+                </Button>
               </Link>
               <Link to="/register">
-                <motion.div 
-                  whileHover={{ scale: 1.05, y: -2 }} 
-                  whileTap={{ scale: 0.95 }}
-                >
-                  <Button className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white px-6 py-2 rounded-xl shadow-lg hover:shadow-blue-500/25 transition-all duration-300 border border-blue-400/30">
-                    <Sparkles className="w-4 h-4 mr-2" />
-                    Testar Grátis
-                  </Button>
-                </motion.div>
+                <Button className="bg-blue-500 hover:bg-blue-600 text-white">
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  Testar Grátis
+                </Button>
               </Link>
             </div>
           </div>
@@ -317,12 +315,7 @@ const LandingPage = () => {
                   <div className="bg-gray-800/90 border-b border-gray-700/50 p-4 flex items-center justify-between">
                     <div className="flex items-center space-x-3">
                       <div className="p-2 rounded-xl bg-gradient-to-br from-blue-500/20 to-cyan-500/10 border border-blue-500/20">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-400">
-                          <path d="M12 20h.01"></path>
-                          <path d="M2 8.82a15 15 0 0 1 20 0"></path>
-                          <path d="M5 12.859a10 10 0 0 1 14 0"></path>
-                          <path d="M8.5 16.429a5 5 0 0 1 7 0"></path>
-                        </svg>
+                        <Wifi className="w-5 h-5 text-blue-400" />
                       </div>
                       <div>
                         <h3 className="text-white font-semibold">MikroPix Dashboard</h3>
@@ -339,64 +332,75 @@ const LandingPage = () => {
                   {/* Content */}
                   <div className="p-6 space-y-6">
                     {/* Stats Grid */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       {/* Senhas Vendidas */}
-                      <motion.div 
-                        className="bg-gradient-to-br from-blue-500/20 to-blue-600/10 border border-blue-500/20 rounded-xl p-4"
+                      <motion.div
                         animate={{ scale: [1, 1.02, 1] }}
                         transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
                       >
-                        <div className="flex items-center space-x-3">
-                          <Users className="w-6 h-6 text-blue-400" />
-                          <div>
-                            <motion.div 
-                              key={senhasVendidas}
-                              initial={{ scale: 1.1, color: "#60a5fa" }}
-                              animate={{ scale: 1, color: "#ffffff" }}
-                              transition={{ duration: 0.3 }}
-                              className="text-2xl font-bold text-white"
-                            >
-                              {senhasVendidas.toLocaleString()}
-                            </motion.div>
-                            <div className="text-sm text-gray-400">Senhas Vendidas</div>
+                        <div className="relative bg-black/40 backdrop-blur-sm border rounded-xl p-4 transition-all duration-300 shadow-lg bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-lg border bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
+                              <Users className="h-5 w-5 text-blue-400" />
+                            </div>
+                            <div>
+                              <motion.div 
+                                key={senhasVendidas}
+                                initial={{ scale: 1.1, color: "#60a5fa" }}
+                                animate={{ scale: 1, color: "#ffffff" }}
+                                transition={{ duration: 0.3 }}
+                                className="text-xl font-bold text-white"
+                              >
+                                {senhasVendidas.toLocaleString()}
+                              </motion.div>
+                              <p className="text-sm text-gray-400">Senhas Vendidas</p>
+                            </div>
                           </div>
                         </div>
                       </motion.div>
                       
                       {/* Vendas Hoje */}
-                      <motion.div 
-                        className="bg-gradient-to-br from-green-500/20 to-green-600/10 border border-green-500/20 rounded-xl p-4"
+                      <motion.div
                         animate={{ scale: [1, 1.02, 1] }}
                         transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: 1 }}
                       >
-                        <div className="flex items-center space-x-3">
-                          <DollarSign className="w-6 h-6 text-green-400" />
-                          <div>
-                            <motion.div 
-                              key={vendasHoje}
-                              initial={{ scale: 1.1, color: "#4ade80" }}
-                              animate={{ scale: 1, color: "#ffffff" }}
-                              transition={{ duration: 0.3 }}
-                              className="text-2xl font-bold text-white"
-                            >
-                              R$ {vendasHoje.toLocaleString()}
-                            </motion.div>
-                            <div className="text-sm text-gray-400">Vendas Hoje</div>
+                        <div className="relative bg-black/40 backdrop-blur-sm border rounded-xl p-4 transition-all duration-300 shadow-lg bg-gradient-to-br from-green-500/10 to-green-600/5 border-green-500/20">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-lg border bg-gradient-to-br from-green-500/10 to-green-600/5 border-green-500/20">
+                              <DollarSign className="h-5 w-5 text-green-400" />
+                            </div>
+                            <div>
+                              <motion.div 
+                                key={vendasHoje}
+                                initial={{ scale: 1.1, color: "#4ade80" }}
+                                animate={{ scale: 1, color: "#ffffff" }}
+                                transition={{ duration: 0.3 }}
+                                className="text-xl font-bold text-white"
+                              >
+                                R$ {vendasHoje.toLocaleString()}
+                              </motion.div>
+                              <p className="text-sm text-gray-400">Vendas Hoje</p>
+                            </div>
                           </div>
                         </div>
                       </motion.div>
                       
                       {/* MikroTiks */}
-                      <motion.div 
-                        className="bg-gradient-to-br from-purple-500/20 to-purple-600/10 border border-purple-500/20 rounded-xl p-4"
+                      <motion.div
                         animate={{ scale: [1, 1.02, 1] }}
                         transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: 2 }}
                       >
-                        <div className="flex items-center space-x-3">
-                          <Router className="w-6 h-6 text-purple-400" />
-                          <div>
-                            <div className="text-2xl font-bold text-white">3</div>
-                            <div className="text-sm text-gray-400">MikroTiks Ativos</div>
+                        <div className="relative bg-black/40 backdrop-blur-sm border rounded-xl p-4 transition-all duration-300 shadow-lg bg-gradient-to-br from-orange-500/10 to-orange-600/5 border-orange-500/20">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-lg border bg-gradient-to-br from-orange-500/10 to-orange-600/5 border-orange-500/20">
+                              <Router className="h-5 w-5 text-orange-400" />
+                            </div>
+                            <div>
+                              <div className="text-xl font-bold text-white">
+                                3
+                              </div>
+                              <p className="text-sm text-gray-400">MikroTiks Ativos</p>
+                            </div>
                           </div>
                         </div>
                       </motion.div>
@@ -429,25 +433,6 @@ const LandingPage = () => {
                       </div>
                     </div>
                     
-                    {/* Quick Actions */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                      <div className="bg-gray-800/30 border border-gray-700/50 rounded-lg p-3 text-center hover:bg-gray-700/30 transition-colors cursor-pointer">
-                        <Settings className="w-5 h-5 text-blue-400 mx-auto mb-2" />
-                        <span className="text-white text-sm">Configurar</span>
-                      </div>
-                      <div className="bg-gray-800/30 border border-gray-700/50 rounded-lg p-3 text-center hover:bg-gray-700/30 transition-colors cursor-pointer">
-                        <Users className="w-5 h-5 text-green-400 mx-auto mb-2" />
-                        <span className="text-white text-sm">Usuários</span>
-                      </div>
-                      <div className="bg-gray-800/30 border border-gray-700/50 rounded-lg p-3 text-center hover:bg-gray-700/30 transition-colors cursor-pointer">
-                        <BarChart3 className="w-5 h-5 text-purple-400 mx-auto mb-2" />
-                        <span className="text-white text-sm">Relatórios</span>
-                      </div>
-                      <div className="bg-gray-800/30 border border-gray-700/50 rounded-lg p-3 text-center hover:bg-gray-700/30 transition-colors cursor-pointer">
-                        <Shield className="w-5 h-5 text-orange-400 mx-auto mb-2" />
-                        <span className="text-white text-sm">Segurança</span>
-                      </div>
-                    </div>
                   </div>
                 </div>
                 
@@ -464,7 +449,7 @@ const LandingPage = () => {
 
             <motion.div 
               variants={itemVariants}
-              className="grid grid-cols-2 md:grid-cols-4 gap-6"
+              className="grid grid-cols-2 sm:grid-cols-4 gap-4"
             >
               {stats.map((stat, index) => (
                 <motion.div 
@@ -473,13 +458,17 @@ const LandingPage = () => {
                   whileHover={{ scale: 1.05, y: -2 }}
                   transition={{ type: "spring", stiffness: 400 }}
                 >
-                  <BackgroundGradient className="bg-gray-900/50 backdrop-blur-sm border border-gray-700/50 rounded-2xl p-4">
-                    <stat.icon className="w-6 h-6 text-blue-400 mx-auto mb-2" />
-                    <div className="text-2xl font-bold text-white mb-1">
+                  <div className="relative bg-black/40 backdrop-blur-sm border rounded-xl p-3 transition-all duration-300 shadow-lg bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
+                    <div className="flex items-center justify-center mb-3">
+                      <div className="p-2 rounded-lg border bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
+                        <stat.icon className="w-5 h-5 text-blue-400" />
+                      </div>
+                    </div>
+                    <div className="text-lg font-bold text-white mb-1">
                       {stat.number}
                     </div>
-                    <div className="text-sm text-gray-400">{stat.label}</div>
-                  </BackgroundGradient>
+                    <div className="text-xs text-gray-400">{stat.label}</div>
+                  </div>
                 </motion.div>
               ))}
             </motion.div>
@@ -594,267 +583,156 @@ const LandingPage = () => {
           </motion.div>
 
           <motion.div 
-            className="grid md:grid-cols-2 lg:grid-cols-3 gap-6"
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
             variants={containerVariants}
             initial="hidden"
             whileInView="visible"
             viewport={{ once: true }}
           >
-            {features.map((feature, index) => (
-              <motion.div
-                key={index}
-                variants={itemVariants}
-                className="group relative overflow-hidden"
-              >
-                <BackgroundGradient 
-                  className="bg-gray-900/50 backdrop-blur-sm border border-gray-800/50 rounded-2xl p-6 group-hover:border-blue-500/50 transition-all duration-300 relative"
-                  containerClassName="h-full"
+            {features.map((feature, index) => {
+              const colorMap = {
+                blue: 'from-blue-500/10 to-blue-600/5 border-blue-500/20 text-blue-400',
+                green: 'from-green-500/10 to-green-600/5 border-green-500/20 text-green-400',
+                purple: 'from-purple-500/10 to-purple-600/5 border-purple-500/20 text-purple-400',
+                orange: 'from-orange-500/10 to-orange-600/5 border-orange-500/20 text-orange-400',
+                cyan: 'from-cyan-500/10 to-cyan-600/5 border-cyan-500/20 text-cyan-400',
+                indigo: 'from-indigo-500/10 to-indigo-600/5 border-indigo-500/20 text-indigo-400'
+              }
+              const colorClasses = colorMap[feature.color]
+              
+              return (
+                <motion.div
+                  key={index}
+                  variants={itemVariants}
+                  className="group"
                 >
-                  <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
-                    <Meteors number={5} />
+                  <div className={`relative bg-black/40 backdrop-blur-sm border rounded-xl p-4 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-[1.02] bg-gradient-to-br ${colorClasses} h-full`}>
+                    <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                      <Meteors number={5} />
+                    </div>
+                    
+                    <div className="flex items-start gap-3 relative z-10">
+                      <div className={`p-2 rounded-lg border bg-gradient-to-br ${colorClasses} flex-shrink-0`}>
+                        <feature.icon className="h-5 w-5" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-base font-semibold text-white group-hover:text-blue-400 transition-colors duration-300 mb-2">
+                          {feature.title}
+                        </h3>
+                        <p className="text-xs text-gray-400 leading-relaxed group-hover:text-gray-300 transition-colors duration-300">
+                          {feature.description}
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                  
-                  <div className={`w-12 h-12 bg-gradient-to-br from-${feature.color}-500/20 to-${feature.color}-600/10 border border-${feature.color}-500/20 rounded-xl flex items-center justify-center mb-4`}>
-                    <feature.icon className={`w-6 h-6 text-${feature.color}-400`} />
-                  </div>
-                  
-                  <h3 className="text-xl font-semibold mb-3 text-white group-hover:text-blue-400 transition-colors duration-300">
-                    {feature.title}
-                  </h3>
-                  
-                  <p className="text-gray-400 leading-relaxed group-hover:text-gray-300 transition-colors duration-300">
-                    {feature.description}
-                  </p>
-                </BackgroundGradient>
-              </motion.div>
-            ))}
+                </motion.div>
+              )
+            })}
           </motion.div>
         </div>
       </section>
 
       {/* Pricing Section */}
-      <section className="py-20">
+      <section className="py-16">
         <div className="container mx-auto px-4">
           <motion.div
-            className="text-center mb-16"
+            className="text-center mb-12"
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
             viewport={{ once: true }}
           >
-            <h2 className="text-3xl md:text-4xl font-bold mb-4 bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
+            <h2 className="text-2xl md:text-3xl font-bold mb-4 bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
               Plano Simples e Transparente
             </h2>
-            <p className="text-xl text-gray-400 max-w-2xl mx-auto">
+            <p className="text-lg text-gray-400 max-w-xl mx-auto">
               Um único plano com tudo incluído. Sem pegadinhas, sem taxas escondidas.
             </p>
           </motion.div>
 
           <motion.div 
-            className="max-w-xl mx-auto"
+            className="max-w-sm mx-auto"
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
             viewport={{ once: true }}
           >
             <div className="relative group">
-              {/* Outer glow effect */}
-              <div className="absolute -inset-4 bg-gradient-to-r from-blue-600 via-cyan-400 to-blue-600 rounded-3xl blur-2xl opacity-20 group-hover:opacity-30 transition-all duration-700"></div>
-              
-              {/* Popular badge - fora do card */}
-              <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 z-30">
-                <motion.div 
-                  className="bg-gradient-to-r from-orange-500 to-red-500 text-white px-6 py-3 rounded-full font-bold text-sm shadow-xl border-2 border-white/20"
-                  animate={{ scale: [1, 1.05, 1], rotate: [0, 1, -1, 0] }}
-                  transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                >
-                  <span className="flex items-center space-x-2">
-                    <Crown className="w-4 h-4" />
-                    <span>MAIS POPULAR</span>
-                  </span>
-                </motion.div>
+              {/* Popular badge */}
+              <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 z-10">
+                <div className="bg-gradient-to-r from-orange-500 to-red-500 text-white px-4 py-1 rounded-full font-bold text-xs">
+                  MAIS POPULAR
+                </div>
               </div>
 
               {/* Main card */}
-              <motion.div 
-                className="relative bg-black border-2 border-blue-500/50 rounded-3xl overflow-hidden shadow-2xl shadow-blue-500/25"
-                whileHover={{ 
-                  scale: 1.02,
-                  boxShadow: "0 25px 50px -12px rgba(59, 130, 246, 0.4)"
-                }}
-                transition={{ type: "spring", stiffness: 300, damping: 20 }}
-              >
-                
-                {/* Content */}
-                <div className="relative z-10 p-8 pt-12">
+              <div className="relative bg-black/40 backdrop-blur-sm border rounded-xl p-4 sm:p-6 transition-all duration-300 shadow-lg bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
+                {/* Header */}
+                <div className="text-center mb-6">
+                  <div className="w-12 h-12 mx-auto mb-4 p-2 rounded-xl bg-gradient-to-br from-blue-500/20 to-cyan-500/10 border border-blue-500/20">
+                    <Wifi className="w-full h-full text-blue-400" />
+                  </div>
                   
-                  {/* Header */}
-                  <div className="text-center mb-8">
-                    {/* Logo */}
-                    <div className="w-20 h-20 mx-auto mb-6 p-3 rounded-2xl bg-gradient-to-br from-blue-500/30 to-cyan-500/20 border-2 border-blue-500/40 shadow-xl">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full text-blue-300">
-                        <path d="M12 20h.01"></path>
-                        <path d="M2 8.82a15 15 0 0 1 20 0"></path>
-                        <path d="M5 12.859a10 10 0 0 1 14 0"></path>
-                        <path d="M8.5 16.429a5 5 0 0 1 7 0"></path>
-                      </svg>
+                  <h3 className="text-xl font-bold text-white mb-2">Plano Pro</h3>
+                  
+                  {/* Price */}
+                  <div className="mb-4">
+                    <div className="flex items-center justify-center gap-2 mb-2">
+                      <span className="text-sm text-gray-500 line-through">R$ 59,90</span>
+                      <span className="bg-red-500 text-white px-2 py-1 rounded text-xs font-bold">-42%</span>
                     </div>
                     
-                    <h3 className="text-3xl font-bold bg-gradient-to-r from-white to-blue-200 bg-clip-text text-transparent mb-4">Plano Pro</h3>
+                    <div className="text-2xl sm:text-3xl font-bold text-green-400">
+                      R$ 34,90<span className="text-sm text-gray-300">/mês</span>
+                    </div>
                     
-                    {/* Price section */}
-                    <div className="mb-6">
-                      {/* Estratégia de marketing - preço original riscado */}
-                      <div className="text-center mb-4">
-                        <motion.div
-                          initial={{ opacity: 0, scale: 0.8 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          transition={{ delay: 0.2 }}
-                          className="inline-block"
-                        >
-                          <span className="text-xl text-gray-500 line-through mr-3">
-                            De R$ 59,90
-                          </span>
-                          <span className="bg-gradient-to-r from-red-500 to-orange-500 text-white px-3 py-1 rounded-full text-xs font-bold">
-                            -42%
-                          </span>
-                        </motion.div>
-                      </div>
-                      
-                      <motion.div 
-                        className="text-5xl font-bold bg-gradient-to-r from-green-400 via-emerald-400 to-green-300 bg-clip-text text-transparent mb-2"
-                        animate={{ scale: [1, 1.05, 1] }}
-                        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                      >
-                        Por apenas R$ 34,90
-                        <span className="text-xl text-gray-300">/mês</span>
-                      </motion.div>
-                      
-                      {/* Free trial highlight */}
-                      <motion.div 
-                        className="inline-flex items-center space-x-2 bg-gradient-to-r from-green-500/30 to-emerald-500/20 border-2 border-green-500/50 rounded-full px-6 py-3 mb-4 shadow-lg shadow-green-500/20"
-                        animate={{ y: [0, -2, 0] }}
-                        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                      >
-                        <Star className="w-5 h-5 text-green-300" />
-                        <span className="text-green-300 font-bold">7 dias totalmente grátis</span>
-                      </motion.div>
-                      
-                      <p className="text-gray-400 font-medium">
-                        <span className="text-red-400 font-bold">⚡ Oferta por tempo limitado!</span>
-                        <br />
-                        Sem cartão • Cancele quando quiser
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Benefits */}
-                  <div className="space-y-4 mb-10">
-                    {benefits.map((benefit, index) => (
-                      <motion.div 
-                        key={index} 
-                        className="flex items-center space-x-4 p-4 rounded-xl hover:bg-gradient-to-r hover:from-blue-900/20 hover:to-cyan-900/20 transition-all duration-300 group border border-gray-800/50 hover:border-blue-500/30"
-                        initial={{ opacity: 0, x: -20 }}
-                        whileInView={{ opacity: 1, x: 0 }}
-                        transition={{ delay: index * 0.1, duration: 0.5, type: "spring" }}
-                        viewport={{ once: true }}
-                        whileHover={{ scale: 1.02, x: 5 }}
-                      >
-                        <motion.div
-                          whileHover={{ scale: 1.2, rotate: 360 }}
-                          transition={{ duration: 0.3 }}
-                        >
-                          <CheckCircle className="w-6 h-6 text-blue-400 flex-shrink-0 group-hover:text-green-400 transition-colors duration-300" />
-                        </motion.div>
-                        <span className="text-gray-200 group-hover:text-white transition-colors duration-300 font-medium text-lg">{benefit}</span>
-                      </motion.div>
-                    ))}
-                  </div>
-
-                  {/* CTA Button */}
-                  <Link to="/register" className="block mb-6">
-                    <motion.div
-                      whileHover={{ 
-                        scale: 1.03,
-                        boxShadow: "0 20px 40px rgba(59, 130, 246, 0.4)"
-                      }}
-                      whileTap={{ scale: 0.97 }}
-                      className="group relative"
-                    >
-                      <Button 
-                        size="lg" 
-                        className="w-full bg-gradient-to-r from-green-600 via-emerald-500 to-green-600 hover:from-green-500 hover:via-emerald-400 hover:to-green-500 text-white py-6 text-xl font-bold rounded-xl shadow-2xl transition-all duration-500 relative overflow-hidden border-2 border-green-400/50"
-                      >
-                        <motion.div
-                          animate={{ 
-                            background: [
-                              "linear-gradient(45deg, transparent, rgba(255,255,255,0.1), transparent)",
-                              "linear-gradient(45deg, transparent, rgba(255,255,255,0.1), transparent)"
-                            ]
-                          }}
-                          transition={{ duration: 2, repeat: Infinity }}
-                          className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"
-                        />
-                        <Sparkles className="w-6 h-6 mr-3 group-hover:rotate-12 transition-transform duration-300" />
-                        🚀 Testar Por 7 Dias
-                        <ArrowRight className="w-6 h-6 ml-3 group-hover:translate-x-2 transition-transform duration-300" />
-                      </Button>
-                    </motion.div>
-                  </Link>
-                  
-                  {/* Security badges */}
-                  <div className="flex items-center justify-center space-x-6 text-sm text-gray-400">
-                    <div className="flex items-center space-x-2">
-                      <Shield className="w-4 h-4 text-green-400" />
-                      <span className="font-medium">Seguro</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Zap className="w-4 h-4 text-yellow-400" />
-                      <span className="font-medium">Instantâneo</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <CheckCircle className="w-4 h-4 text-blue-400" />
-                      <span className="font-medium">Garantido</span>
+                    <div className="inline-flex items-center gap-2 bg-green-500/20 border border-green-500/30 rounded-full px-3 py-1 mt-2">
+                      <Star className="w-4 h-4 text-green-400" />
+                      <span className="text-green-400 font-semibold text-sm">7 dias grátis</span>
                     </div>
                   </div>
                 </div>
-              </motion.div>
+
+                {/* Benefits */}
+                <div className="space-y-3 mb-6">
+                  {benefits.slice(0, 6).map((benefit, index) => (
+                    <div key={index} className="flex items-center gap-3">
+                      <CheckCircle className="w-4 h-4 text-blue-400 flex-shrink-0" />
+                      <span className="text-gray-300 text-sm">{benefit}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* CTA Button */}
+                <Link to="/register">
+                  <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-medium transition-all duration-300">
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Testar Por 7 Dias
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                  </Button>
+                </Link>
+                
+                {/* Security badges */}
+                <div className="flex items-center justify-center gap-4 mt-4 text-xs text-gray-400">
+                  <div className="flex items-center gap-1">
+                    <Shield className="w-3 h-3 text-green-400" />
+                    <span>Seguro</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Zap className="w-3 h-3 text-yellow-400" />
+                    <span>Instantâneo</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <CheckCircle className="w-3 h-3 text-blue-400" />
+                    <span>Sem cartão</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </motion.div>
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="py-20 bg-gradient-to-r from-blue-900/10 to-cyan-900/10">
-        <div className="container mx-auto px-4 text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            viewport={{ once: true }}
-          >
-            <h2 className="text-3xl md:text-4xl font-bold mb-6 bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
-              Comece Agora Mesmo
-            </h2>
-            <p className="text-xl text-gray-300 mb-8 max-w-2xl mx-auto">
-              <span className="text-blue-400 font-bold">7 dias totalmente grátis</span> para testar todas as funcionalidades.
-              <br />
-              Sem cartão de crédito, sem compromisso.
-            </p>
-            
-            <Link to="/register">
-              <Button 
-                size="lg" 
-                className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-10 py-4 text-xl font-bold rounded-xl shadow-lg hover:shadow-blue-500/25 transition-all duration-300"
-              >
-                <Star className="w-6 h-6 mr-3" />
-                Testar Por 7 Dias
-                <Play className="w-6 h-6 ml-3" />
-              </Button>
-            </Link>
-          </motion.div>
-        </div>
-      </section>
 
       {/* Footer */}
       <footer className="bg-gray-900/50 backdrop-blur-sm border-t border-gray-800/50 py-12">
