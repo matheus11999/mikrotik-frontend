@@ -264,7 +264,7 @@ export function SidebarFixed({ open, setOpen, collapsed, setCollapsed }: Sidebar
         </div>
 
         {/* Navigation */}
-        <div className="flex-1 overflow-y-auto py-4 px-2">
+        <div className="flex-1 overflow-y-auto py-4 px-2 scrollbar-thin scrollbar-track-black scrollbar-thumb-gray-700 hover:scrollbar-thumb-gray-600">
           <div className="space-y-2">
             {/* Dashboard */}
             {navigationLinks.main.map((link) => (
@@ -519,7 +519,7 @@ export function SidebarFixed({ open, setOpen, collapsed, setCollapsed }: Sidebar
             </div>
 
             {/* Mobile Navigation */}
-            <div className="flex-1 overflow-y-auto py-4 px-2">
+            <div className="flex-1 overflow-y-auto py-4 px-2 scrollbar-thin scrollbar-track-black scrollbar-thumb-gray-700 hover:scrollbar-thumb-gray-600">
               <div className="space-y-2">
                 {/* Dashboard */}
                 {navigationLinks.main.map((link) => (

@@ -1898,7 +1898,7 @@ export default function MikrotikDashboard() {
                       height={48}
                       curve="linear"
                       area
-                      colors={['#60a5fa']}
+                      color="#60a5fa"
                       margin={{ left: 0, right: 0, top: 4, bottom: 4 }}
                       sx={{
                         '& .MuiAreaElement-root': {
@@ -1968,7 +1968,7 @@ export default function MikrotikDashboard() {
                         }
                         
                         // Fallback to manual calculation for backwards compatibility
-                        const parseMemoryValue = (memStr) => {
+                        const parseMemoryValue = (memStr: string | undefined) => {
                           if (!memStr) return 0
                           const match = memStr.match(/^([\d.]+)/)
                           return match ? parseFloat(match[1]) : 0
@@ -1989,7 +1989,7 @@ export default function MikrotikDashboard() {
                       height={48}
                       curve="linear"
                       area
-                      colors={['#4ade80']}
+                      color="#4ade80"
                       margin={{ left: 0, right: 0, top: 4, bottom: 4 }}
                       sx={{
                         '& .MuiAreaElement-root': {
@@ -2077,7 +2077,7 @@ export default function MikrotikDashboard() {
                         }
                         
                         // Fallback to manual calculation
-                        const parseStorageValue = (storageStr) => {
+                        const parseStorageValue = (storageStr: string | undefined) => {
                           if (!storageStr) return 0
                           const match = storageStr.match(/^([\d.]+)/)
                           return match ? parseFloat(match[1]) : 0
@@ -2103,7 +2103,7 @@ export default function MikrotikDashboard() {
                                 return cpuMemoryData.storage.percentage
                               }
                               
-                              const parseStorageValue = (storageStr) => {
+                              const parseStorageValue = (storageStr: string | undefined) => {
                                 if (!storageStr) return 0
                                 const match = storageStr.match(/^([\d.]+)/)
                                 return match ? parseFloat(match[1]) : 0
@@ -2124,7 +2124,7 @@ export default function MikrotikDashboard() {
                               return `${cpuMemoryData.storage.percentage}%`
                             }
                             
-                            const parseStorageValue = (storageStr) => {
+                            const parseStorageValue = (storageStr: string | undefined) => {
                               if (!storageStr) return 0
                               const match = storageStr.match(/^([\d.]+)/)
                               return match ? parseFloat(match[1]) : 0
