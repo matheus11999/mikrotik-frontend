@@ -98,6 +98,8 @@ export default defineConfig(({ mode }) => {
           cleanupOutdatedCaches: true,
           skipWaiting: true,
           clientsClaim: true,
+          // Aumentar limite de tamanho de arquivo para cache (3MB)
+          maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
           // Configurar caching strategy mais agressiva para atualizações
           cacheId: `mikropix-${Date.now()}`,
           runtimeCaching: [

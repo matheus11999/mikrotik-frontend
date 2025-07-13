@@ -43,14 +43,19 @@ export async function updatePWAManifest(): Promise<void> {
       lang: 'pt-BR',
       icons: [
         {
-          src: settings?.favicon_url || '/img/logo-white.png',
+          src: (settings?.logo_url && settings.logo_url !== '/img/logo.svg') ? settings.logo_url : '/img/logo.svg',
           sizes: '192x192',
-          type: 'image/png'
+          type: settings?.logo_url?.includes('supabase') ? 'image/png' : 'image/svg+xml'
         },
         {
-          src: settings?.favicon_url || '/img/logo-white.png',
+          src: (settings?.logo_url && settings.logo_url !== '/img/logo.svg') ? settings.logo_url : '/img/logo.svg',
           sizes: '512x512',
-          type: 'image/png'
+          type: settings?.logo_url?.includes('supabase') ? 'image/png' : 'image/svg+xml'
+        },
+        {
+          src: (settings?.logo_url && settings.logo_url !== '/img/logo.svg') ? settings.logo_url : '/img/logo.svg',
+          sizes: 'any',
+          type: settings?.logo_url?.includes('supabase') ? 'image/png' : 'image/svg+xml'
         }
       ]
     }
@@ -91,14 +96,19 @@ export function generateStaticManifest(): PWAManifest {
     lang: 'pt-BR',
     icons: [
       {
-        src: '/img/logo-white.png',
+        src: '/img/logo.svg',
         sizes: '192x192',
-        type: 'image/png'
+        type: 'image/svg+xml'
       },
       {
-        src: '/img/logo-white.png',
+        src: '/img/logo.svg',
         sizes: '512x512',
-        type: 'image/png'
+        type: 'image/svg+xml'
+      },
+      {
+        src: '/img/logo.svg',
+        sizes: 'any',
+        type: 'image/svg+xml'
       }
     ]
   }

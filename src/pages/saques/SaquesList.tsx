@@ -14,6 +14,7 @@ import {
 } from '../../components/ui'
 import { SaqueModal } from '../../components/saques/SaqueModal'
 import { TrendingUp, Search, Clock, CheckCircle, XCircle, Calendar, User, DollarSign, Plus, AlertCircle, RefreshCw, Zap, Shield } from 'lucide-react'
+import { cn } from '../../lib/utils'
 
 interface Saque {
   id: string
@@ -595,15 +596,15 @@ export function SaquesList() {
                   transition={{ delay: 0.1 * index }}
                   className={`${
                     saque.status === 'pendente' 
-                      ? 'bg-gray-900 border border-yellow-600/50 hover:border-yellow-500 shadow-lg shadow-yellow-600/10' 
-                      : 'bg-gray-900 border border-gray-700 hover:border-gray-600'
-                  } rounded-xl px-6 py-4 transition-all duration-200`}
+                      ? 'bg-black/40 backdrop-blur-sm border border-yellow-500/50 hover:border-yellow-400/70 shadow-lg shadow-yellow-500/10' 
+                      : 'bg-black/40 backdrop-blur-sm border border-gray-800/50 hover:border-gray-700/70'
+                  } rounded-2xl px-6 py-4 transition-all duration-300 hover:scale-[1.01]`}
                 >
                   <div className="grid grid-cols-12 gap-4 items-center">
                     {/* Solicitação */}
                     <div className="col-span-3">
                       <div className="flex items-center space-x-3">
-                        <div className="p-2 rounded-lg bg-gray-800 border border-gray-700">
+                        <div className="p-2 rounded-lg bg-gradient-to-br from-orange-500/20 to-orange-600/10 border border-orange-500/20">
                           <TrendingUp className="h-4 w-4 text-orange-400" />
                         </div>
                         <div>

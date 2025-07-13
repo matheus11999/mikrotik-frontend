@@ -29,8 +29,8 @@ const defaultSettings: SystemSettings = {
   site_description: 'Sistema completo de gestão para MikroTik, hotspots e infraestrutura de rede.',
   site_keywords: 'mikrotik, hotspot, provedor, internet, wifi, routeros, gestão, rede',
   site_url: 'https://mikropix.online',
-  favicon_url: '/img/logo-white.png',
-  logo_url: '/img/logo-white.png',
+  favicon_url: '/img/logo.svg',
+  logo_url: '/img/logo.svg',
   primary_color: '#3b82f6',
   secondary_color: '#1f2937',
   meta_title: 'MikroPix - Sistema de Gestão MikroTik',
@@ -63,11 +63,13 @@ export function SystemSettingsProvider({ children }: SystemSettingsProviderProps
       }
 
       if (data) {
+        console.log('⚙️ [SYSTEM-SETTINGS] Configurações carregadas do Supabase:', data)
         setSettings(data)
         updateDocumentHead(data)
         updatePWAManifest()
       } else {
         // No settings found, use defaults
+        console.log('⚙️ [SYSTEM-SETTINGS] Nenhuma configuração encontrada, usando padrões:', defaultSettings)
         setSettings(defaultSettings)
         updateDocumentHead(defaultSettings)
         updatePWAManifest()
@@ -94,15 +96,17 @@ export function SystemSettingsProvider({ children }: SystemSettingsProviderProps
       metaDescription.setAttribute('content', settings.meta_description)
     }
 
-    // Update favicon
+    // Update favicon with proper Supabase URL handling
     const favicon = document.querySelector('#favicon') as HTMLLinkElement
-    if (favicon && settings.favicon_url) {
+    if (favicon && settings.favicon_url && settings.favicon_url !== '/img/logo.svg') {
+      console.log('🔗 [FAVICON] Updating favicon to Supabase URL:', settings.favicon_url)
       favicon.href = settings.favicon_url
     }
 
-    // Update apple-touch-icon
+    // Update apple-touch-icon with proper Supabase URL handling
     const appleTouchIcon = document.querySelector('#apple-touch-icon') as HTMLLinkElement
-    if (appleTouchIcon && settings.favicon_url) {
+    if (appleTouchIcon && settings.favicon_url && settings.favicon_url !== '/img/logo.svg') {
+      console.log('🍎 [APPLE-TOUCH-ICON] Updating apple-touch-icon to Supabase URL:', settings.favicon_url)
       appleTouchIcon.href = settings.favicon_url
     }
 
@@ -118,16 +122,19 @@ export function SystemSettingsProvider({ children }: SystemSettingsProviderProps
       msApplicationTileColor.setAttribute('content', settings.primary_color)
     }
 
-    // Update Open Graph image
+    // Update Open Graph image with logo URL if available, otherwise favicon
     const ogImage = document.querySelector('meta[property="og:image"]')
-    if (ogImage && settings.favicon_url) {
-      ogImage.setAttribute('content', settings.favicon_url)
+    const imageUrl = (settings.logo_url && settings.logo_url !== '/img/logo.svg') ? settings.logo_url : settings.favicon_url
+    if (ogImage && imageUrl && imageUrl !== '/img/logo.svg') {
+      console.log('📖 [OG-IMAGE] Updating Open Graph image to:', imageUrl)
+      ogImage.setAttribute('content', imageUrl)
     }
 
-    // Update Twitter image
+    // Update Twitter image with logo URL if available, otherwise favicon
     const twitterImage = document.querySelector('meta[name="twitter:image"]')
-    if (twitterImage && settings.favicon_url) {
-      twitterImage.setAttribute('content', settings.favicon_url)
+    if (twitterImage && imageUrl && imageUrl !== '/img/logo.svg') {
+      console.log('🐦 [TWITTER-IMAGE] Updating Twitter image to:', imageUrl)
+      twitterImage.setAttribute('content', imageUrl)
     }
 
     // Update Open Graph title and description

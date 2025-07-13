@@ -2,16 +2,12 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Download, Smartphone, Monitor, Zap } from 'lucide-react'
 import { usePWAInstallPrompt } from '../hooks/usePWAInstallPrompt'
-// Temporariamente removido devido a erros TypeScript
-// import { 
-//   UnifiedCard, 
-//   UnifiedIcon, 
-//   UnifiedButton, 
-//   UnifiedTypography 
-// } from './ui/unified'
+import { SystemLogo } from './ui/SystemLogo'
+import { useSystemSettings } from '../contexts/SystemSettingsContext'
 
 export function PWAInstallPrompt() {
   const { isInstallable, promptInstall } = usePWAInstallPrompt()
+  const { settings } = useSystemSettings()
   const [showPrompt, setShowPrompt] = useState(false)
   const [dismissed, setDismissed] = useState(false)
 
@@ -65,12 +61,10 @@ export function PWAInstallPrompt() {
             <div className="p-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 bg-blue-500/20 rounded-xl flex items-center justify-center">
-                    <Smartphone className="w-5 h-5 text-blue-400" />
-                  </div>
+                  <SystemLogo size="lg" />
                   <div>
                     <h3 className="text-sm font-semibold text-white">
-                      Instalar MikroPix
+                      Instalar {settings.site_name}
                     </h3>
                     <p className="text-xs text-gray-400">
                       Acesso rápido na tela inicial
@@ -117,12 +111,12 @@ export function PWAInstallPrompt() {
                 {/* Header */}
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center space-x-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
-                      <Download className="w-6 h-6 text-white" />
+                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center p-1">
+                      <SystemLogo size="lg" />
                     </div>
                     <div>
                       <h2 className="text-xl font-bold text-white">
-                        Instalar MikroPix
+                        Instalar {settings.site_name}
                       </h2>
                       <p className="text-sm text-gray-400">
                         Aplicativo Web Progressivo
@@ -174,7 +168,7 @@ export function PWAInstallPrompt() {
                     </div>
                     <div>
                       <h3 className="text-sm font-medium text-white">
-                        Ícone na Área de Trabalho
+                        Ícone na Tela Inicial
                       </h3>
                       <p className="text-xs text-gray-400">
                         Acesso direto como um app nativo

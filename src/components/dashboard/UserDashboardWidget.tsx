@@ -14,7 +14,9 @@ import {
   Crown,
   ArrowUp,
   Zap,
-  Sparkles
+  Sparkles,
+  Settings,
+  RefreshCw
 } from 'lucide-react'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
@@ -91,12 +93,201 @@ interface UserSubscription {
     description: string
     price: number
     duration_days: number
+    max_mikrotiks: number
     features: any
+    active: boolean
   }
 }
 
 interface PlanCardProps {
   className?: string
+}
+
+interface PlanManagementModalProps {
+  isOpen: boolean
+  onClose: () => void
+  subscription: UserSubscription
+}
+
+function PlanManagementModal({ isOpen, onClose, subscription }: PlanManagementModalProps) {
+  const [showRenewModal, setShowRenewModal] = useState(false)
+  
+  const getDaysRemaining = () => {
+    const now = new Date()
+    const expires = new Date(subscription.expires_at)
+    const diffTime = expires.getTime() - now.getTime()
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    return Math.max(0, diffDays)
+  }
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  }
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(value)
+  }
+
+  const plan = subscription.subscription_plans
+  const daysRemaining = getDaysRemaining()
+  const isExpired = daysRemaining <= 0
+  const isNearExpiration = daysRemaining <= 3 && daysRemaining > 0
+  const progressPercent = Math.min(100, (daysRemaining / plan.duration_days) * 100)
+
+
+  if (!isOpen) return null
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.9 }}
+          className="bg-black/90 backdrop-blur-xl border border-gray-800/50 rounded-2xl p-6 w-full max-w-lg relative"
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-xl bg-blue-500/20 border border-blue-400/30">
+                <Crown className="h-6 w-6 text-blue-400" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-white">Detalhes do Plano</h2>
+                <p className="text-sm text-gray-400">Informações da sua assinatura</p>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-lg bg-gray-800/50 hover:bg-gray-700/50 text-gray-400 hover:text-white transition-colors"
+            >
+              <XCircle className="h-5 w-5" />
+            </button>
+          </div>
+
+          {/* Plan Info */}
+          <div className="space-y-6">
+            {/* Current Plan Card */}
+            <div className={cn(
+              "bg-gradient-to-br rounded-2xl p-6 border-2",
+              isExpired 
+                ? "from-red-500/20 to-red-600/20 border-red-500/50"
+                : isNearExpiration 
+                ? "from-orange-500/20 to-red-600/20 border-orange-500/50"
+                : "from-blue-500/20 to-purple-600/20 border-blue-500/30"
+            )}>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-2xl font-bold text-white">{plan.name}</h3>
+                  <p className="text-gray-300">{plan.description}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-2xl font-bold text-blue-400">{formatCurrency(plan.price)}</p>
+                  <p className="text-sm text-gray-400">por {plan.duration_days} dias</p>
+                </div>
+              </div>
+
+              {/* Status and Progress */}
+              <div className="mb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-white">
+                    {isExpired ? 'Plano expirado' : `${daysRemaining} dias restantes`}
+                  </span>
+                  <span className="text-xs text-gray-400">
+                    {Math.round(progressPercent)}%
+                  </span>
+                </div>
+                <div className="w-full bg-black/30 rounded-full h-2">
+                  <div 
+                    className={cn(
+                      "h-2 rounded-full transition-all duration-500",
+                      isExpired ? 'bg-gradient-to-r from-red-500 to-red-600' :
+                      isNearExpiration ? 'bg-gradient-to-r from-orange-500 to-red-500' :
+                      'bg-gradient-to-r from-blue-500 to-purple-500'
+                    )}
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Dates */}
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div className="bg-black/30 rounded-lg p-3">
+                  <p className="text-xs text-gray-400 mb-1">Início</p>
+                  <p className="text-sm font-medium text-white">
+                    {formatDate(subscription.starts_at)}
+                  </p>
+                </div>
+                <div className="bg-black/30 rounded-lg p-3">
+                  <p className="text-xs text-gray-400 mb-1">Vencimento</p>
+                  <p className="text-sm font-medium text-white">
+                    {formatDate(subscription.expires_at)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Status Badge */}
+              <div className="flex justify-center">
+                {isExpired ? (
+                  <Badge variant="destructive" className="border-red-500/20 bg-red-500/20 text-red-400">
+                    <XCircle className="w-3 h-3 mr-1" />
+                    Expirado
+                  </Badge>
+                ) : isNearExpiration ? (
+                  <Badge variant="destructive" className="border-orange-500/20 bg-orange-500/20 text-orange-400">
+                    <Clock className="w-3 h-3 mr-1" />
+                    Expira em breve
+                  </Badge>
+                ) : (
+                  <Badge variant="default" className="border-green-500/20 bg-green-500/20 text-green-400">
+                    <CheckCircle className="w-3 h-3 mr-1" />
+                    Ativo
+                  </Badge>
+                )}
+              </div>
+            </div>
+
+
+            {/* Action Buttons */}
+            <div className="flex gap-3">
+              <Button
+                onClick={() => setShowRenewModal(true)}
+                className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-medium py-3 rounded-xl"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                {isExpired ? 'Renovar Plano' : 'Renovar Antecipado'}
+              </Button>
+              <Button
+                onClick={onClose}
+                variant="outline"
+                className="px-6 py-3 rounded-xl border-gray-600 text-gray-300 hover:bg-gray-800/50"
+              >
+                Fechar
+              </Button>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+
+      {/* Renew Modal */}
+      {showRenewModal && (
+        <PlanoModal
+          isOpen={showRenewModal}
+          onClose={() => setShowRenewModal(false)}
+          currentPlan={subscription}
+        />
+      )}
+    </>
+  )
 }
 
 export function UserDashboardWidget() {
@@ -687,6 +878,7 @@ export function UserSubscriptionCard({ className }: PlanCardProps) {
   const [subscription, setSubscription] = useState<UserSubscription | null>(null)
   const [loading, setLoading] = useState(true)
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
+  const [showManageModal, setShowManageModal] = useState(false)
 
   useEffect(() => {
     if (user) {
@@ -739,11 +931,21 @@ export function UserSubscriptionCard({ className }: PlanCardProps) {
   }
 
   const handleOpenModal = () => {
-    setShowUpgradeModal(true)
+    if (subscription && getDaysRemaining() > 0) {
+      // Se tem plano ativo, abrir modal de gerenciamento
+      setShowManageModal(true)
+    } else {
+      // Se não tem plano ou está expirado, abrir modal de upgrade
+      setShowUpgradeModal(true)
+    }
   }
 
   const handleCloseModal = () => {
     setShowUpgradeModal(false)
+  }
+
+  const handleCloseManageModal = () => {
+    setShowManageModal(false)
   }
 
   if (loading) {
@@ -899,10 +1101,27 @@ export function UserSubscriptionCard({ className }: PlanCardProps) {
               : "bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/30 text-blue-300 hover:text-blue-200"
           )}
         >
-          <Crown className="w-4 h-4 mr-2" />
-          {daysRemaining <= 0 ? 'Renovar Plano' : 
-           daysRemaining <= 3 ? 'Renovar Plano' :
-           isTrialPlan() ? 'Fazer Upgrade' : 'Gerenciar Plano'}
+          {daysRemaining <= 0 ? (
+            <>
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Renovar Plano
+            </>
+          ) : daysRemaining <= 3 ? (
+            <>
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Renovar Plano
+            </>
+          ) : isTrialPlan() ? (
+            <>
+              <Crown className="w-4 h-4 mr-2" />
+              Fazer Upgrade
+            </>
+          ) : (
+            <>
+              <Settings className="w-4 h-4 mr-2" />
+              Gerenciar Plano
+            </>
+          )}
         </Button>
       </motion.div>
 
@@ -910,7 +1129,15 @@ export function UserSubscriptionCard({ className }: PlanCardProps) {
         <PlanoModal
           isOpen={showUpgradeModal}
           onClose={handleCloseModal}
-          currentPlan={null}
+          currentPlan={subscription}
+        />
+      )}
+      
+      {showManageModal && subscription && (
+        <PlanManagementModal
+          isOpen={showManageModal}
+          onClose={handleCloseManageModal}
+          subscription={subscription}
         />
       )}
     </>

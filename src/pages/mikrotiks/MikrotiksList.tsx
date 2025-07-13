@@ -793,7 +793,7 @@ Dados necessários:
   return (
     <div className="min-h-screen bg-black pt-16 lg:pt-0">
       {/* Header */}
-      <div className={`border-b px-4 sm:px-6 py-6 sticky top-16 lg:top-0 z-50 transition-all duration-500 ${
+      <div className={`border-b px-4 sm:px-6 py-6 sticky top-0 lg:top-0 z-40 transition-all duration-500 ${
         isScrolled 
           ? 'bg-black/60 backdrop-blur-xl border-gray-700/30 shadow-2xl' 
           : 'bg-black/40 backdrop-blur-sm border-gray-800/50'

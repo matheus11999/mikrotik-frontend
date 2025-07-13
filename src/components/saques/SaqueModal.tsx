@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Modal, ModalContent, ModalFooter, Button, Input, useToast } from '../ui'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
-import { ArrowDown } from 'lucide-react'
+import { ArrowDown, DollarSign, Clock, Shield, Wallet } from 'lucide-react'
 
 interface SaqueModalProps {
   open: boolean
@@ -121,13 +121,27 @@ export function SaqueModal({ open, onOpenChange, onSuccess }: SaqueModalProps) {
       title="Solicitar Saque"
       description="Preencha os dados para solicitar seu saque"
       size="md"
-      className="bg-black border border-gray-700"
+      className="bg-black/90 backdrop-blur-xl border border-gray-800/50"
     >
       <form onSubmit={handleSubmit} className="space-y-6">
         <ModalContent>
+          {/* Saldo Disponível Card */}
+          <div className="bg-black/40 backdrop-blur-sm border border-gray-800/50 rounded-xl p-4 mb-6">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-xl bg-gradient-to-br from-green-500/20 to-green-600/10 border border-green-500/20">
+                <Wallet className="h-6 w-6 text-green-400" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-400">Saldo Disponível</p>
+                <p className="text-2xl font-bold text-green-400">R$ {saldoDisponivel.toFixed(2)}</p>
+              </div>
+            </div>
+          </div>
+
           {/* Valor do saque */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
+              <DollarSign className="h-4 w-4 text-orange-400" />
               Valor do Saque
             </label>
             <div className="relative">
@@ -137,23 +151,24 @@ export function SaqueModal({ open, onOpenChange, onSuccess }: SaqueModalProps) {
               <Input
                 type="number"
                 step="0.01"
-                min="1"
+                min="50"
                 max={saldoDisponivel}
                 value={formData.valor}
                 onChange={(e) => setFormData(prev => ({ ...prev, valor: parseFloat(e.target.value) || 0 }))}
-                placeholder="0,00"
-                className="pl-10"
+                placeholder="50,00"
+                className="pl-10 bg-black/40 border-gray-800/50 text-white focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 rounded-xl backdrop-blur-sm"
                 required
               />
             </div>
-            <p className="text-sm text-gray-500 mt-1">
-              Saldo disponível: R$ {saldoDisponivel.toFixed(2).replace('.', ',')}
+            <p className="text-xs text-gray-500">
+              Valor mínimo: R$ 50,00 • Máximo: R$ {saldoDisponivel.toFixed(2)}
             </p>
           </div>
 
           {/* Chave PIX */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
+              <Shield className="h-4 w-4 text-blue-400" />
               Chave PIX
             </label>
             <Input
@@ -161,19 +176,20 @@ export function SaqueModal({ open, onOpenChange, onSuccess }: SaqueModalProps) {
               value={formData.chave_pix}
               onChange={(e) => setFormData(prev => ({ ...prev, chave_pix: e.target.value }))}
               placeholder="Digite sua chave PIX"
+              className="bg-black/40 border-gray-800/50 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 rounded-xl backdrop-blur-sm"
               required
             />
           </div>
 
           {/* Tipo da chave PIX */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-300">
               Tipo da Chave PIX
             </label>
             <select
               value={formData.tipo_chave}
               onChange={(e) => setFormData(prev => ({ ...prev, tipo_chave: e.target.value }))}
-              className="w-full px-3 py-2 bg-black border border-gray-700 rounded-lg text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all"
+              className="w-full px-3 py-3 bg-black/40 border border-gray-800/50 rounded-xl text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all backdrop-blur-sm"
               required
             >
               <option value="">Selecione o tipo</option>
@@ -186,14 +202,18 @@ export function SaqueModal({ open, onOpenChange, onSuccess }: SaqueModalProps) {
           </div>
 
           {/* Status visual */}
-          <div className="bg-gray-900/50 border border-gray-800 rounded-lg p-4">
-            <div className="flex items-center gap-2 text-orange-400">
-              <ArrowDown className="h-4 w-4" />
-              <span className="text-sm font-medium">Status: Aguardando aprovação</span>
+          <div className="bg-gradient-to-r from-orange-500/10 to-orange-600/10 border border-orange-500/20 rounded-xl p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-orange-500/20">
+                <Clock className="h-4 w-4 text-orange-400" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-orange-300">Status: Aguardando aprovação</p>
+                <p className="text-xs text-orange-400/70 mt-1">
+                  O saque será processado em até 24 horas úteis
+                </p>
+              </div>
             </div>
-            <p className="text-gray-400 text-xs mt-1">
-              O saque será processado em até 24 horas úteis
-            </p>
           </div>
         </ModalContent>
 
@@ -203,14 +223,14 @@ export function SaqueModal({ open, onOpenChange, onSuccess }: SaqueModalProps) {
             variant="outline"
             onClick={() => onOpenChange(false)}
             disabled={loading}
-            className="border-gray-700 text-gray-300 hover:text-white hover:border-gray-600 hover:bg-gray-800"
+            className="border-gray-800/50 text-gray-300 hover:text-white hover:border-gray-700 hover:bg-gray-800/50 rounded-xl"
           >
             Cancelar
           </Button>
           <Button
             type="submit"
-            disabled={loading || formData.valor <= 0 || formData.valor > saldoDisponivel}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
+            disabled={loading || formData.valor < 50 || formData.valor > saldoDisponivel}
+            className="bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
           >
             {loading ? 'Solicitando...' : 'Solicitar Saque'}
           </Button>

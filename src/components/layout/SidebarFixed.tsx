@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "../../lib/utils";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuthContext } from "../../contexts/AuthContext";
+import { useSystemSettings } from "../../contexts/SystemSettingsContext";
 import { supabase } from "../../lib/supabase";
 import {
   LayoutDashboard,
@@ -34,6 +35,7 @@ import {
 } from "lucide-react";
 import { Button } from "../ui/button";
 import { PWAInstallButton } from "../PWAInstallButton";
+import { SystemLogo } from "../ui/SystemLogo";
 
 interface SidebarProps {
   open: boolean;
@@ -53,6 +55,7 @@ export function SidebarFixed({ open, setOpen, collapsed, setCollapsed }: Sidebar
   const location = useLocation();
   const navigate = useNavigate();
   const { user, signOut } = useAuthContext();
+  const { settings } = useSystemSettings();
   const [userBalance, setUserBalance] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
@@ -192,14 +195,12 @@ export function SidebarFixed({ open, setOpen, collapsed, setCollapsed }: Sidebar
   return (
     <>
       {/* Mobile Header */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-black/90 backdrop-blur-sm border-b border-gray-800/50">
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-30 bg-black/90 backdrop-blur-sm border-b border-gray-800/50">
         <div className="flex items-center justify-between p-4">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-gradient-to-br from-blue-500/20 to-cyan-500/10 border border-blue-500/20">
-              <Wifi className="h-5 w-5 text-blue-400" />
-            </div>
+            <SystemLogo size="lg" />
             <span className="text-lg font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
-              MikroPix
+              {settings.site_name}
             </span>
           </div>
           <Button
@@ -232,9 +233,8 @@ export function SidebarFixed({ open, setOpen, collapsed, setCollapsed }: Sidebar
               <motion.div
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="p-2 rounded-xl bg-gradient-to-br from-blue-500/20 to-cyan-500/10 border border-blue-500/20"
               >
-                <Wifi className="h-5 w-5 text-blue-400" />
+                <SystemLogo size="lg" />
               </motion.div>
             ) : (
               <motion.div
@@ -243,11 +243,9 @@ export function SidebarFixed({ open, setOpen, collapsed, setCollapsed }: Sidebar
                 exit={{ opacity: 0 }}
                 className="flex items-center gap-3"
               >
-                <div className="p-2 rounded-xl bg-gradient-to-br from-blue-500/20 to-cyan-500/10 border border-blue-500/20">
-                  <Wifi className="h-5 w-5 text-blue-400" />
-                </div>
+                <SystemLogo size="lg" />
                 <span className="text-lg font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
-                  MikroPix
+                  {settings.site_name}
                 </span>
               </motion.div>
             )}
@@ -264,8 +262,8 @@ export function SidebarFixed({ open, setOpen, collapsed, setCollapsed }: Sidebar
         </div>
 
         {/* Navigation */}
-        <div className="flex-1 overflow-y-auto py-4 px-2 scrollbar-thin scrollbar-track-black scrollbar-thumb-gray-700 hover:scrollbar-thumb-gray-600">
-          <div className="space-y-2">
+        <div className="flex-1 overflow-y-auto py-3 lg:py-4 px-2 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-gray-700/50 hover:scrollbar-thumb-gray-600/70 scrollbar-thumb-rounded-full">
+          <div className="space-y-1 lg:space-y-2">
             {/* Dashboard */}
             {navigationLinks.main.map((link) => (
               <NavItem
@@ -412,10 +410,6 @@ export function SidebarFixed({ open, setOpen, collapsed, setCollapsed }: Sidebar
 
         {/* Footer - User Info */}
         <div className="p-4 border-t border-gray-800/50">
-          {/* PWA Install Button */}
-          <div className="mb-4">
-            <PWAInstallButton collapsed={collapsed} />
-          </div>
 
           {/* Saldo */}
           {!collapsed && (
@@ -492,20 +486,18 @@ export function SidebarFixed({ open, setOpen, collapsed, setCollapsed }: Sidebar
       <AnimatePresence>
         {open && (
           <motion.div
-            initial={{ x: -263 }}
+            initial={{ x: -280 }}
             animate={{ x: 0 }}
-            exit={{ x: -263 }}
-            transition={{ duration: 0.3, ease: "easeInOut" }}
-            className="fixed top-0 left-0 h-full w-[263px] z-50 lg:hidden bg-black/95 backdrop-blur-xl border-r border-gray-800/50"
+            exit={{ x: -280 }}
+            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+            className="fixed top-0 left-0 h-full w-[280px] z-50 lg:hidden bg-black/95 backdrop-blur-xl border-r border-gray-800/50 shadow-2xl"
           >
             {/* Mobile Header */}
             <div className="p-4 border-b border-gray-800/50 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-gradient-to-br from-blue-500/20 to-cyan-500/10 border border-blue-500/20">
-                  <Wifi className="h-5 w-5 text-blue-400" />
-                </div>
+                <SystemLogo size="lg" />
                 <span className="text-lg font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
-                  MikroPix
+                  {settings.site_name}
                 </span>
               </div>
               <Button
@@ -519,8 +511,8 @@ export function SidebarFixed({ open, setOpen, collapsed, setCollapsed }: Sidebar
             </div>
 
             {/* Mobile Navigation */}
-            <div className="flex-1 overflow-y-auto py-4 px-2 scrollbar-thin scrollbar-track-black scrollbar-thumb-gray-700 hover:scrollbar-thumb-gray-600">
-              <div className="space-y-2">
+            <div className="flex-1 overflow-y-auto py-3 lg:py-4 px-2 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-gray-700/50 hover:scrollbar-thumb-gray-600/70 scrollbar-thumb-rounded-full">
+              <div className="space-y-1 lg:space-y-2">
                 {/* Dashboard */}
                 {navigationLinks.main.map((link) => (
                   <NavItem
@@ -667,10 +659,6 @@ export function SidebarFixed({ open, setOpen, collapsed, setCollapsed }: Sidebar
 
             {/* Mobile Footer */}
             <div className="p-4 border-t border-gray-800/50">
-              {/* PWA Install Button */}
-              <div className="mb-4">
-                <PWAInstallButton collapsed={false} />
-              </div>
 
               {/* Saldo */}
               <div className="mb-4 p-3 rounded-lg bg-green-500/10 border border-green-500/20">
@@ -749,8 +737,8 @@ function SectionHeader({
   return (
     <motion.button
       onClick={onToggle}
-      className="w-full flex items-center justify-between px-3 py-2 text-xs font-bold uppercase tracking-wider text-gray-400 hover:text-gray-300 transition-colors duration-200 group"
-      whileHover={{ x: 2 }}
+      className="w-full flex items-center justify-between px-3 py-2 lg:py-2.5 text-xs font-bold uppercase tracking-wider text-gray-400 hover:text-gray-300 transition-colors duration-200 group rounded-lg min-h-[40px] touch-manipulation"
+      whileHover={{ x: 1 }}
       whileTap={{ scale: 0.98 }}
     >
       <div className="flex items-center gap-2">
@@ -783,14 +771,15 @@ function NavItem({
 }) {
   return (
     <motion.button
-      whileHover={{ x: 2 }}
-      whileTap={{ scale: 0.98 }}
+      whileHover={{ x: collapsed ? 0 : 2 }}
+      whileTap={{ scale: 0.96 }}
       onClick={onClick}
       className={cn(
-        "w-full flex items-center gap-3 px-3 py-3 text-sm font-medium rounded-lg transition-all duration-200",
+        "w-full flex items-center gap-3 text-sm font-medium rounded-xl transition-all duration-200 touch-manipulation",
+        "px-3 py-2.5 lg:py-3 min-h-[44px]", // Minimum touch target size
         isActive 
-          ? "bg-blue-600/20 text-blue-300 border border-blue-500/30" 
-          : "text-gray-300 hover:text-white hover:bg-white/5",
+          ? "bg-blue-600/20 text-blue-300 border border-blue-500/30 shadow-lg shadow-blue-500/10" 
+          : "text-gray-300 hover:text-white hover:bg-white/5 active:bg-white/10",
         collapsed && "justify-center px-2"
       )}
     >

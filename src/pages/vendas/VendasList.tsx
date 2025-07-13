@@ -5,6 +5,7 @@ import {
   Filter, 
   Download, 
   Calendar,
+  Clock,
   DollarSign,
   TrendingUp,
   ShoppingCart,
@@ -95,6 +96,7 @@ interface ResumoVendas {
 
 type TipoFiltro = 'todos' | 'pix' | 'voucher'
 type OrdenacaoFiltro = 'data_desc' | 'data_asc' | 'valor_desc' | 'valor_asc'
+type PeriodoFiltro = 'hoje' | 'semana' | 'mes' | 'personalizado'
 
 export default function VendasList() {
   const { user } = useAuthContext()
@@ -107,6 +109,7 @@ export default function VendasList() {
   })
   const [loading, setLoading] = useState(true)
   const [filtroTipo, setFiltroTipo] = useState<TipoFiltro>('todos')
+  const [filtroPeriodo, setFiltroPeriodo] = useState<PeriodoFiltro>('mes')
   const [filtroMes, setFiltroMes] = useState<string>(() => {
     const now = new Date()
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
@@ -123,6 +126,46 @@ export default function VendasList() {
   
   const isAdmin = user?.role === 'admin'
 
+  // Helper function to get date range based on period filter
+  const getDateRange = () => {
+    const now = new Date()
+    let inicioMes: Date
+    let fimMes: Date
+    
+    switch (filtroPeriodo) {
+      case 'hoje':
+        inicioMes = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0)
+        fimMes = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59)
+        break
+      case 'semana':
+        const startOfWeek = new Date(now)
+        const dayOfWeek = now.getDay()
+        const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
+        startOfWeek.setDate(now.getDate() + diffToMonday)
+        startOfWeek.setHours(0, 0, 0, 0)
+        
+        const endOfWeek = new Date(startOfWeek)
+        endOfWeek.setDate(startOfWeek.getDate() + 6)
+        endOfWeek.setHours(23, 59, 59, 999)
+        
+        inicioMes = startOfWeek
+        fimMes = endOfWeek
+        break
+      case 'mes':
+        inicioMes = new Date(now.getFullYear(), now.getMonth(), 1)
+        fimMes = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
+        break
+      case 'personalizado':
+      default:
+        const [ano, mes] = filtroMes.split('-')
+        inicioMes = new Date(parseInt(ano), parseInt(mes) - 1, 1)
+        fimMes = new Date(parseInt(ano), parseInt(mes), 0, 23, 59, 59)
+        break
+    }
+    
+    return { inicioMes, fimMes }
+  }
+
   useEffect(() => {
     if (user) {
       if (isAdmin) {
@@ -130,7 +173,7 @@ export default function VendasList() {
       }
       fetchVendas()
     }
-  }, [user, filtroTipo, filtroMes, ordenacao, filtroUsuario, filtroMikrotik])
+  }, [user, filtroTipo, filtroPeriodo, filtroMes, ordenacao, filtroUsuario, filtroMikrotik])
 
   // Scroll detection for blur effect
   useEffect(() => {
@@ -183,10 +226,8 @@ export default function VendasList() {
     try {
       setLoading(true)
 
-      // Determinar período baseado no filtro de mês
-      const [ano, mes] = filtroMes.split('-')
-      const inicioMes = new Date(parseInt(ano), parseInt(mes) - 1, 1)
-      const fimMes = new Date(parseInt(ano), parseInt(mes), 0, 23, 59, 59)
+      // Determinar período baseado no filtro selecionado
+      const { inicioMes, fimMes } = getDateRange()
 
       let userMikrotikIds: string[] = []
       let mikrotiksMap: Record<string, { id: string; nome: string; usuario?: any }> = {}
@@ -621,12 +662,12 @@ export default function VendasList() {
   }
 
   return (
-    <div className="min-h-screen bg-black">
+    <div className="min-h-screen bg-black pt-16 lg:pt-0">
       {/* Header with blur effect */}
-      <div className={`sticky top-16 lg:top-0 z-50 px-6 py-4 transition-all duration-500 ${
+      <div className={`sticky top-0 lg:top-0 z-40 px-4 lg:px-6 py-3 lg:py-4 transition-all duration-500 ${
         isScrolled 
-          ? 'bg-black/60 backdrop-blur-xl border-b border-gray-700/30 shadow-2xl' 
-          : 'bg-black/40 backdrop-blur-sm border-b border-gray-800/50'
+          ? 'bg-black/80 backdrop-blur-xl border-b border-gray-700/30 shadow-2xl' 
+          : 'bg-black/60 backdrop-blur-sm border-b border-gray-800/50'
       }`}>
         <div className="max-w-7xl mx-auto">
           <motion.div
@@ -634,21 +675,23 @@ export default function VendasList() {
             animate={{ opacity: 1, y: 0 }}
             className="flex flex-col md:flex-row md:items-center md:justify-between gap-4"
           >
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent flex items-center gap-3">
+            <div className="flex-1">
+              <h1 className="text-lg sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent flex items-center gap-2 lg:gap-3">
                 {isAdmin ? (
                 <>
-                  <Crown className="h-6 sm:h-8 w-6 sm:w-8 text-yellow-400" />
-                  Relatório Administrativo de Vendas
+                  <Crown className="h-5 sm:h-6 lg:h-8 w-5 sm:w-6 lg:w-8 text-yellow-400" />
+                  <span className="hidden sm:inline">Relatório Administrativo de Vendas</span>
+                  <span className="sm:hidden">Admin Vendas</span>
                 </>
               ) : (
                 <>
-                  <BarChart3 className="h-6 sm:h-8 w-6 sm:w-8 text-blue-400" />
-                  Relatório de Vendas
+                  <BarChart3 className="h-5 sm:h-6 lg:h-8 w-5 sm:w-6 lg:w-8 text-blue-400" />
+                  <span className="hidden sm:inline">Relatório de Vendas</span>
+                  <span className="sm:hidden">Vendas</span>
                 </>
               )}
             </h1>
-            <p className="text-gray-400 mt-1 text-sm">
+            <p className="text-gray-400 mt-1 text-xs sm:text-sm hidden sm:block">
               {isAdmin 
                 ? 'Visão completa de todas as vendas, comissões e métricas do sistema'
                 : 'Acompanhe suas vendas PIX e vouchers detalhadamente'
@@ -656,24 +699,24 @@ export default function VendasList() {
             </p>
           </div>
           
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 lg:gap-3 flex-shrink-0">
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={fetchVendas}
-              className="px-4 py-2 bg-gradient-to-r from-gray-800/80 to-gray-700/80 hover:from-gray-700/90 hover:to-gray-600/90 text-white rounded-xl border border-gray-600/30 backdrop-blur-sm transition-all duration-300 shadow-lg hover:shadow-xl flex items-center gap-2"
+              className="px-3 lg:px-4 py-2 bg-gradient-to-r from-gray-800/80 to-gray-700/80 hover:from-gray-700/90 hover:to-gray-600/90 text-white rounded-xl border border-gray-600/30 backdrop-blur-sm transition-all duration-300 shadow-lg hover:shadow-xl flex items-center gap-2"
             >
               <RefreshCw className="h-4 w-4" />
-              Atualizar
+              <span className="hidden sm:inline">Atualizar</span>
             </motion.button>
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={exportarCSV}
-              className="px-4 py-2 bg-gradient-to-r from-green-600/80 to-green-700/80 hover:from-green-500/90 hover:to-green-600/90 text-white rounded-xl border border-green-500/30 backdrop-blur-sm transition-all duration-300 shadow-lg hover:shadow-xl flex items-center gap-2"
+              className="px-3 lg:px-4 py-2 bg-gradient-to-r from-green-600/80 to-green-700/80 hover:from-green-500/90 hover:to-green-600/90 text-white rounded-xl border border-green-500/30 backdrop-blur-sm transition-all duration-300 shadow-lg hover:shadow-xl flex items-center gap-2"
             >
               <Download className="h-4 w-4" />
-              Exportar CSV
+              <span className="hidden sm:inline">Exportar CSV</span>
             </motion.button>
           </div>
         </motion.div>
@@ -681,7 +724,7 @@ export default function VendasList() {
       </div>
 
       {/* Main content */}
-      <div className="max-w-7xl mx-auto space-y-6 p-6">
+      <div className="max-w-7xl mx-auto space-y-4 lg:space-y-6 p-4 lg:p-6 pt-4 lg:pt-6">
 
         {/* Resumo Cards */}
         <motion.div
@@ -689,90 +732,90 @@ export default function VendasList() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
           className={cn(
-            "grid gap-4",
+            "grid gap-3 lg:gap-4",
             isAdmin 
-              ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6" 
-              : "grid-cols-1 md:grid-cols-2 lg:grid-cols-4"
+              ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6" 
+              : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
           )}
         >
           {/* Total Geral */}
-          <div className="bg-gradient-to-br from-blue-500/20 to-blue-600/20 backdrop-blur-sm border border-blue-500/30 rounded-xl p-6">
+          <div className="bg-gradient-to-br from-blue-500/20 to-blue-600/20 backdrop-blur-sm border border-blue-500/30 rounded-xl p-4 lg:p-6">
             <div className="flex items-center justify-between mb-3">
-              <div>
-                <p className="text-blue-200/80 text-sm font-medium">
+              <div className="min-w-0 flex-1">
+                <p className="text-blue-200/80 text-xs lg:text-sm font-medium truncate">
                   {isAdmin ? 'Total Faturamento' : 'Total Geral'}
                 </p>
-                <p className="text-2xl font-bold text-blue-100">{formatCurrency(resumo.totalGeral.valor)}</p>
+                <p className="text-lg lg:text-2xl font-bold text-blue-100 truncate">{formatCurrency(resumo.totalGeral.valor)}</p>
               </div>
-              <BarChart3 className="h-8 w-8 text-blue-300" />
+              <BarChart3 className="h-6 w-6 lg:h-8 lg:w-8 text-blue-300 flex-shrink-0" />
             </div>
-            <p className="text-blue-300/70 text-sm">{resumo.totalGeral.quantidade} vendas</p>
+            <p className="text-blue-300/70 text-xs lg:text-sm">{resumo.totalGeral.quantidade} vendas</p>
           </div>
 
           {/* Vendas PIX */}
-          <div className="bg-gradient-to-br from-green-500/20 to-green-600/20 backdrop-blur-sm border border-green-500/30 rounded-xl p-6">
+          <div className="bg-gradient-to-br from-green-500/20 to-green-600/20 backdrop-blur-sm border border-green-500/30 rounded-xl p-4 lg:p-6">
             <div className="flex items-center justify-between mb-3">
-              <div>
-                <p className="text-green-200/80 text-sm font-medium">
+              <div className="min-w-0 flex-1">
+                <p className="text-green-200/80 text-xs lg:text-sm font-medium truncate">
                   {isAdmin ? 'PIX (Total)' : 'Vendas PIX'}
                 </p>
-                <p className="text-2xl font-bold text-green-100">{formatCurrency(resumo.vendasPix.valor)}</p>
+                <p className="text-lg lg:text-2xl font-bold text-green-100 truncate">{formatCurrency(resumo.vendasPix.valor)}</p>
               </div>
-              <CreditCard className="h-8 w-8 text-green-300" />
+              <CreditCard className="h-6 w-6 lg:h-8 lg:w-8 text-green-300 flex-shrink-0" />
             </div>
-            <p className="text-green-300/70 text-sm">{resumo.vendasPix.quantidade} vendas PIX</p>
+            <p className="text-green-300/70 text-xs lg:text-sm">{resumo.vendasPix.quantidade} vendas PIX</p>
           </div>
 
           {/* Admin: Comissão Admin */}
           {isAdmin && resumo.comissaoAdmin && (
-            <div className="bg-gradient-to-br from-emerald-500/20 to-emerald-600/20 backdrop-blur-sm border border-emerald-500/30 rounded-xl p-6">
+            <div className="bg-gradient-to-br from-emerald-500/20 to-emerald-600/20 backdrop-blur-sm border border-emerald-500/30 rounded-xl p-4 lg:p-6">
               <div className="flex items-center justify-between mb-3">
-                <div>
-                  <p className="text-emerald-200/80 text-sm font-medium">Comissão Admin</p>
-                  <p className="text-2xl font-bold text-emerald-100">{formatCurrency(resumo.comissaoAdmin.valor)}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="text-emerald-200/80 text-xs lg:text-sm font-medium truncate">Comissão Admin</p>
+                  <p className="text-lg lg:text-2xl font-bold text-emerald-100 truncate">{formatCurrency(resumo.comissaoAdmin.valor)}</p>
                 </div>
-                <Crown className="h-8 w-8 text-emerald-300" />
+                <Crown className="h-6 w-6 lg:h-8 lg:w-8 text-emerald-300 flex-shrink-0" />
               </div>
-              <p className="text-emerald-300/70 text-sm">{resumo.comissaoAdmin.quantidade} vendas PIX</p>
+              <p className="text-emerald-300/70 text-xs lg:text-sm">{resumo.comissaoAdmin.quantidade} vendas PIX</p>
             </div>
           )}
 
           {/* Admin: Comissão Usuários */}
           {isAdmin && resumo.comissaoUsuarios && (
-            <div className="bg-gradient-to-br from-cyan-500/20 to-cyan-600/20 backdrop-blur-sm border border-cyan-500/30 rounded-xl p-6">
+            <div className="bg-gradient-to-br from-cyan-500/20 to-cyan-600/20 backdrop-blur-sm border border-cyan-500/30 rounded-xl p-4 lg:p-6">
               <div className="flex items-center justify-between mb-3">
-                <div>
-                  <p className="text-cyan-200/80 text-sm font-medium">Comissão Usuários</p>
-                  <p className="text-2xl font-bold text-cyan-100">{formatCurrency(resumo.comissaoUsuarios.valor)}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="text-cyan-200/80 text-xs lg:text-sm font-medium truncate">Comissão Usuários</p>
+                  <p className="text-lg lg:text-2xl font-bold text-cyan-100 truncate">{formatCurrency(resumo.comissaoUsuarios.valor)}</p>
                 </div>
-                <Users className="h-8 w-8 text-cyan-300" />
+                <Users className="h-6 w-6 lg:h-8 lg:w-8 text-cyan-300 flex-shrink-0" />
               </div>
-              <p className="text-cyan-300/70 text-sm">{resumo.comissaoUsuarios.quantidade} vendas PIX</p>
+              <p className="text-cyan-300/70 text-xs lg:text-sm">{resumo.comissaoUsuarios.quantidade} vendas PIX</p>
             </div>
           )}
 
           {/* Vouchers */}
-          <div className="bg-gradient-to-br from-purple-500/20 to-purple-600/20 backdrop-blur-sm border border-purple-500/30 rounded-xl p-6">
+          <div className="bg-gradient-to-br from-purple-500/20 to-purple-600/20 backdrop-blur-sm border border-purple-500/30 rounded-xl p-4 lg:p-6">
             <div className="flex items-center justify-between mb-3">
-              <div>
-                <p className="text-purple-200/80 text-sm font-medium">Vouchers</p>
-                <p className="text-2xl font-bold text-purple-100">{formatCurrency(resumo.vendasVoucher.valor)}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-purple-200/80 text-xs lg:text-sm font-medium truncate">Vouchers</p>
+                <p className="text-lg lg:text-2xl font-bold text-purple-100 truncate">{formatCurrency(resumo.vendasVoucher.valor)}</p>
               </div>
-              <Receipt className="h-8 w-8 text-purple-300" />
+              <Receipt className="h-6 w-6 lg:h-8 lg:w-8 text-purple-300 flex-shrink-0" />
             </div>
-            <p className="text-purple-300/70 text-sm">{resumo.vendasVoucher.quantidade} vouchers</p>
+            <p className="text-purple-300/70 text-xs lg:text-sm">{resumo.vendasVoucher.quantidade} vouchers</p>
           </div>
 
           {/* Período Selecionado */}
-          <div className="bg-gradient-to-br from-orange-500/20 to-orange-600/20 backdrop-blur-sm border border-orange-500/30 rounded-xl p-6">
+          <div className="bg-gradient-to-br from-orange-500/20 to-orange-600/20 backdrop-blur-sm border border-orange-500/30 rounded-xl p-4 lg:p-6">
             <div className="flex items-center justify-between mb-3">
-              <div>
-                <p className="text-orange-200/80 text-sm font-medium">Período Atual</p>
-                <p className="text-2xl font-bold text-orange-100">{formatCurrency(resumo.periodoSelecionado.valor)}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-orange-200/80 text-xs lg:text-sm font-medium truncate">Período Atual</p>
+                <p className="text-lg lg:text-2xl font-bold text-orange-100 truncate">{formatCurrency(resumo.periodoSelecionado.valor)}</p>
               </div>
-              <Calendar className="h-8 w-8 text-orange-300" />
+              <Calendar className="h-6 w-6 lg:h-8 lg:w-8 text-orange-300 flex-shrink-0" />
             </div>
-            <p className="text-orange-300/70 text-sm">{resumo.periodoSelecionado.quantidade} vendas no período</p>
+            <p className="text-orange-300/70 text-xs lg:text-sm">{resumo.periodoSelecionado.quantidade} vendas no período</p>
           </div>
         </motion.div>
 
@@ -781,11 +824,11 @@ export default function VendasList() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="bg-black/40 backdrop-blur-sm border border-gray-800/50 rounded-xl p-6"
+          className="bg-black/40 backdrop-blur-sm border border-gray-800/50 rounded-xl p-4 lg:p-6"
         >
-          <div className="flex flex-col lg:flex-row gap-4">
-            {/* Busca */}
-            <div className="flex-1">
+          <div className="flex flex-col gap-3 lg:gap-4">
+            {/* Primeira linha - Busca */}
+            <div className="w-full">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                 <input
@@ -793,46 +836,117 @@ export default function VendasList() {
                   placeholder="Buscar por plano, MikroTik, MAC ou senha..."
                   value={busca}
                   onChange={(e) => setBusca(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                 />
               </div>
             </div>
 
-            {/* Filtro de Mês */}
-            <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-gray-400" />
-              <input
-                type="month"
-                value={filtroMes}
-                onChange={(e) => setFiltroMes(e.target.value)}
-                className="px-3 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+            {/* Filtros de Período */}
+            <div className="flex flex-col sm:flex-row gap-3 lg:gap-4 items-start sm:items-center">
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <Clock className="h-4 w-4 text-gray-400 hidden sm:block" />
+                <span className="text-sm text-gray-300 hidden sm:block">Período:</span>
+              </div>
+              
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setFiltroPeriodo('hoje')}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                    filtroPeriodo === 'hoje'
+                      ? 'bg-blue-500 text-white shadow-lg'
+                      : 'bg-gray-800/50 text-gray-300 hover:bg-gray-700/50 hover:text-white'
+                  }`}
+                >
+                  Hoje
+                </button>
+                <button
+                  onClick={() => setFiltroPeriodo('semana')}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                    filtroPeriodo === 'semana'
+                      ? 'bg-blue-500 text-white shadow-lg'
+                      : 'bg-gray-800/50 text-gray-300 hover:bg-gray-700/50 hover:text-white'
+                  }`}
+                >
+                  Esta Semana
+                </button>
+                <button
+                  onClick={() => setFiltroPeriodo('mes')}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                    filtroPeriodo === 'mes'
+                      ? 'bg-blue-500 text-white shadow-lg'
+                      : 'bg-gray-800/50 text-gray-300 hover:bg-gray-700/50 hover:text-white'
+                  }`}
+                >
+                  Este Mês
+                </button>
+                <button
+                  onClick={() => setFiltroPeriodo('personalizado')}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                    filtroPeriodo === 'personalizado'
+                      ? 'bg-purple-500 text-white shadow-lg'
+                      : 'bg-gray-800/50 text-gray-300 hover:bg-gray-700/50 hover:text-white'
+                  }`}
+                >
+                  Personalizado
+                </button>
+              </div>
             </div>
 
-            {/* Filtro de Tipo */}
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-gray-400" />
-              <select
-                value={filtroTipo}
-                onChange={(e) => setFiltroTipo(e.target.value as TipoFiltro)}
-                className="px-3 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="todos">Todos</option>
-                <option value="pix">PIX</option>
-                <option value="voucher">Vouchers</option>
-              </select>
+            {/* Terceira linha - Filtros básicos */}
+            <div className="flex flex-col sm:flex-row gap-3 lg:gap-4">
+              {/* Filtro de Mês - só mostra quando personalizado */}
+              {filtroPeriodo === 'personalizado' && (
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <Calendar className="h-4 w-4 text-gray-400 hidden sm:block" />
+                  <input
+                    type="month"
+                    value={filtroMes}
+                    onChange={(e) => setFiltroMes(e.target.value)}
+                    className="px-3 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm w-full sm:w-auto"
+                  />
+                </div>
+              )}
+
+              {/* Filtro de Tipo */}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <Filter className="h-4 w-4 text-gray-400 hidden sm:block" />
+                <select
+                  value={filtroTipo}
+                  onChange={(e) => setFiltroTipo(e.target.value as TipoFiltro)}
+                  className="px-3 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm w-full sm:w-auto"
+                >
+                  <option value="todos">Todos</option>
+                  <option value="pix">PIX</option>
+                  <option value="voucher">Vouchers</option>
+                </select>
+              </div>
+
+              {/* Ordenação */}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <ArrowUpDown className="h-4 w-4 text-gray-400 hidden sm:block" />
+                <select
+                  value={ordenacao}
+                  onChange={(e) => setOrdenacao(e.target.value as OrdenacaoFiltro)}
+                  className="px-3 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm w-full sm:w-auto"
+                >
+                  <option value="data_desc">Data ↓</option>
+                  <option value="data_asc">Data ↑</option>
+                  <option value="valor_desc">Valor ↓</option>
+                  <option value="valor_asc">Valor ↑</option>
+                </select>
+              </div>
             </div>
 
-            {/* Filtros específicos para Admin */}
+            {/* Terceira linha - Filtros específicos para Admin */}
             {isAdmin && (
-              <>
+              <div className="flex flex-col sm:flex-row gap-3 lg:gap-4 pt-2 border-t border-gray-700/50">
                 {/* Filtro de Usuário */}
-                <div className="flex items-center gap-2">
-                  <Users className="h-4 w-4 text-gray-400" />
+                <div className="flex items-center gap-2 flex-1">
+                  <Users className="h-4 w-4 text-gray-400 hidden sm:block" />
                   <select
                     value={filtroUsuario}
                     onChange={(e) => setFiltroUsuario(e.target.value)}
-                    className="px-3 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="px-3 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm w-full"
                   >
                     <option value="todos">Todos os Usuários</option>
                     {usuarios.map(usuario => (
@@ -844,12 +958,12 @@ export default function VendasList() {
                 </div>
 
                 {/* Filtro de MikroTik */}
-                <div className="flex items-center gap-2">
-                  <Router className="h-4 w-4 text-gray-400" />
+                <div className="flex items-center gap-2 flex-1">
+                  <Router className="h-4 w-4 text-gray-400 hidden sm:block" />
                   <select
                     value={filtroMikrotik}
                     onChange={(e) => setFiltroMikrotik(e.target.value)}
-                    className="px-3 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="px-3 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm w-full"
                   >
                     <option value="todos">Todos os MikroTiks</option>
                     {mikrotiks.map(mikrotik => (
@@ -859,23 +973,8 @@ export default function VendasList() {
                     ))}
                   </select>
                 </div>
-              </>
+              </div>
             )}
-
-            {/* Ordenação */}
-            <div className="flex items-center gap-2">
-              <ArrowUpDown className="h-4 w-4 text-gray-400" />
-              <select
-                value={ordenacao}
-                onChange={(e) => setOrdenacao(e.target.value as OrdenacaoFiltro)}
-                className="px-3 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="data_desc">Data ↓</option>
-                <option value="data_asc">Data ↑</option>
-                <option value="valor_desc">Valor ↓</option>
-                <option value="valor_asc">Valor ↑</option>
-              </select>
-            </div>
           </div>
         </motion.div>
 
@@ -885,44 +984,45 @@ export default function VendasList() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.25 }}
-            className="grid grid-cols-1 lg:grid-cols-3 gap-6"
+            className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6"
           >
             {/* Métricas de Comissão */}
-            <div className="lg:col-span-1 space-y-4">
+            <div className="lg:col-span-1 space-y-3 lg:space-y-4">
               {/* Comissão Admin */}
-              <div className="bg-gradient-to-br from-emerald-500/20 to-emerald-600/20 backdrop-blur-sm border border-emerald-500/30 rounded-xl p-6">
+              <div className="bg-gradient-to-br from-emerald-500/20 to-emerald-600/20 backdrop-blur-sm border border-emerald-500/30 rounded-xl p-4 lg:p-6">
                 <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <p className="text-emerald-200/80 text-sm font-medium">Comissão Admin</p>
-                    <p className="text-2xl font-bold text-emerald-100">{formatCurrency(resumo.comissaoAdmin.valor)}</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-emerald-200/80 text-xs lg:text-sm font-medium truncate">Comissão Admin</p>
+                    <p className="text-lg lg:text-2xl font-bold text-emerald-100 truncate">{formatCurrency(resumo.comissaoAdmin.valor)}</p>
                   </div>
-                  <Crown className="h-8 w-8 text-emerald-300" />
+                  <Crown className="h-6 w-6 lg:h-8 lg:w-8 text-emerald-300 flex-shrink-0" />
                 </div>
-                <p className="text-emerald-300/70 text-sm">{resumo.comissaoAdmin.quantidade} vendas PIX</p>
+                <p className="text-emerald-300/70 text-xs lg:text-sm">{resumo.comissaoAdmin.quantidade} vendas PIX</p>
               </div>
 
               {/* Comissão Usuários */}
-              <div className="bg-gradient-to-br from-cyan-500/20 to-cyan-600/20 backdrop-blur-sm border border-cyan-500/30 rounded-xl p-6">
+              <div className="bg-gradient-to-br from-cyan-500/20 to-cyan-600/20 backdrop-blur-sm border border-cyan-500/30 rounded-xl p-4 lg:p-6">
                 <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <p className="text-cyan-200/80 text-sm font-medium">Comissão Usuários</p>
-                    <p className="text-2xl font-bold text-cyan-100">{formatCurrency(resumo.comissaoUsuarios?.valor || 0)}</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-cyan-200/80 text-xs lg:text-sm font-medium truncate">Comissão Usuários</p>
+                    <p className="text-lg lg:text-2xl font-bold text-cyan-100 truncate">{formatCurrency(resumo.comissaoUsuarios?.valor || 0)}</p>
                   </div>
-                  <Users className="h-8 w-8 text-cyan-300" />
+                  <Users className="h-6 w-6 lg:h-8 lg:w-8 text-cyan-300 flex-shrink-0" />
                 </div>
-                <p className="text-cyan-300/70 text-sm">{resumo.comissaoUsuarios?.quantidade || 0} vendas PIX</p>
+                <p className="text-cyan-300/70 text-xs lg:text-sm">{resumo.comissaoUsuarios?.quantidade || 0} vendas PIX</p>
               </div>
             </div>
 
             {/* Top Usuários */}
-            <div className="bg-black/40 backdrop-blur-sm border border-gray-800/50 rounded-xl p-6">
+            <div className="bg-black/40 backdrop-blur-sm border border-gray-800/50 rounded-xl p-4 lg:p-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-white flex items-center">
-                  <Award className="h-5 w-5 text-yellow-400 mr-2" />
-                  Top Usuários
+                <h3 className="text-base lg:text-lg font-semibold text-white flex items-center">
+                  <Award className="h-4 w-4 lg:h-5 lg:w-5 text-yellow-400 mr-2" />
+                  <span className="hidden sm:inline">Top Usuários</span>
+                  <span className="sm:hidden">Usuários</span>
                 </h3>
                 <Badge variant="outline" className="text-xs">
-                  Por volume
+                  Volume
                 </Badge>
               </div>
               
@@ -956,14 +1056,15 @@ export default function VendasList() {
             </div>
 
             {/* Top MikroTiks */}
-            <div className="bg-black/40 backdrop-blur-sm border border-gray-800/50 rounded-xl p-6">
+            <div className="bg-black/40 backdrop-blur-sm border border-gray-800/50 rounded-xl p-4 lg:p-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-white flex items-center">
-                  <Target className="h-5 w-5 text-blue-400 mr-2" />
-                  Top MikroTiks
+                <h3 className="text-base lg:text-lg font-semibold text-white flex items-center">
+                  <Target className="h-4 w-4 lg:h-5 lg:w-5 text-blue-400 mr-2" />
+                  <span className="hidden sm:inline">Top MikroTiks</span>
+                  <span className="sm:hidden">MikroTiks</span>
                 </h3>
                 <Badge variant="outline" className="text-xs">
-                  Por volume
+                  Volume
                 </Badge>
               </div>
               
@@ -1021,31 +1122,33 @@ export default function VendasList() {
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+              {/* Desktop Table */}
+              <div className="hidden lg:block overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-900/50">
                   <tr>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                    <th className="px-4 xl:px-6 py-3 xl:py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                       Data
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                    <th className="px-4 xl:px-6 py-3 xl:py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                       Tipo
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                    <th className="px-4 xl:px-6 py-3 xl:py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                       MikroTik
                     </th>
                     {isAdmin && (
-                      <th className="px-6 py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                      <th className="px-4 xl:px-6 py-3 xl:py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                         Usuário
                       </th>
                     )}
-                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                    <th className="px-4 xl:px-6 py-3 xl:py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                       Plano
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                    <th className="px-4 xl:px-6 py-3 xl:py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                       Valor
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                    <th className="px-4 xl:px-6 py-3 xl:py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                       Detalhes
                     </th>
                   </tr>
@@ -1059,11 +1162,11 @@ export default function VendasList() {
                       transition={{ delay: 0.1 * (index % 10) }}
                       className="hover:bg-gray-900/30 transition-colors"
                     >
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                      <td className="px-4 xl:px-6 py-3 xl:py-4 whitespace-nowrap text-xs xl:text-sm text-gray-300">
                         {formatDateManaus(venda.created_at)}
-                        <div className="text-xs text-gray-500">Horário de Manaus</div>
+                        <div className="text-xs text-gray-500 hidden xl:block">Horário de Manaus</div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-4 xl:px-6 py-3 xl:py-4 whitespace-nowrap">
                         <Badge
                           className={cn(
                             "text-xs font-medium",
@@ -1072,27 +1175,27 @@ export default function VendasList() {
                               : 'bg-purple-500/20 text-purple-400 border-purple-500/30'
                           )}
                         >
-                          {venda.tipo === 'pix' ? '💳 PIX' : '🎫 Voucher'}
+                          {venda.tipo === 'pix' ? 'PIX' : 'Voucher'}
                         </Badge>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-4 xl:px-6 py-3 xl:py-4 whitespace-nowrap">
                         <div className="flex items-center gap-2">
-                          <Router className="h-4 w-4 text-gray-400" />
-                          <span className="text-sm text-white font-medium">
+                          <Router className="h-3 w-3 xl:h-4 xl:w-4 text-gray-400" />
+                          <span className="text-xs xl:text-sm text-white font-medium truncate max-w-24 xl:max-w-none">
                             {venda.mikrotik.nome}
                           </span>
                         </div>
                       </td>
                       {isAdmin && (
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-4 xl:px-6 py-3 xl:py-4 whitespace-nowrap">
                           {venda.usuario ? (
                             <div className="flex items-center gap-2">
-                              <Users className="h-4 w-4 text-gray-400" />
-                              <div>
-                                <div className="text-sm text-white font-medium">
+                              <Users className="h-3 w-3 xl:h-4 xl:w-4 text-gray-400" />
+                              <div className="min-w-0">
+                                <div className="text-xs xl:text-sm text-white font-medium truncate max-w-24 xl:max-w-none">
                                   {venda.usuario.nome}
                                 </div>
-                                <div className="text-xs text-gray-400">
+                                <div className="text-xs text-gray-400 truncate max-w-24 xl:max-w-none hidden xl:block">
                                   {venda.usuario.email}
                                 </div>
                               </div>
@@ -1102,22 +1205,22 @@ export default function VendasList() {
                           )}
                         </td>
                       )}
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-white font-medium">
+                      <td className="px-4 xl:px-6 py-3 xl:py-4 whitespace-nowrap">
+                        <div className="text-xs xl:text-sm text-white font-medium truncate max-w-32 xl:max-w-none">
                           {venda.plano_nome}
                         </div>
                         {venda.senha && (
-                          <div className="text-xs text-blue-400 font-mono">
+                          <div className="text-xs text-blue-400 font-mono hidden xl:block">
                             Senha: {venda.senha}
                           </div>
                         )}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-lg font-bold text-green-400">
+                      <td className="px-4 xl:px-6 py-3 xl:py-4 whitespace-nowrap">
+                        <div className="text-sm xl:text-lg font-bold text-green-400">
                           {formatCurrency(venda.valor_total)}
                         </div>
                         {isAdmin && venda.tipo === 'pix' && (
-                          <div className="space-y-1 mt-1">
+                          <div className="space-y-1 mt-1 hidden xl:block">
                             <div className="text-xs">
                               <span className="text-emerald-400">Admin: {formatCurrency(venda.valor_admin || 0)}</span>
                             </div>
@@ -1127,15 +1230,15 @@ export default function VendasList() {
                           </div>
                         )}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">
+                      <td className="px-4 xl:px-6 py-3 xl:py-4 whitespace-nowrap text-xs xl:text-sm text-gray-400">
                         <div className="space-y-1">
                           {venda.mac_address && (
-                            <div className="font-mono text-xs">
+                            <div className="font-mono text-xs truncate max-w-20 xl:max-w-none">
                               MAC: {venda.mac_address}
                             </div>
                           )}
                           {venda.payment_id && (
-                            <div className="font-mono text-xs">
+                            <div className="font-mono text-xs hidden xl:block">
                               ID: {venda.payment_id.substring(0, 8)}...
                             </div>
                           )}
@@ -1151,6 +1254,104 @@ export default function VendasList() {
                 </tbody>
               </table>
             </div>
+            
+            {/* Mobile Card Layout */}
+            <div className="lg:hidden space-y-3">
+              {vendasFiltradas.map((venda, index) => (
+                <motion.div
+                  key={venda.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 * (index % 10) }}
+                  className="bg-gray-900/30 backdrop-blur-sm border border-gray-800/50 rounded-xl p-4"
+                >
+                  {/* Header Row */}
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Badge
+                        className={cn(
+                          "text-xs font-medium",
+                          venda.tipo === 'pix'
+                            ? 'bg-blue-500/20 text-blue-400 border-blue-500/30'
+                            : 'bg-purple-500/20 text-purple-400 border-purple-500/30'
+                        )}
+                      >
+                        {venda.tipo === 'pix' ? '💳 PIX' : '🎫 Voucher'}
+                      </Badge>
+                    </div>
+                    <div className="text-lg font-bold text-green-400">
+                      {formatCurrency(venda.valor_total)}
+                    </div>
+                  </div>
+
+                  {/* Date and Plan */}
+                  <div className="mb-3">
+                    <div className="text-sm font-medium text-white mb-1">
+                      {venda.plano_nome}
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      {formatDateManaus(venda.created_at)}
+                    </div>
+                  </div>
+
+                  {/* MikroTik and User (if admin) */}
+                  <div className="space-y-2 mb-3">
+                    <div className="flex items-center gap-2">
+                      <Router className="h-4 w-4 text-gray-400" />
+                      <span className="text-sm text-white">
+                        {venda.mikrotik.nome}
+                      </span>
+                    </div>
+                    
+                    {isAdmin && venda.usuario && (
+                      <div className="flex items-center gap-2">
+                        <Users className="h-4 w-4 text-gray-400" />
+                        <div>
+                          <div className="text-sm text-white">
+                            {venda.usuario.nome}
+                          </div>
+                          <div className="text-xs text-gray-400">
+                            {venda.usuario.email}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Admin Commission Breakdown */}
+                  {isAdmin && venda.tipo === 'pix' && (
+                    <div className="flex justify-between text-xs mb-3 p-2 bg-gray-800/30 rounded-lg">
+                      <div>
+                        <span className="text-emerald-400">Admin: {formatCurrency(venda.valor_admin || 0)}</span>
+                      </div>
+                      <div>
+                        <span className="text-cyan-400">User: {formatCurrency(venda.valor_usuario || 0)}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Details */}
+                  <div className="space-y-1 text-xs text-gray-400 border-t border-gray-700/50 pt-2">
+                    {venda.mac_address && (
+                      <div className="font-mono">
+                        MAC: {venda.mac_address}
+                      </div>
+                    )}
+                    {venda.senha && (
+                      <div className="font-mono text-blue-400">
+                        Senha: {venda.senha}
+                      </div>
+                    )}
+                    {venda.payment_id && (
+                      <div className="font-mono">
+                        ID: {venda.payment_id.substring(0, 8)}...
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+            </>
           )}
         </motion.div>
       </div>

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { useSystemSettings } from '../contexts/SystemSettingsContext'
+import { SystemLogo } from '../components/ui/SystemLogo'
 import { motion } from 'framer-motion'
 import { Button } from '../components/ui/button'
 import { Badge } from '../components/ui/badge'
@@ -38,6 +40,7 @@ import {
 } from 'lucide-react'
 
 const LandingPage = () => {
+  const { settings } = useSystemSettings()
   const [currentTextIndex, setCurrentTextIndex] = useState(0)
   const [displayText, setDisplayText] = useState('')
   const [isDeleting, setIsDeleting] = useState(false)
@@ -213,11 +216,9 @@ const LandingPage = () => {
               whileHover={{ scale: 1.05 }}
               transition={{ type: "spring", stiffness: 400 }}
             >
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg flex items-center justify-center">
-                <Wifi className="w-5 h-5 text-white" />
-              </div>
+              <SystemLogo size="md" />
               <h1 className="text-xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
-                MikroPix
+                {settings.site_name}
               </h1>
             </motion.div>
             
@@ -318,8 +319,8 @@ const LandingPage = () => {
                         <Wifi className="w-5 h-5 text-blue-400" />
                       </div>
                       <div>
-                        <h3 className="text-white font-semibold">MikroPix Dashboard</h3>
-                        <p className="text-gray-400 text-sm">mikropix.online</p>
+                        <h3 className="text-white font-semibold">{settings.site_name} Dashboard</h3>
+                        <p className="text-gray-400 text-sm">{settings.site_url?.replace('https://', '')}</p>
                       </div>
                     </div>
                     <div className="flex space-x-1">
@@ -739,11 +740,9 @@ const LandingPage = () => {
         <div className="container mx-auto px-4">
           <div className="flex flex-col md:flex-row justify-between items-center">
             <div className="flex items-center space-x-2 mb-4 md:mb-0">
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg flex items-center justify-center">
-                <Wifi className="w-5 h-5 text-white" />
-              </div>
+              <SystemLogo size="md" />
               <span className="text-xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
-                MikroPix
+                {settings.site_name}
               </span>
             </div>
             
@@ -766,7 +765,7 @@ const LandingPage = () => {
           </div>
           
           <div className="text-center text-gray-500 mt-8 pt-8 border-t border-gray-800/50">
-            <p>&copy; 2024 MikroPix. Todos os direitos reservados.</p>
+            <p>&copy; 2024 {settings.site_name}. Todos os direitos reservados.</p>
           </div>
         </div>
       </footer>

@@ -5,6 +5,8 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Link, Navigate } from 'react-router-dom'
 import { useAuthContext } from '../../contexts/AuthContext'
+import { useSystemSettings } from '../../contexts/SystemSettingsContext'
+import { SystemLogo } from '../../components/ui/SystemLogo'
 import { Button, Input, InlineLoader } from '../../components/ui'
 import { Eye, EyeOff, Mail, Lock, LogIn, ArrowRight, Wifi, Star } from 'lucide-react'
 
@@ -44,6 +46,7 @@ function traduzErroSupabase(msg: string): string {
 
 export function Login() {
   const { signIn, user } = useAuthContext()
+  const { settings } = useSystemSettings()
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
@@ -77,9 +80,20 @@ export function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center p-4">
-      <div className="w-full max-w-5xl mx-auto">
-        <div className="grid lg:grid-cols-2 gap-8 lg:gap-12 items-center">
+    <div className="min-h-screen bg-black">
+      {/* Header fixo no topo */}
+      <header className="fixed top-0 left-0 right-0 z-50 bg-black/90 backdrop-blur-sm border-b border-gray-800/50 p-4">
+        <div className="flex items-center justify-center">
+          <div className="flex items-center gap-3">
+            <SystemLogo size="lg" />
+            <h1 className="text-xl font-bold text-white">{settings.site_name}</h1>
+          </div>
+        </div>
+      </header>
+
+      <div className="pt-20 min-h-screen flex items-center justify-center p-4">
+        <div className="w-full max-w-5xl mx-auto">
+          <div className="grid lg:grid-cols-2 gap-8 lg:gap-12 items-center">
           
           {/* Left Side - Welcome Back */}
           <motion.div
@@ -95,16 +109,6 @@ export function Login() {
               transition={{ delay: 0.2, duration: 0.8 }}
               className="mb-8"
             >
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500/20 to-cyan-500/10 border border-blue-500/20 backdrop-blur-sm flex items-center justify-center">
-                  <Wifi className="h-6 w-6 text-blue-400" />
-                </div>
-                <div>
-                  <h1 className="text-2xl font-bold text-white">MikroPix</h1>
-                  <p className="text-gray-400 text-sm">Sistema de gestão MikroTik</p>
-                </div>
-              </div>
-              
               <h2 className="text-3xl lg:text-4xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent mb-4">
                 Bem-vindo de volta
               </h2>
@@ -319,6 +323,7 @@ export function Login() {
           </motion.div>
         </div>
       </div>
+    </div>
     </div>
   )
 }
