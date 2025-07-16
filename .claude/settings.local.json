@@ -13,7 +13,10 @@
       "Bash(ss:*)",
       "Bash(npx tsc:*)",
       "Bash(timeout 5s npm run dev)",
-      "Bash(timeout 10s npm run dev)"
+      "Bash(timeout 10s npm run dev)",
+      "Bash(find:*)",
+      "Bash(cp:*)",
+      "Bash(grep:*)"
     ],
     "deny": []
   }

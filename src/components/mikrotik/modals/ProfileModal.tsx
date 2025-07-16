@@ -16,11 +16,20 @@ interface HotspotProfile {
   supabaseId?: string
 }
 
+interface SupabaseProfile {
+  id: string
+  mikrotik_id: string
+  nome: string
+  valor: number
+  ativo: boolean
+}
+
 interface ProfileModalProps {
   isOpen: boolean
   onClose: () => void
   onSubmit: (profileData: any) => void
-  editingProfile?: HotspotProfile | null
+  profile?: HotspotProfile | null
+  supabaseProfiles?: SupabaseProfile[]
   loading?: boolean
 }
 
@@ -28,7 +37,8 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   isOpen,
   onClose,
   onSubmit,
-  editingProfile,
+  profile,
+  supabaseProfiles = [],
   loading = false
 }) => {
   const [formData, setFormData] = useState({
@@ -37,20 +47,24 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
     rate_limit: '',
     session_timeout: '',
     idle_timeout: '',
-    comment: '',
     disabled: false
   })
 
   useEffect(() => {
-    if (editingProfile) {
+    if (profile) {
+      console.log('[ProfileModal] Loading profile for editing:', profile)
+      
+      // Get synced data if available
+      const syncedData = supabaseProfiles.find(plan => plan.nome === profile.name)
+      console.log('[ProfileModal] Found synced data:', syncedData)
+      
       setFormData({
-        name: editingProfile.name || '',
-        valor: editingProfile.valor?.toString() || '',
-        rate_limit: editingProfile['rate-limit'] || '',
-        session_timeout: editingProfile['session-timeout'] || '',
-        idle_timeout: editingProfile['idle-timeout'] || '',
-        comment: editingProfile.comment || '',
-        disabled: editingProfile.disabled || false
+        name: profile.name || '',
+        valor: (syncedData?.valor || profile.valor || 0).toString(),
+        rate_limit: profile['rate-limit'] || '',
+        session_timeout: profile['session-timeout'] || '',
+        idle_timeout: profile['idle-timeout'] || '',
+        disabled: profile.disabled || false
       })
     } else {
       setFormData({
@@ -59,21 +73,29 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
         rate_limit: '',
         session_timeout: '',
         idle_timeout: '',
-        comment: '',
         disabled: false
       })
     }
-  }, [editingProfile, isOpen])
+  }, [profile, supabaseProfiles, isOpen])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    // Preserve the sync status and database ID when submitting
+    
+    console.log('[ProfileModal] Submitting form data:', formData)
+    
+    // Check if profile is synced
+    const syncedData = profile ? supabaseProfiles.find(plan => plan.nome === profile.name) : null
+    
     const submitData = {
       ...formData,
-      inDatabase: editingProfile?.inDatabase,
-      supabaseId: editingProfile?.supabaseId,
-      mikrotikId: editingProfile?.['.id']
+      valor: parseFloat(formData.valor) || 0,
+      inDatabase: !!syncedData,
+      supabaseId: syncedData?.id,
+      mikrotikId: profile?.['.id'],
+      isEdit: !!profile
     }
+    
+    console.log('[ProfileModal] Final submit data:', submitData)
     onSubmit(submitData)
   }
 
@@ -84,7 +106,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
       rate_limit: '',
       session_timeout: '',
       idle_timeout: '',
-      comment: '',
       disabled: false
     })
     onClose()
@@ -102,9 +123,9 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
             <Settings className="h-5 w-5 text-purple-400" />
             <div className="flex flex-col">
               <h3 className="text-lg font-semibold text-white">
-                {editingProfile ? 'Editar Plano' : 'Criar Novo Plano'}
+                {profile ? 'Editar Plano' : 'Criar Novo Plano'}
               </h3>
-              {editingProfile?.inDatabase && (
+              {profile && supabaseProfiles.some(plan => plan.nome === profile.name) && (
                 <div className="flex items-center gap-1 mt-1">
                   <Database className="h-3 w-3 text-green-400" />
                   <span className="text-xs text-green-400 font-medium">Plano Sincronizado</span>
@@ -221,19 +242,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
             </p>
           </div>
 
-          {/* Comment */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Comentário
-            </label>
-            <textarea
-              value={formData.comment}
-              onChange={(e) => setFormData({ ...formData, comment: e.target.value })}
-              placeholder="Comentário sobre o plano (opcional)"
-              rows={3}
-              className="w-full bg-black border border-gray-700 text-white rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-            />
-          </div>
 
           {/* Status */}
           <div className="flex items-center space-x-2">
@@ -276,7 +284,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                   Salvando...
                 </div>
               ) : (
-                editingProfile ? 'Atualizar Plano' : 'Criar Plano'
+                profile ? 'Atualizar Plano' : 'Criar Plano'
               )}
             </Button>
             <Button
