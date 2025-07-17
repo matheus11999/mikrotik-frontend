@@ -101,6 +101,34 @@ interface HotspotUser {
   uptime?: string
 }
 
+// Convert MikroTik timeout format to seconds
+const convertToSeconds = (timeoutStr: string): number => {
+  if (!timeoutStr) return 0
+  
+  // Remove espaços e converter para lowercase
+  const cleanStr = timeoutStr.trim().toLowerCase()
+  
+  // Se já for um número (segundos), retorna
+  if (/^\d+$/.test(cleanStr)) {
+    return parseInt(cleanStr)
+  }
+  
+  // Extrair número e unidade
+  const match = cleanStr.match(/^(\d+)([smhd]?)$/)
+  if (!match) return 0
+  
+  const value = parseInt(match[1])
+  const unit = match[2] || 's' // padrão é segundos
+  
+  switch (unit) {
+    case 's': return value
+    case 'm': return value * 60
+    case 'h': return value * 3600
+    case 'd': return value * 86400
+    default: return value
+  }
+}
+
 // Get API URL from system settings
 const getApiUrl = async () => {
   try {
@@ -138,6 +166,7 @@ const UserProfiles: React.FC<UserProfilesProps> = ({
   const [editingProfile, setEditingProfile] = useState<HotspotProfile | null>(null)
   const [baseUrl, setBaseUrl] = useState(propBaseUrl || '')
   const [syncingProfile, setSyncingProfile] = useState<string | null>(null)
+  const [submittingProfile, setSubmittingProfile] = useState(false)
 
   const itemsPerPage = 12 // 2 colunas x 6 linhas
 
@@ -376,9 +405,9 @@ const UserProfiles: React.FC<UserProfilesProps> = ({
       const rateLimit = profile['rate-limit'] || ''
       const rateLimitParts = rateLimit.includes('/') ? rateLimit.split('/') : ['', '']
       
-      // Parse session timeout safely
+      // Parse session timeout safely - converter para segundos primeiro
       const sessionTimeout = profile['session-timeout'] || ''
-      const sessionTimeoutNumber = sessionTimeout ? parseInt(sessionTimeout) : null
+      const sessionTimeoutNumber = sessionTimeout ? convertToSeconds(sessionTimeout) : null
       
       const profilePayload = {
         mikrotik_id: mikrotikId,
@@ -485,6 +514,263 @@ const UserProfiles: React.FC<UserProfilesProps> = ({
       
     } catch (error) {
       console.error('[UserProfiles] Error removing sync:', error)
+      addToast({
+        type: 'error',
+        title: 'Erro!',
+        description: error instanceof Error ? error.message : 'Erro desconhecido'
+      })
+    } finally {
+      setSyncingProfile(null)
+    }
+  }
+
+  // Handle profile submission (create/edit)
+  const handleProfileSubmit = async (profileData: any) => {
+    console.log('[UserProfiles] Handling profile submit:', profileData)
+    
+    setSubmittingProfile(true)
+    
+    try {
+      const isEdit = profileData.isEdit
+      const isSynced = profileData.inDatabase
+      
+      if (isEdit) {
+        // Update existing profile
+        await handleUpdateProfile(profileData)
+      } else {
+        // Create new profile
+        await handleCreateProfile(profileData)
+      }
+      
+      // Refresh data
+      await Promise.all([fetchProfiles(), fetchSupabasePlans(), fetchHotspotUsers()])
+      
+      addToast({
+        type: 'success',
+        title: isEdit ? 'Plano atualizado!' : 'Plano criado!',
+        description: `Plano "${profileData.name}" ${isEdit ? 'atualizado' : 'criado'} com sucesso`
+      })
+      
+    } catch (error) {
+      console.error('[UserProfiles] Error handling profile submit:', error)
+      addToast({
+        type: 'error',
+        title: 'Erro!',
+        description: error instanceof Error ? error.message : 'Erro desconhecido'
+      })
+      throw error // Re-throw to prevent modal from closing
+    } finally {
+      setSubmittingProfile(false)
+    }
+  }
+
+  // Create new profile
+  const handleCreateProfile = async (profileData: any) => {
+    console.log('[UserProfiles] Creating new profile:', profileData)
+    
+    // Create profile in MikroTik
+    const profilePayload = {
+      name: profileData.name,
+      'rate-limit': profileData.rate_limit || undefined,
+      'session-timeout': profileData.session_timeout || undefined,
+      'idle-timeout': profileData.idle_timeout || undefined
+    }
+    
+    const url = `${baseUrl}/api/mikrotik/${mikrotikId}/rest/ip/hotspot/user/profile`
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        ...headers,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(profilePayload)
+    })
+    
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`Erro ao criar plano no MikroTik: ${response.status} - ${errorText}`)
+    }
+    
+    const mikrotikResult = await response.json()
+    console.log('[UserProfiles] MikroTik create result:', mikrotikResult)
+    
+    // If has value, sync to Supabase
+    if (profileData.valor && profileData.valor > 0) {
+      const valorNumerico = parseFloat(profileData.valor)
+      
+      const supabasePayload = {
+        mikrotik_id: mikrotikId,
+        nome: profileData.name,
+        valor: valorNumerico,
+        descricao: `Plano ${profileData.name}`,
+        rate_limit: profileData.rate_limit || null,
+        session_timeout: profileData.session_timeout || null,
+        idle_timeout: profileData.idle_timeout || null,
+        velocidade_upload: profileData.rate_limit ? profileData.rate_limit.split('/')[0] : null,
+        velocidade_download: profileData.rate_limit ? profileData.rate_limit.split('/')[1] : null,
+        minutos: profileData.session_timeout ? Math.floor(convertToSeconds(profileData.session_timeout) / 60) : null,
+        ativo: !profileData.disabled,
+        visivel: true,
+        ordem: 0,
+        mikrotik_profile_id: mikrotikResult.data?.['.id'] || profileData.name,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }
+      
+      const { error } = await supabase
+        .from('planos')
+        .insert([supabasePayload])
+      
+      if (error) {
+        throw new Error(`Erro ao sincronizar com banco de dados: ${error.message}`)
+      }
+    }
+  }
+
+  // Update existing profile
+  const handleUpdateProfile = async (profileData: any) => {
+    console.log('[UserProfiles] Updating profile:', profileData)
+    
+    const isSynced = profileData.inDatabase
+    
+    // Update profile in MikroTik
+    const profilePayload = {
+      name: profileData.name,
+      'rate-limit': profileData.rate_limit || undefined,
+      'session-timeout': profileData.session_timeout || undefined,
+      'idle-timeout': profileData.idle_timeout || undefined
+    }
+    
+    const url = `${baseUrl}/api/mikrotik/${mikrotikId}/rest/ip/hotspot/user/profile/${profileData.mikrotikId}`
+    
+    const response = await fetch(url, {
+      method: 'PATCH',
+      headers: {
+        ...headers,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(profilePayload)
+    })
+    
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`Erro ao atualizar plano no MikroTik: ${response.status} - ${errorText}`)
+    }
+    
+    console.log('[UserProfiles] MikroTik update successful')
+    
+    // If synced, update in Supabase
+    if (isSynced && profileData.supabaseId) {
+      const valorNumerico = parseFloat(profileData.valor)
+      
+      const supabasePayload = {
+        nome: profileData.name,
+        valor: valorNumerico,
+        descricao: `Plano ${profileData.name}`,
+        rate_limit: profileData.rate_limit || null,
+        session_timeout: profileData.session_timeout || null,
+        idle_timeout: profileData.idle_timeout || null,
+        velocidade_upload: profileData.rate_limit ? profileData.rate_limit.split('/')[0] : null,
+        velocidade_download: profileData.rate_limit ? profileData.rate_limit.split('/')[1] : null,
+        minutos: profileData.session_timeout ? Math.floor(convertToSeconds(profileData.session_timeout) / 60) : null,
+        ativo: !profileData.disabled,
+        updated_at: new Date().toISOString()
+      }
+      
+      const { error } = await supabase
+        .from('planos')
+        .update(supabasePayload)
+        .eq('id', profileData.supabaseId)
+      
+      if (error) {
+        throw new Error(`Erro ao atualizar no banco de dados: ${error.message}`)
+      }
+      
+      console.log('[UserProfiles] Supabase update successful')
+    } else if (profileData.valor && profileData.valor > 0) {
+      // If not synced but has value, create sync
+      const valorNumerico = parseFloat(profileData.valor)
+      
+      const supabasePayload = {
+        mikrotik_id: mikrotikId,
+        nome: profileData.name,
+        valor: valorNumerico,
+        descricao: `Plano ${profileData.name}`,
+        rate_limit: profileData.rate_limit || null,
+        session_timeout: profileData.session_timeout || null,
+        idle_timeout: profileData.idle_timeout || null,
+        velocidade_upload: profileData.rate_limit ? profileData.rate_limit.split('/')[0] : null,
+        velocidade_download: profileData.rate_limit ? profileData.rate_limit.split('/')[1] : null,
+        minutos: profileData.session_timeout ? Math.floor(convertToSeconds(profileData.session_timeout) / 60) : null,
+        ativo: !profileData.disabled,
+        visivel: true,
+        ordem: 0,
+        mikrotik_profile_id: profileData.mikrotikId,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }
+      
+      const { error } = await supabase
+        .from('planos')
+        .insert([supabasePayload])
+      
+      if (error) {
+        throw new Error(`Erro ao sincronizar com banco de dados: ${error.message}`)
+      }
+      
+      console.log('[UserProfiles] New sync created')
+    }
+  }
+
+  // Delete profile
+  const handleDeleteProfile = async (profile: HotspotProfile) => {
+    if (!confirm(`Tem certeza que deseja excluir o plano "${profile.name}"?`)) {
+      return
+    }
+
+    setSyncingProfile(profile['.id'])
+    
+    try {
+      // Check if profile is synced
+      const syncedData = supabasePlans.find(plan => plan.nome === profile.name)
+      
+      // Delete from MikroTik
+      const url = `${baseUrl}/api/mikrotik/${mikrotikId}/rest/ip/hotspot/user/profile/${profile['.id']}`
+      
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers
+      })
+      
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`Erro ao excluir plano no MikroTik: ${response.status} - ${errorText}`)
+      }
+      
+      // If synced, delete from Supabase
+      if (syncedData) {
+        const { error } = await supabase
+          .from('planos')
+          .delete()
+          .eq('id', syncedData.id)
+        
+        if (error) {
+          throw new Error(`Erro ao remover do banco de dados: ${error.message}`)
+        }
+      }
+      
+      // Refresh data
+      await Promise.all([fetchProfiles(), fetchSupabasePlans(), fetchHotspotUsers()])
+      
+      addToast({
+        type: 'success',
+        title: 'Plano excluído!',
+        description: `Plano "${profile.name}" foi excluído com sucesso`
+      })
+      
+    } catch (error) {
+      console.error('[UserProfiles] Error deleting profile:', error)
       addToast({
         type: 'error',
         title: 'Erro!',
@@ -790,11 +1076,7 @@ const UserProfiles: React.FC<UserProfilesProps> = ({
                         size="sm"
                         variant="outline"
                         className="border-red-600/30 text-red-400 hover:bg-red-600/10"
-                        onClick={() => {
-                          if (confirm(`Tem certeza que deseja excluir o plano "${profile.name}"?`)) {
-                            // handleDeleteProfile(profile)
-                          }
-                        }}
+                        onClick={() => handleDeleteProfile(profile)}
                       >
                         <Trash2 className="h-3 w-3" />
                       </Button>
@@ -854,14 +1136,20 @@ const UserProfiles: React.FC<UserProfilesProps> = ({
             setShowModal(false)
             setEditingProfile(null)
           }}
-          onSubmit={(data) => {
+          onSubmit={async (data) => {
             console.log('Profile submit:', data)
-            // Handle profile submit
-            setShowModal(false)
-            setEditingProfile(null)
+            try {
+              await handleProfileSubmit(data)
+              setShowModal(false)
+              setEditingProfile(null)
+            } catch (error) {
+              // Error handled in handleProfileSubmit, just prevent modal from closing
+              console.log('[UserProfiles] Submit error caught, keeping modal open')
+            }
           }}
           profile={editingProfile as any}
           supabaseProfiles={supabasePlans}
+          loading={submittingProfile}
         />
       )}
     </div>
