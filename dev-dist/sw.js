@@ -70,7 +70,7 @@ if (!self.define) {
 define(['./workbox-53402315'], (function (workbox) { 'use strict';
 
   workbox.setCacheNameDetails({
-    prefix: "mikropix-1752765230233"
+    prefix: "mikropix-1752924014956"
   });
   self.skipWaiting();
   workbox.clientsClaim();
@@ -85,7 +85,7 @@ define(['./workbox-53402315'], (function (workbox) { 'use strict';
     "revision": "3ca0b8505b4bec776b69afdba2768812"
   }, {
     "url": "/index.html",
-    "revision": "0.3ql30o633p8"
+    "revision": "0.jsevetfnt2g"
   }], {});
   workbox.cleanupOutdatedCaches();
   workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("/index.html"), {
